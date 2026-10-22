@@ -1,4 +1,5 @@
 ; extends
 
 ((text) @injection.content
-  (#vimoi-target-language!))
+  (#vimoi-target-language!)
+  (#set! injection.combined))

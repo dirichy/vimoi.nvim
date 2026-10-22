@@ -17,7 +17,6 @@ local initialize = require("vimoi.util").once(function()
     local language = vim.b[source].vimoi_template_language
     if language and language ~= "" then
       metadata["injection.language"] = language
-      metadata["injection.combined"] = 1
     end
   end, { force = true })
 
@@ -35,6 +34,7 @@ end
 ---@param filetype? string
 function M.configure_template_buffer(buf, filetype)
   initialize()
+  local previous_language = vim.b[buf].vimoi_template_language
   -- Health reads this snapshot without resolving paths or starting chezmoi.
   vim.b[buf].vimoi_template_filetype = filetype
   local language
@@ -52,6 +52,12 @@ function M.configure_template_buffer(buf, filetype)
     vim.bo[buf].filetype = "gotmpl"
   end
   pcall(vim.treesitter.stop, buf)
+  local parser = vim.treesitter.get_parser(buf, "gotmpl")
+  if parser and previous_language ~= vim.b[buf].vimoi_template_language then
+    -- FileType handlers may have parsed before host detection. Restarting only
+    -- the highlighter reuses those cached trees without updating injections.
+    parser:invalidate()
+  end
   pcall(vim.treesitter.start, buf, "gotmpl")
   if has_host_parser or not filetype or filetype == "" or filetype == "gotmpl" then
     vim.bo[buf].syntax = "gotmpl"

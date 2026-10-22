@@ -626,7 +626,13 @@ through the CLI path cache; filename classification itself requires no CLI calls
 It also classifies ignore/remove contents as destination patterns and symlink
 contents as link targets; navigation and event registration share those rules.
 `highlight` owns template colors, buffer highlighting, host-language injection,
-and Vim syntax fallback. Top-level setup starts the CLI
+and Vim syntax fallback. A host-language change invalidates the template parser
+so injections are recalculated even if a FileType handler parsed it before host
+detection. Restarting the highlighter alone retains cached injection regions.
+Combined host injections are declared with #set! injection.combined in the
+query so viewport parsing still collects all host text; setting this only in
+a runtime directive does not enable Neovim's combined-query full scan.
+Top-level setup starts the CLI
 and watches; CLI methods own query caches, including shared-template directory
 discovery.
 Ex commands are registered once during setup by the API module; loading it alone
