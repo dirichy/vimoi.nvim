@@ -1,0 +1,14 @@
+# Application settings
+name: {{ .name | quote }}
+theme: light
+
+{{ if true }}
+features:
+  sync: true
+  notifications: true
+{{ end }}
+
+servers:
+{{ range .servers }}
+  - {{ . | quote }}
+{{ end }}

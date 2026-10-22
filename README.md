@@ -6,6 +6,18 @@
 
 > 项目处于 alpha 阶段，API 和行为仍可能调整。
 
+## 演示
+
+编辑未保存的模板，右侧只读预览同步更新；修改条件分支和 undo 同样生效：
+
+![实时模板预览：静态文本编辑、条件分支切换和撤销](docs/demos/preview.gif)
+
+模板 diff 与手动 re-add：把 target 的静态修改写回 source，保留模板表达式；动态修改留待手动处理：
+
+![模板 diff 与 re-add：静态修改写回，动态表达式保留](docs/demos/readd.gif)
+
+[预览 MP4](docs/demos/preview.mp4) · [re-add MP4](docs/demos/readd.mp4) · [重录说明](docs/demos/README.md)
+
 ## 目标
 
 - 用户仍然编辑原本的目标文件，保留正常的 LSP、formatter 和项目上下文。
