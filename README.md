@@ -229,7 +229,7 @@ require("vimoi").setup({
   watch = { buffer_write_fallback = "auto" },
   diff = { validate = false },
   completion = { enabled = true },
-  diagnostics = { enabled = true },
+  diagnostics = { enabled = true, host = true },
   highlight = {
     template_bg = { dark = "#343B52", light = "#E4E9F4" },
   },
@@ -283,6 +283,27 @@ Template diagnostics are enabled by default, without opening diff or preview. Ed
 syntax and execution checks using native Neovim diagnostics alongside other LSP diagnostics.
 Disable them with `diagnostics = { enabled = false }` and customize their appearance with
 `vim.diagnostic.config()`.
+
+Host diagnostics automatically use the target's filetype and your existing checker
+configuration. Enable the corresponding server with `vim.lsp.enable()` as usual,
+or configure `require("lint").linters_by_ft` for nvim-lint. The plugin checks rendered
+output and maps diagnostics back to the template, preserving each provider's source,
+severity, and code. No extra checker list is needed in vimoi.
+Messages use `[gotmpl]` for template errors and `[host:lua]`, `[host:yaml]`, etc.
+for projected host diagnostics, so they remain distinguishable in any diagnostic UI.
+
+Static text gets precise source ranges; errors in dynamic output point to the producing
+template region and are marked as template-generated. Repeated source locations are
+deduplicated; output with ambiguous source locations is skipped. Only the currently
+rendered branches are checked. Set `diagnostics = { host = false }` to disable host
+checks while keeping template diagnostics.
+
+Host checks require a known host filetype and an enabled LSP or configured nvim-lint
+provider. nvim-lint integration runs stdin-capable linters only. Other checker plugins
+are not integrated. Checks use hidden, unsaved snapshots with unique names beside the
+target (or source/current directory when no managed target is available). Project root
+discovery works normally, but rules tied to an exact filename, such as some YAML schema
+associations, may need adjustment. Real target buffers and files are untouched.
 
 Diagnostics and previews execute template functions and may invoke password helpers.
 Slow tasks can be canceled and have no default timeout.

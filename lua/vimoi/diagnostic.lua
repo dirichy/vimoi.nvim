@@ -11,14 +11,14 @@ local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
 ---@field skeleton? string
 ---@field init? boolean
 ---@field context_generation? integer
----@field result? { error?: string, reported?: boolean } Cached success or failure for the current skeleton/context.
+---@field result? { error?: string, reported?: boolean, rendered_skeleton?: string } Cached success or failure for the current skeleton/context.
 ---@field request? table Identity of the current asynchronous request.
 ---@field job? VimoiCommand
 ---@field prepare_error? string
 
 ---@type table<integer, VimoiDiagnosticBuffer>
 local buffers = {}
-local enabled
+local enabled, host_enabled
 
 ---@param node TSNode
 ---@param message string
@@ -32,7 +32,7 @@ local function node_diagnostic(node, message)
     end_col = end_col,
     severity = vim.diagnostic.severity.ERROR,
     source = "vimoi",
-    message = message,
+    message = "[gotmpl] " .. message,
   }
 end
 
@@ -136,15 +136,10 @@ local function render_error(state)
     local tag = candidates[1]
     local row, col = util.byte_to_position(prepared.source, tag.start_byte)
     local end_row, end_col = util.byte_to_position(prepared.source, tag.end_byte)
-    return {
-      lnum = row,
-      col = col,
-      end_lnum = end_row,
-      end_col = end_col,
-      severity = vim.diagnostic.severity.ERROR,
-      source = "vimoi",
-      message = message,
-    }
+    local diagnostic = node_diagnostic(root, message)
+    diagnostic.lnum, diagnostic.col = row, col
+    diagnostic.end_lnum, diagnostic.end_col = end_row, end_col
+    return diagnostic
   end
 end
 
@@ -154,6 +149,12 @@ local function publish(buf, state)
   local result = assert(state.result)
   local diagnostic = result.error and render_error(state)
   vim.diagnostic.set(namespace, buf, diagnostic and { diagnostic } or {})
+  if host_enabled and not result.error then
+    local trace = require("vimoi.gotmpl.source_map").restore(assert(state.prepared), result.rendered_skeleton)
+    if trace then
+      require("vimoi.host_diagnostic").update(buf, trace)
+    end
+  end
   if result.error and not diagnostic and not result.reported then
     result.reported = true
     util.notify(result.error, "diagnostic", vim.log.levels.WARN)
@@ -217,7 +218,7 @@ local function check(buf, state)
   end
   if #prepared.template_tags == 0 or prepared.output ~= nil then
     cancel_request(state)
-    state.result = {}
+    state.result = { rendered_skeleton = prepared.rendered_skeleton or prepared.skeleton }
   end
   if state.result then
     return { tick = state.tick }
@@ -227,7 +228,7 @@ local function check(buf, state)
   end
   local request, context_generation = {}, cli.context_generation
   state.request = request
-  local _, err = util.await(function(done)
+  local rendered_skeleton, err = util.await(function(done)
     local job = cli.execute_template(prepared.skeleton, { init = init, cache = true, callback = done })
     ---@cast job VimoiCommand?
     state.job = job
@@ -242,7 +243,7 @@ local function check(buf, state)
   if cancelled or context_generation ~= cli.context_generation then
     return
   end
-  state.result = { error = err }
+  state.result = { error = err, rendered_skeleton = rendered_skeleton }
   return { tick = state.tick }
 end
 
@@ -251,6 +252,9 @@ local function request_check(buf)
   local state = buffers[buf]
   if state then
     vim.diagnostic.reset(namespace, buf)
+    if package.loaded["vimoi.host_diagnostic"] then
+      require("vimoi.host_diagnostic").clear(buf)
+    end
     assert(state.check)()
   end
 end
@@ -261,16 +265,21 @@ local function detach(buf)
     buffers[buf] = nil
     cancel_request(state)
     vim.diagnostic.reset(namespace, buf)
+    if package.loaded["vimoi.host_diagnostic"] then
+      require("vimoi.host_diagnostic").clear(buf)
+    end
   end
 end
 
 ---Apply the runtime switch and attach to existing/future gotmpl buffers.
 function M.setup()
   local requested = require("vimoi").config.diagnostics.enabled
-  if enabled == requested then
+  local requested_host = requested and require("vimoi").config.diagnostics.host
+  if enabled == requested and host_enabled == requested_host then
     return
   end
   enabled = requested
+  host_enabled = requested_host
   local group = vim.api.nvim_create_augroup("vimoi-diagnostics", { clear = true })
   if not enabled then
     for buf in pairs(buffers) do
@@ -327,6 +336,13 @@ function M.setup()
     group = group,
     callback = function(args)
       detach(args.buf)
+    end,
+  })
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "VimoiHostFiletypeChanged",
+    callback = function(args)
+      request_check(args.data.buf)
     end,
   })
   vim.api.nvim_create_autocmd("User", {

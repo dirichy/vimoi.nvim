@@ -451,7 +451,11 @@ end
 ---@param render_error? string
 ---@return VimoiSourceMapTrace?
 ---@return string? error
-local function restore_literal_text(prepared_trace, rendered_skeleton, render_error)
+function M.restore(prepared_trace, rendered_skeleton, render_error)
+  if prepared_trace.output ~= nil then
+    ---@cast prepared_trace VimoiSourceMapTrace
+    return prepared_trace
+  end
   if not rendered_skeleton then
     return nil, render_error
   end
@@ -511,7 +515,7 @@ function M.rebuild(trace, source, buf)
     ---@cast prepared_trace VimoiSourceMapTrace
     return prepared_trace
   end
-  return restore_literal_text(prepared_trace, trace.rendered_skeleton)
+  return M.restore(prepared_trace, trace.rendered_skeleton)
 end
 
 ---Reconstruct a static merge, including the constant brace tags added by escaping.
@@ -571,7 +575,7 @@ function M.rebuild_after_edits(trace, source, edits)
   local rendered_skeleton = trace.rendered_skeleton:gsub(sentinel_prefix .. "(%d+)" .. sentinel_prefix, function(id)
     return replacements[tonumber(id)]
   end)
-  return restore_literal_text(prepared, rendered_skeleton)
+  return M.restore(prepared, rendered_skeleton)
 end
 
 ---Predict a literal edit using the same structure reconstruction as diff refresh.
@@ -605,7 +609,7 @@ function M.trace(source, opts)
   })
   -- No callback is supplied, so this overload returns text rather than a process handle.
   ---@cast rendered_skeleton string?
-  return restore_literal_text(prepared_trace, rendered_skeleton, render_error)
+  return M.restore(prepared_trace, rendered_skeleton, render_error)
 end
 
 ---Asynchronously build the same mapping as trace(); even cached results invoke the callback later.
@@ -633,7 +637,7 @@ function M.trace_async(source, opts, callback)
     timeout = opts.timeout,
     cache = true,
     callback = function(rendered_skeleton, render_error)
-      callback(restore_literal_text(prepared_trace, rendered_skeleton, render_error))
+      callback(M.restore(prepared_trace, rendered_skeleton, render_error))
     end,
   })
   -- The callback overload returns a cancellable job, or nil on a cache hit.

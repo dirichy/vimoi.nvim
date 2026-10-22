@@ -43,6 +43,7 @@
 | 用户入口与键位配置 | 已提供的用户命令都有 Lua API；默认键位可覆盖、单项禁用或全部关闭 |
 | 配置与帮助文档 | 支持 executable/config 路径、监听、补全、高亮、diff 校验与键位；提供中英文 `:help vimoi.nvim` |
 | 模板 diagnostics | 默认启用，可配置关闭；300ms debounce，复用哨兵骨架、缓存和在途渲染，语法/执行错误映射到原始 source；静态修改复用成功及失败结果 |
+| 宿主 diagnostics | 默认自动复用已启用的 LSP 和 nvim-lint 的 stdin 检查器；对隐藏渲染快照检查，经 source map 映射回模板，保留来源/级别/错误码；动态区域保守定位，旧快照结果隔离 |
 | 环境健康检查 | `:checkhealth vimoi` 检查版本要求、可执行文件、已发现路径、gotmpl parser/查询及打开模板的可选宿主 parser；不启动 chezmoi、不渲染或写文件 |
 | 自动化覆盖 | 路径、配置、缓存、任务取消、窗口生命周期、diff/preview/写回等测试；source map 覆盖条件、循环、trim、重复文本、空块与 includeTemplate |
 

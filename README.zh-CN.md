@@ -207,7 +207,7 @@ require("vimoi").setup({
   watch = { buffer_write_fallback = "auto" },
   diff = { validate = false },
   completion = { enabled = true },
-  diagnostics = { enabled = true },
+  diagnostics = { enabled = true, host = true },
   highlight = {
     template_bg = { dark = "#343B52", light = "#E4E9F4" },
   },
@@ -257,6 +257,23 @@ require("vimoi").setup({ keymaps = { diff = "<leader>hd", readd = false } })
 模板诊断默认启用，无须打开 diff 或 preview。编辑后会检查语法和执行错误，
 使用原生 Neovim diagnostics，与其他 LSP 诊断共存。可通过
 `diagnostics = { enabled = false }` 关闭，显示样式用 `vim.diagnostic.config()` 调整。
+
+宿主诊断自动根据 target 的 filetype 复用已有检查器配置：照常用 `vim.lsp.enable()`
+启用对应语言服务器，或配置 nvim-lint 的 `require("lint").linters_by_ft` 即可，
+无须在 vimoi 中再列一份检查器。插件检查完整渲染结果，再把诊断映射回模板，
+保留检查器原有的来源、级别和错误码。
+诊断消息以 `[gotmpl]` 标识模板错误，以 `[host:lua]`、`[host:yaml]` 等标识宿主诊断，
+在不同的诊断界面中都能区分。
+
+静态文本精确定位；动态输出错误指向产生它的模板区域，并标明是模板生成的内容。
+重复源码位置的诊断会去重，无法明确定位的输出会跳过。只检查当前数据实际执行的分支。
+设置 `diagnostics = { host = false }` 可只关闭宿主检查，保留模板诊断。
+
+宿主检查需要已知的宿主 filetype，以及已启用的 LSP 或已配置的 nvim-lint provider。
+nvim-lint 只运行支持 stdin 的检查器，其他检查插件暂不接入。检查使用 target 同目录下
+具有唯一名称的隐藏、未保存快照；没有受管理的 target 时，使用 source 所在目录或当前
+目录。项目根目录照常识别，但依赖精确文件名的规则（例如部分 YAML schema 关联）可能
+需要调整。不会修改真实 target buffer 或文件。
 
 诊断和预览会实际执行模板函数，可能调用密码助手；耗时任务可取消，没有默认超时。
 模板宿主语言会按 target 名称和 shebang 识别，例如 `dot_zshrc.tmpl` 使用 zsh 高亮。

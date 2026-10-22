@@ -35,6 +35,7 @@ end
 function M.configure_template_buffer(buf, filetype)
   initialize()
   local previous_language = vim.b[buf].vimoi_template_language
+  local previous_filetype = vim.b[buf].vimoi_template_filetype
   -- Health reads this snapshot without resolving paths or starting chezmoi.
   vim.b[buf].vimoi_template_filetype = filetype
   local language
@@ -71,6 +72,9 @@ function M.configure_template_buffer(buf, filetype)
   vim.api.nvim_buf_call(buf, function()
     vim.cmd([[syntax region VimoiTemplateAction start=/{{-\?/ end=/-\?}}/ keepend contains=NONE containedin=ALL]])
   end)
+  if previous_filetype ~= filetype then
+    vim.api.nvim_exec_autocmds("User", { pattern = "VimoiHostFiletypeChanged", data = { buf = buf } })
+  end
 end
 
 return M

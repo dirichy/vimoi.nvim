@@ -15,6 +15,7 @@ local defaults = {
   },
   diagnostics = {
     enabled = true,
+    host = true,
   },
   highlight = {
     template_bg = { dark = "#343B52", light = "#E4E9F4" },
@@ -73,7 +74,7 @@ local structural_config
 ---@field watch? VimoiWatchOptions
 ---@field diff? { validate?: boolean }
 ---@field completion? { enabled?: boolean }
----@field diagnostics? { enabled?: boolean }
+---@field diagnostics? { enabled?: boolean, host?: boolean }
 ---@field highlight? { template_bg?: string|{ dark: string, light: string } }
 ---@field keymaps? VimoiKeymaps|false
 
@@ -91,6 +92,7 @@ function M.setup(opts)
     vim.validate(name, config[name], "table")
     vim.validate(name .. ".enabled", config[name].enabled, "boolean")
   end
+  vim.validate("diagnostics.host", config.diagnostics.host, "boolean")
   vim.validate("diff", config.diff, "table")
   vim.validate("diff.validate", config.diff.validate, "boolean")
   vim.validate("watch", config.watch, "table")

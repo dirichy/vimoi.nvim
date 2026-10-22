@@ -74,6 +74,7 @@ source 类型时，应提前 setup，不只依赖该 filetype 触发。
       },
       diagnostics = {
         enabled = true,
+        host = true,
       },
       highlight = {
         template_bg = { dark = "#343B52", light = "#E4E9F4" },
@@ -188,10 +189,26 @@ owner_is_current、compute_item、publish 均由调用方提供）： >lua
     require("vimoi.api").setup({ diagnostics = { enabled = false } })
 <
 `vimoi-diagnostics` namespace 展示 gotmpl 语法错误和异步哨兵渲染错误。编辑后等待 300ms
-检查，包括原生补全菜单显示时的编辑，无须打开 diff/preview；仅检查模板，不检查
-injection 宿主语法，也不清除其他 LSP
-的诊断。展示样式通过 vim.diagnostic.config 设置；单独配置时可使用
+检查，包括原生补全菜单显示时的编辑，无须打开 diff/preview，也不清除其他 LSP
+的诊断。`vimoi-host-diagnostics` namespace 默认启用，按高亮已识别的宿主 filetype
+（包括 diff_buffers 的覆盖值）检查完整渲染结果，再映射回源码。照常配置
+vim.lsp.enable() 或 nvim-lint 的 linters_by_ft 即可，无须另列 provider。
+展示样式通过 vim.diagnostic.config 设置；单独配置时可使用
 vim.api.nvim_get_namespaces()["vimoi-diagnostics"] 取得 namespace。
+
+隐藏渲染 buffer 的 FileType 事件通过原生机制启用用户已配置的 LSP；nvim-lint
+只运行支持 stdin 的检查器。只读磁盘的检查器和其他检查插件暂不接入。此检查不依赖
+宿主 Tree-sitter parser。diagnostics = { host = false } 可单独关闭宿主诊断。
+保留诊断原有来源、级别和错误码。诊断消息前缀为 [gotmpl]（模板错误）或
+[host:<filetype>]（投影后的宿主诊断）。静态位置精确映射，动态输出指向生成它的模板区域并
+标注 template-generated。重复源码位置会去重，无法明确定位的位置跳过；只检查实际
+执行的模板分支。
+
+快照使用 target 同目录下的唯一文件名，没有受管理的 target 时回退到 source 目录或
+当前目录；不写入磁盘，也不修改真实 target。原生 LSP 项目识别和用户 on_attach
+回调照常运行；依赖精确文件名的规则（包括部分 schema 关联）可能无法匹配快照名称。
+每次渲染使用新的 URI，旧 provider 结果不会套用新的 source map。编辑、依赖失效、
+切换 filetype 或关闭诊断会删除旧快照、解除 LSP 绑定，并取消其 nvim-lint 进程。
 
 诊断复用 diff/preview 的骨架及已完成 CLI 缓存；相同骨架/init 模式/timeout 的并发缓存
 请求共用一个进程。关闭视图或诊断只取消该使用方，最后一个使用方取消时才杀掉进程；
@@ -522,6 +539,9 @@ Ex 命令由 API 模块在 setup 时注册一次；仅加载模块不会注册�
 会保留缓存的注入区域。
 合并注入通过查询中的 #set! injection.combined 声明，使可见范围解析仍能收集全部
 宿主文本；只在运行时 directive 设置该值不会启用 Neovim 的合并查询完整扫描。
+`host_diagnostic` 管理只读隐藏渲染快照、原生 LSP 激活、nvim-lint 进程取消和诊断区域
+投影。模板诊断保留已渲染骨架，source_map.restore 无须再次执行即可还原完整输出和
+byte 映射。
 
 `require("vimoi.gotmpl.source_map")` 统一负责模板解析、哨兵渲染及源码与输出的位置映射，
 包括增量语法缓存、渲染结果复用及字面槽位和动态输出的区域映射。

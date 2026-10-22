@@ -44,6 +44,7 @@ end
 local diagnostics = change("head\n{{ if true }}\nbody\n")
 assert(#diagnostics > 0 and runs == 0)
 assert(diagnostics[1].source == "vimoi" and diagnostics[1].severity == vim.diagnostic.severity.ERROR)
+assert(diagnostics[1].message:sub(1, 9) == "[gotmpl] ")
 
 -- Host-language syntax errors are outside this namespace; plain literal text
 -- needs no process and clears the preceding template syntax error.
@@ -63,6 +64,7 @@ diagnostics = change(source)
 assert(#diagnostics == 1 and runs == 1, vim.inspect(diagnostics))
 assert(diagnostics[1].lnum == 2 and diagnostics[1].col == #"键: {{ ", vim.inspect(diagnostics))
 assert(diagnostics[1].message:find("index out of range", 1, true))
+assert(diagnostics[1].message:sub(1, 9) == "[gotmpl] ")
 local before = runs
 diagnostics = change("# added\n# another\n" .. source:gsub("title: 中文", "title: 更长的静态文本"))
 assert(runs == before, "static edits must reuse cached failures")

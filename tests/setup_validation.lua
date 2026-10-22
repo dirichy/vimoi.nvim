@@ -7,6 +7,7 @@ for _, input in ipairs({
   '{"keymaps":{"unknown":"x"}}',
   '{"completion":false}',
   '{"diagnostics":{"enabled":"yes"}}',
+  '{"diagnostics":{"host":"yes"}}',
   '{"diff":{"validate":1}}',
   '{"watch":{"buffer_write_fallback":"always"}}',
   '{"chezmoi_executable":false}',

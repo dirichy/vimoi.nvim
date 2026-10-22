@@ -82,6 +82,7 @@ The available options and their defaults are: >lua
       },
       diagnostics = {
         enabled = true,
+        host = true,
       },
       highlight = {
         template_bg = { dark = "#343B52", light = "#E4E9F4" },
@@ -227,8 +228,32 @@ Template diagnostics are enabled by default: >lua
 The `vimoi-diagnostics` namespace reports gotmpl syntax errors and errors from
 asynchronous sentinel-template rendering. Checks run 300ms after edits, without
 opening a diff or preview. Edits while the native completion menu is visible also
-trigger checks. Only template syntax is checked, not injected host
-language syntax. Ordinary LSP diagnostics remain separate.
+trigger checks. The `vimoi-host-diagnostics` namespace additionally projects
+diagnostics from rendered output back to source. Host checks are enabled by
+default and use the host filetype already inferred for highlighting, including
+the override passed to diff_buffers. Configure the host server through
+vim.lsp.enable() or nvim-lint's linters_by_ft as usual; no separate provider
+configuration is needed. Other diagnostics remain owned by their providers.
+
+Native FileType activation attaches enabled LSP servers to hidden rendered
+buffers. nvim-lint runs configured stdin-capable linters; disk-only linters and
+other checker plugins are skipped. No host parser is required for these checks.
+Disable just host checking with diagnostics = { host = false }.
+Host diagnostics preserve provider source, severity and code. Messages are
+prefixed with [gotmpl] for template errors or [host:<filetype>] for projected
+host diagnostics. Static ranges
+map precisely; dynamic output anchors to the generating template region and
+is labeled template-generated. Repeated source locations are deduplicated;
+ambiguous locations are skipped. Only executed template branches are checked.
+
+Snapshots have unique filenames in the target directory (falling back to the
+source directory or cwd); nothing is written to disk and real targets are
+untouched. Normal LSP project discovery and user on_attach hooks run. Exact
+filename rules, including some schema associations, may not match snapshot
+names. Each new render gets a new URI, so late provider results cannot be
+projected through a newer source map. Editing, dependency invalidation, changing
+filetype or disabling diagnostics deletes the old snapshot, detaches its LSP
+clients and cancels its nvim-lint processes.
 
 The renderer reuses the same skeleton and completed CLI cache as diff/preview.
 Concurrent cached requests for the same skeleton/init mode/timeout share one
@@ -635,6 +660,10 @@ a runtime directive does not enable Neovim's combined-query full scan.
 Top-level setup starts the CLI
 and watches; CLI methods own query caches, including shared-template directory
 discovery.
+`host_diagnostic` owns immutable hidden render buffers, native LSP activation,
+nvim-lint process cancellation and diagnostic-range projection. The template
+diagnostic coordinator retains rendered skeletons; source_map.restore rebuilds
+full output and byte mappings from them without another execution.
 Ex commands are registered once during setup by the API module; loading it alone
 does not register commands or load the diff and path-navigation implementations.
 
