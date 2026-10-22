@@ -614,7 +614,7 @@ LUA API                                                            *vimoi-api*
 keymaps, and commands. Module-specific integration and diagnostic functions
 remain internal, except for the documented vimoi.blink integration. Only setup,
 the listed vimoi.api operations and that integration form the public surface.
-Session tables and debugging data are internal. diff, diff_files and preview
+Session tables and debugging data are internal. diff, diff_files, diff_buffers and preview
 always return nil, without a session handle; template rendering is asynchronous.
 Interactive writeback also returns nil while rendering or selection is pending,
 so nil does not determine eventual success. Completion callbacks/promises are
@@ -719,6 +719,19 @@ require("vimoi.api").diff({opts})
 require("vimoi.api").diff_files({source}, {target}, {opts})
     Open an explicit source/target pair. `{opts}` accepts `validate`.
     Always returns nil. Template rendering and optional validation complete asynchronously.
+
+                                       *vimoi.api.diff_buffers()*
+require("vimoi.api").diff_buffers({source_buf}, {target_buf}, {opts})
+    Compare two different loaded buffers in source/target order. Accepts unnamed
+    and scratch buffers; 0 means the current buffer. The source is always
+    rendered as a chezmoi template using configured data and gets filetype
+    gotmpl. No source/target path lookup or chezmoi cat validation is performed,
+    even when diff.validate is true. Buffer names are preserved.
+    Optional `filetype` sets the source host language and target filetype.
+    Otherwise use the target's current filetype, falling back to detection from
+    its name and contents. Supports template hunk operations and ReAdd, with
+    unsaved buffer edits and the usual view lifecycle. Always returns nil;
+    rendering completes asynchronously. No automatic save or apply.
 
                                             *vimoi.api.preview()*
 require("vimoi.api").preview({opts})

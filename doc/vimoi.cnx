@@ -510,7 +510,7 @@ ignore/remove 内容作为 destination patterns、symlink 内容作为链接目�
 `highlight` 统一负责模板颜色、buffer 高亮、宿主语言注入及 Vim syntax 回退。顶层
 setup 启动 CLI 与 watch；CLI 负责查询缓存，包括共享模板目录的发现结果。
 公开接口只包括 setup、下文列出的 vimoi.api 操作及 vimoi.blink 集成。
-其他模块、session 表及调试数据属于内部实现，不承诺稳定。diff、diff_files 和 preview
+其他模块、session 表及调试数据属于内部实现，不承诺稳定。diff、diff_files、diff_buffers 和 preview
 始终返回 nil，不返回 session；模板渲染异步完成。交互写回操作在等待渲染或选择时也会
 返回 nil，不能据此判断最终成功与否；目前不提供完成回调或 promise。
 
@@ -587,6 +587,17 @@ require("vimoi.api").diff({opts})
 require("vimoi.api").diff_files({source}, {target}, {opts})
     打开明确指定的 source/target 文件对。`{opts}` 支持 `validate`。
     始终返回 nil；模板渲染及可选校验异步完成。
+
+                                       *vimoi.api.diff_buffers()*
+require("vimoi.api").diff_buffers({source_buf}, {target_buf}, {opts})
+    按 source/target 顺序比较两个不同的已加载 buffer，支持未命名和 scratch buffer；
+    0 表示当前 buffer。source 始终使用配置数据按 chezmoi 模板渲染，filetype 设为
+    gotmpl。不查询 source/target 路径，也不执行 chezmoi cat 校验，即使配置了
+    diff.validate = true。保留 buffer 名称。
+    可选的 `filetype` 指定 source 宿主语言和 target filetype；省略时使用 target
+    当前的 filetype，再回退到根据名称和内容识别。支持模板 hunk 操作和 ReAdd，
+    使用未保存的 buffer 内容，视图生命周期与文件 diff 相同。始终返回 nil；
+    渲染异步完成，不自动保存或 apply。
 
                                             *vimoi.api.preview()*
 require("vimoi.api").preview({opts})

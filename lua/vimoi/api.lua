@@ -29,6 +29,18 @@ function M.diff_files(source, target, opts)
   require("vimoi.gotmpl").open(vim.tbl_extend("force", opts or {}, { source = source, target = target }))
 end
 
+---Compare a template buffer with a target buffer, including unnamed buffers.
+---@param source_buf integer
+---@param target_buf integer
+---@param opts? { filetype?: string }
+---@return nil
+function M.diff_buffers(source_buf, target_buf, opts)
+  require("vimoi.gotmpl").open(vim.tbl_extend("force", opts or {}, {
+    source_buf = source_buf,
+    target_buf = target_buf,
+  }))
+end
+
 ---Preview the current or explicit source template without writing its rendered result.
 ---@class VimoiPreviewOptions
 ---@field source? string Defaults to the current buffer, including unsaved text.

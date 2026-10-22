@@ -36,52 +36,74 @@ end
 
 -- Reuse the owned pair first, then already visible buffers in the current tab.
 -- Only create a split when one side has no window; never replace an unrelated peer.
-local function open_windows(source_path, target_path, source_win, target_win)
+---@param source string|integer Path or buffer number.
+---@param target string|integer Path or buffer number.
+---@param source_win? integer
+---@param target_win? integer
+local function open_windows(source, target, source_win, target_win)
   local split = require("vimoi").config.split == "horizontal" and "split" or "vsplit"
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    local path = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win))
-    if not sessions.by_window[win] and path == source_path then
+    local buf = vim.api.nvim_win_get_buf(win)
+    local path = vim.api.nvim_buf_get_name(buf)
+    if not sessions.by_window[win] and (buf == source or path == source) then
       source_win = source_win or win
-    elseif not sessions.by_window[win] and path == target_path then
+    elseif not sessions.by_window[win] and (buf == target or path == target) then
       target_win = target_win or win
     end
   end
-  local function show(path, win)
+  local function show(value, win)
     vim.api.nvim_set_current_win(win)
-    if path ~= "" then
-      local buf = loaded_buffer(path)
+    if type(value) == "number" then
+      vim.api.nvim_win_set_buf(win, value)
+    elseif value ~= "" then
+      local buf = loaded_buffer(value)
       if buf then
         vim.api.nvim_win_set_buf(win, buf)
       else
-        vim.cmd("edit " .. vim.fn.fnameescape(path))
+        vim.cmd("edit " .. vim.fn.fnameescape(value))
       end
     end
     return vim.api.nvim_get_current_buf()
   end
   local source_buf, target_buf
   if source_win then
-    source_buf = show(source_path, source_win)
+    source_buf = show(source, source_win)
     if not target_win then
       vim.cmd("rightbelow " .. split)
       target_win = vim.api.nvim_get_current_win()
     end
-    target_buf = show(target_path, target_win)
+    target_buf = show(target, target_win)
   else
     target_win = target_win or vim.api.nvim_get_current_win()
-    target_buf = show(target_path, target_win)
+    target_buf = show(target, target_win)
     vim.cmd(split)
     source_win = vim.api.nvim_get_current_win()
-    source_buf = show(source_path, source_win)
+    source_buf = show(source, source_win)
   end
   vim.api.nvim_set_current_win(source_win)
   return source_buf, source_win, target_buf, target_win
 end
 
----@param opts? { source?: string, target?: string, validate?: boolean, preview?: boolean }
+---@param opts? { source?: string, target?: string, source_buf?: integer, target_buf?: integer, filetype?: string, validate?: boolean, preview?: boolean }
 function M.open(opts)
   opts = opts or {}
   local preview = opts.preview == true
   local started = vim.uv.hrtime()
+  local source_buf, target_buf = opts.source_buf, opts.target_buf
+  local buffer_pair = source_buf ~= nil or target_buf ~= nil
+  if buffer_pair then
+    vim.validate("source_buf", source_buf, "number")
+    vim.validate("target_buf", target_buf, "number")
+    vim.validate("filetype", opts.filetype, "string", true)
+    source_buf = source_buf == 0 and vim.api.nvim_get_current_buf() or source_buf
+    target_buf = target_buf == 0 and vim.api.nvim_get_current_buf() or target_buf
+    if not vim.api.nvim_buf_is_loaded(source_buf) or not vim.api.nvim_buf_is_loaded(target_buf) then
+      return util.notify("diff_buffers requires two loaded buffers", "diff", vim.log.levels.ERROR)
+    end
+    if source_buf == target_buf then
+      return util.notify("source and target must be different buffers", "diff", vim.log.levels.ERROR)
+    end
+  end
   ---@type VimoiTemplateSession?
   local previous = sessions.by_window[vim.api.nvim_get_current_win()]
   if previous and not sessions.is_valid(previous) then
@@ -93,11 +115,21 @@ function M.open(opts)
   local source_path = opts.source and util.normalize_path(opts.source)
   local target_path = opts.target and util.normalize_path(opts.target)
   local path_lookup_ms = 0
-  if preview then
+  if buffer_pair then
+    ---@cast source_buf integer
+    ---@cast target_buf integer
+    source_path = vim.api.nvim_buf_get_name(source_buf)
+    target_path = vim.api.nvim_buf_get_name(target_buf)
+  elseif preview then
     source_path = source_path or (previous and previous.source_path) or current_path
+    if previous and not opts.source then
+      source_buf = previous.source_buf
+    end
   elseif not source_path or not target_path then
     if previous and not previous.preview and not opts.source and not opts.target then
       source_path, target_path = previous.source_path, previous.target_path
+      source_buf, target_buf = previous.source_buf, previous.target_buf
+      buffer_pair = previous.buffer_pair == true
     else
       local before_path_lookup = vim.uv.hrtime()
       local resolve_error
@@ -110,7 +142,8 @@ function M.open(opts)
     end
   end
   ---@cast source_path string
-  local requested_buf = source_path == "" and vim.api.nvim_get_current_buf() or loaded_buffer(source_path)
+  local requested_buf = source_buf
+    or (source_path == "" and vim.api.nvim_get_current_buf() or loaded_buffer(source_path))
   if preview and previous and previous.preview and previous.source_path == source_path then
     vim.api.nvim_set_current_win(previous.source_win)
     if not previous.loading then
@@ -120,7 +153,7 @@ function M.open(opts)
   end
 
   -- Resolve/read before retiring a working view, so failures leave it usable.
-  local template = require("vimoi.filetype").is_template(source_path)
+  local template = buffer_pair or require("vimoi.filetype").is_template(source_path)
   if not preview and template and not requested_buf then
     local source, read_error = util.read_file(source_path)
     if not source then
@@ -135,7 +168,7 @@ function M.open(opts)
   if previous then
     source_win, target_win = previous.source_win, previous.target_win
     sessions.close(previous)
-  elseif source_path == "" then
+  elseif source_path == "" and not source_buf then
     source_win = vim.api.nvim_get_current_win()
   end
   if preview then
@@ -146,11 +179,15 @@ function M.open(opts)
     vim.bo[output].undolevels = -1
     vim.bo[output].readonly = true
     vim.bo[output].modifiable = false
+    target_buf = output
   end
   ---@cast target_path string
-  local source_buf, target_buf
-  source_buf, source_win, target_buf, target_win = open_windows(source_path, target_path, source_win, target_win)
-  local target_filetype = vim.bo[target_buf].filetype
+  source_buf, source_win, target_buf, target_win =
+    open_windows(source_buf or source_path, target_buf or target_path, source_win, target_win)
+  local target_filetype = opts.filetype or vim.bo[target_buf].filetype
+  if buffer_pair and opts.filetype then
+    vim.bo[target_buf].filetype = opts.filetype
+  end
   if not preview and not template then
     if target_filetype ~= "" then
       vim.bo[source_buf].filetype = target_filetype
@@ -174,11 +211,15 @@ function M.open(opts)
   if validate == nil then
     validate = config.diff.validate
   end
+  if buffer_pair then
+    validate = false -- Buffers need not correspond to managed files on disk.
+  end
   local modified = util.buffer_text(target_buf)
 
   ---@type VimoiTemplateSession
   local session = {
     preview = preview,
+    buffer_pair = buffer_pair,
     keymaps = {},
     hunks = {},
     source_text = util.buffer_text(source_buf),

@@ -29,7 +29,8 @@ local sync_scroll = require("vimoi.gotmpl.sync_scroll")
 ---@field source_win integer
 ---@field target_win integer
 ---@field source_path string Opening path snapshot; empty for an unnamed source buffer.
----@field target_path string Opening path snapshot, or the preview scratch URI.
+---@field target_path string Opening path snapshot; empty for an unnamed target, or the preview scratch URI.
+---@field buffer_pair? boolean Explicit buffer pair with no disk validation.
 ---@field verify_with_cat boolean Whether the first diff render must match chezmoi cat.
 ---@field is_init_template boolean
 ---@field preview boolean True for a read-only rendered-output peer instead of a real target.
