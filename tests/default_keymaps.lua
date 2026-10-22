@@ -38,7 +38,7 @@ local session = assert(view_for_buffer(source_buf))
 for _, win in ipairs({ session.source_win, session.target_win }) do
   vim.api.nvim_set_current_win(win)
   local mapping = vim.fn.maparg(" ca", "n", false, true)
-  assert(mapping.buffer == 0 and mapping.desc == "Re-add target changes to chezmoi template")
+  assert(mapping.buffer == 0 and mapping.desc == "Re-add target changes to chezmoi source")
 end
 vim.fn.maparg(" ca", "n", false, true).callback()
 assert(util.buffer_text(source_buf) == "value=new\n")

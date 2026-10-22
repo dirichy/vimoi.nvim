@@ -328,41 +328,9 @@ function M.apply_hunk()
   return merge("apply")
 end
 
----Write target changes back into a template, opening its diff when needed.
----@param path? string Source or target path; omitted for the current buffer/session.
----@return { merged: integer, skipped: integer, reasons: VimoiSkippedHunk[] }?
-function M.readd(path)
-  ---@type VimoiTemplateSession?
-  local session = sessions.by_window[vim.api.nvim_get_current_win()]
-  if path and session then
-    path = util.normalize_path(path)
-    if path ~= session.source_path and path ~= session.target_path then
-      session = nil
-    end
-  end
-  if session and not sessions.is_valid(session) then
-    sessions.close(session)
-    session = nil
-  end
-  if not session or session.preview then
-    local views = require("vimoi.gotmpl")
-    local source, target, resolve_error =
-      cli.resolve_paths(session and session.source_path or path or vim.api.nvim_buf_get_name(0))
-    if not source then
-      return util.notify(assert(resolve_error), "re-add", vim.log.levels.ERROR)
-    end
-    if not require("vimoi.filetype").is_template(source) then
-      return util.notify("source is not a template", "re-add", vim.log.levels.ERROR)
-    end
-    session = views.open({ source = source, target = target })
-    if not session then
-      return
-    end
-  end
-  local current = vim.api.nvim_get_current_buf()
-  if current ~= session.source_buf and current ~= session.target_buf then
-    vim.api.nvim_set_current_win(session.source_win)
-  end
+---Re-add all target hunks in the current template diff.
+---@return VimoiReAddResult?
+function M.readd()
   return merge("readd")
 end
 

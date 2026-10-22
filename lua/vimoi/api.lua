@@ -87,11 +87,11 @@ end
 ---@field skipped integer Number of original hunks with skipped edits; a partially merged hunk may count in both.
 ---@field reasons { reason?: string }[] One explanation per skipped edit; several can belong to one hunk.
 
----Re-add target changes while preserving template structure; open a diff if needed.
+---Write target changes to source; preserve template structure when applicable.
 ---@param path? string Source or target path; defaults to the current buffer.
 ---@return VimoiReAddResult? Immediate completion only; nil while rendering or a choice is pending, or on failure.
 function M.readd(path)
-  return require("vimoi.gotmpl.merge").readd(path)
+  return require("vimoi.readd").readd(path)
 end
 
 ---Run a source-map-aware fold command in both diff windows.
@@ -167,7 +167,7 @@ M.register = require("vimoi.util").once(function()
   end, {
     nargs = "?",
     complete = "file",
-    desc = "Re-add target changes while preserving the source template",
+    desc = "Re-add target changes to the chezmoi source buffer",
   })
 
   vim.api.nvim_create_user_command("VimoiCancel", M.cancel_command, {
@@ -176,7 +176,7 @@ M.register = require("vimoi.util").once(function()
 
   local keymaps = require("vimoi").config.keymaps
   for name, desc in pairs({
-    readd = "Re-add target changes to chezmoi template",
+    readd = "Re-add target changes to chezmoi source",
     cancel_command = "Cancel running chezmoi command",
     diff = "Open chezmoi diff",
     preview = "Preview chezmoi template",

@@ -9,7 +9,7 @@
 双向 hunk 操作、补全与路径跳转。所有写回都由用户显式触发，只修改 buffer，不自动保存。
 
 保留 chezmoi 的 source 与 target 分离设计；不会实现保存后自动 re-add。已有手动
-`:VimoiReAdd [path]` 用于模板感知的写回，不再规划自动同步开关、连续保存补跑或
+`:VimoiReAdd [path]` 用于普通文件和模板感知的写回，不再规划自动同步开关、连续保存补跑或
 专为自动同步服务的属性缓存。复杂动态输出不尝试反向还原模板，由用户手动编辑。
 
 ## 已完成
@@ -24,7 +24,7 @@
 | 原生 diff 展示与导航 | 投影 hunks 后复用原生高亮、filler、`[c` / `]c` 和 `foldmethod=diff` |
 | 光标、滚动与折叠同步 | 通过 source map 对齐两个窗口；session 期间协调 Snacks smooth scroll，关闭最后一个共享视图后恢复设置 |
 | 静态修改写回模板 | target 的 dp / source 的 do、`:VimoiDiffPut`；支持行内多个槽位、增删改和字面 `{{` 转义 |
-| 批量模板 re-add | `:VimoiReAdd [path]` / `readd(path)`；接收 source 或 target，省略时用当前 buffer；需要时自动打开 diff |
+| 批量 re-add | `:VimoiReAdd [path]` / `readd(path)`；普通文本文件复制 target buffer 到 source，模板仅写回可推算的静态修改；接收任一侧路径，默认当前 buffer，需要时打开 diff，不自动保存 |
 | 渲染结果写入 target hunk | source 的 dp / target 的 do、`:VimoiDiffApply`；复制渲染结果，支持动态输出和循环，不复制模板源码 |
 | 控制边界插入选择 | 对空控制块及相邻静态槽位枚举位置，通过 `vim.ui.select` 选择；不是通用动态模板反向合并 |
 | 局部写入 | 只写变化字节，多处修改可一次 undo/redo；不强制重新收起全部折叠 |
@@ -126,7 +126,7 @@ target 及取消时的行为，避免隐式保存或覆盖。其余候选及取�
 | 同类功能 | 当前方案 | 判断与保留的边界 |
 | --- | --- | --- |
 | 预览中用 extmark / virtual lines 标出差异：chezmoi-template | 只读实时 preview；需要比较和写回时使用 source map 投影后的原生 diff | 无需另做一套 diff 展示；原生 hunks、filler、折叠和映射后的 do/dp 更符合我们的交互目标，但两种 UI 并非完全相同 |
-| 直接调用 CLI re-add：Telescope / Snacks 扩展 | 手动 `VimoiReAdd` 将可映射的静态修改写回模板 buffer，保留模板结构 | 已覆盖模板编辑的核心需求；不需要再增加同名的 CLI 包装。动态输出仍需手动处理，不能宣称替代 CLI 的所有 re-add 行为 |
+| 直接调用 CLI re-add：Telescope / Snacks 扩展 | 手动 `VimoiReAdd` 支持普通文本文件；模板写回可映射的静态修改并保留结构 | 已覆盖模板编辑的核心需求；不需要再增加同名的 CLI 包装。动态输出仍需手动处理，不能宣称替代 CLI 的所有 re-add 行为 |
 | 保存时完整渲染诊断、预览慢时降级为保存刷新：chezmoi-template | 编辑时 debounce，骨架缓存、共享在途渲染、旧结果丢弃及用户主动取消；diagnostic 也检查 TS 语法错误 | 已有适合持续编辑的方案，不照搬固定超时与刷新降级。完整原文校验仍可作为独立候选，弥补骨架语义限制；预览基准的静态编辑收益不能推广为所有模板或整个插件更快 |
 | include/template 跳转：chezmoi-template | 增强原生 gf/gF，覆盖 include、includeTemplate、template、glob、symlink 等路径 | 已有较广覆盖，继续维护统一路径规则；无需为相同用途再加一套导航入口 |
 

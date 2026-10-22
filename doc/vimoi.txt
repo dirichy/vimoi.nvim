@@ -329,12 +329,16 @@ COMMANDS                                                       *vimoi-commands*
 
                                                           *:VimoiReAdd*
 :VimoiReAdd [path]
-    Re-add target changes while preserving the source template. Accept a source
+    Re-add target changes to source. Accept a source
     or target path; omit it to use the current buffer. Reuse an existing diff
     session, or open one and wait for its initial render before continuing.
     Preview switches to a real target diff. Dynamic/repeated edits stay manual;
     ambiguous placements prompt for a choice. Only the source buffer changes;
-    it is not saved automatically. Plain files are rejected.
+    it is not saved automatically. For an ordinary text file, copy all current
+    target buffer contents into source instead, replacing any old unsaved source
+    edits. File attributes do not change. Undo restores the previous source text.
+    Existing native diffs are reused. A target must exist or already be loaded.
+    Encrypted files, symlink sources and scripts are not supported as plain text.
 
 ==============================================================================
 TEMPLATE DIFF                                          *vimoi-template-diff*
@@ -668,8 +672,10 @@ validation, and completion. Opening paths are stored on the session so late
 results cannot revive renamed or replaced buffers. `session.is_valid()` checks
 registry ownership and the original buffer/window/path bindings for initial
 rendering, delayed refreshes, and explicit merges. Text/context checks retain
-the retry or cancellation policy of each operation. The API loads `merge.lua`
-directly on put/template re-add; opening diff/preview does not load merge planning.
+the retry or cancellation policy of each operation. `vimoi.readd` resolves the
+source/target pair and handles ordinary text files; templates delegate to
+`gotmpl/merge.lua`. Put loads that merge module directly. Opening diff/preview
+does not load merge planning.
 `cli.counterpart_path()` owns the bidirectional path cache used directly by
 toggle. `cli.resolve_paths()` orders the same paths as source/target for diff and re-add.
 `merge.lua` coordinates put and template re-add: resolve placements, infer, write, and refresh;
@@ -728,7 +734,7 @@ require("vimoi.api").apply_hunk()
 
                                          *vimoi.api.readd()*
 require("vimoi.api").readd({path})
-    Re-add target changes to a template, opening a diff when needed. `{path}`
+    Re-add target changes to source, opening a diff when needed. `{path}`
     is an optional source or target path, defaulting to the current buffer.
     Reuse an existing diff session or promote a preview to a real target diff.
     Dynamic edits stay manual; ambiguous placements prompt for a choice. Returns a table with
@@ -737,7 +743,10 @@ require("vimoi.api").readd({path})
     with applied/skipped edits; partially merged hunks can count in both. reasons
     is an array of skipped edits, each with an optional reason string; multiple
     entries may belong to one hunk. Other internal fields are not public API.
-    The source buffer is not written automatically.
+    Ordinary text files copy the full target buffer into source and return the
+    same summary, with skipped = 0 and an empty reasons array. Loaded unsaved
+    buffers take priority over disk. The source buffer is not saved automatically;
+    file attributes do not change. See |:VimoiReAdd| for supported source types.
 
                                                *vimoi.api.fold()*
 require("vimoi.api").fold({command})

@@ -101,15 +101,12 @@ do
   sessions.close(session)
 end
 
--- Unnamed, unmanaged, and plain-file requests must never write or silently re-add.
-for _, path in ipairs({ "", root .. "/unmanaged", destination .. "/plain" }) do
+-- Unnamed and unmanaged requests must never write or silently re-add.
+for _, path in ipairs({ "", root .. "/unmanaged" }) do
   if path == "" then
     vim.cmd.enew()
   else
     vim.fn.writefile({ "target" }, path)
-  end
-  if path == destination .. "/plain" then
-    vim.fn.writefile({ "source" }, source_root .. "/plain")
   end
   local before = #vim.api.nvim_tabpage_list_wins(0)
   assert(api.readd(path ~= "" and path or nil) == nil)

@@ -273,7 +273,10 @@ init 模板使用 --init；空 define/block 等已有哨兵限制仍适用。
     将 target 修改写回 source，保留模板结构。path 可指定 source 或 target，省略时
     使用当前 buffer。已有 diff session 直接复用；否则自动打开 diff，初次渲染完成后
     继续写回。只读预览会切换到真实 target diff。动态或重复区域仍需手动处理，位置
-    有歧义时交互选择。仅修改 source buffer，不自动保存。不支持普通文件。
+    有歧义时交互选择。仅修改 source buffer，不自动保存。
+    普通文本文件将 target buffer 的全部内容复制到 source，覆盖 source 原有未保存
+    修改，可用 undo 恢复；已打开的原生 diff 复用。target 须存在或已在 buffer 中加载。
+    不更新文件属性；加密文件、symlink 和脚本 source 暂不支持普通文本写回。
 
 ==============================================================================
 模板 DIFF                                             *vimoi-template-diff*
@@ -542,7 +545,8 @@ WinEnter/WinLeave 为当前窗口安装和恢复映射，加载/错误提示也�
 校验和完成处理。会话保存打开时的路径快照，避免迟到的结果重新启用已更名或被替换
 的 buffer。`session.is_valid()` 统一检查注册关系及原始 buffer/window/path 绑定，供首次
 渲染、延迟刷新和显式合并使用；文本与渲染上下文检查保留各操作的重试或取消策略。
-API 在 put/template re-add 时直接加载 `merge.lua`，打开 diff/preview 不会加载合并规划。
+`vimoi.readd` 统一解析路径并处理普通文本文件，模板委托 `gotmpl/merge.lua`；
+put 直接加载该合并模块。打开 diff/preview 不会加载合并规划。
 `cli.counterpart_path()` 统一管理双向路径缓存，toggle 直接复用；
 `cli.resolve_paths()` 将同一映射整理为 source/target 文件对，供 diff 和 re-add 使用。
 `merge.lua` 负责 put 和 template re-add 的位置选择、映射推算、
@@ -595,13 +599,16 @@ require("vimoi.api").apply_hunk()
 
                                          *vimoi.api.readd()*
 require("vimoi.api").readd({path})
-    将 target 修改写回模板，必要时自动打开 diff。可选 path 为 source 或 target，
+    将 target 修改写回 source，必要时自动打开 diff。可选 path 为 source 或 target，
     省略时使用当前 buffer；已有 session 复用，只读预览切换到真实 diff。动态修改
     留待手动处理，位置有歧义时交互选择。返回包含
     `merged`、`skipped` 和 `reasons` 的表；失败或等待渲染/选择时返回 nil。
     merged/skipped 分别计数含已应用/跳过修改的原始 hunk；部分合并的 hunk 可同时计入
     两者。reasons 是逐项跳过修改的数组，各项的 reason 为原因字符串（可缺省）；
-    同一 hunk 可有多项。其他内部字段不属于公开契约。source buffer 不会自动写入文件。
+    同一 hunk 可有多项。其他内部字段不属于公开契约。
+    普通文本文件复制 target buffer 的全部内容，返回同样结构，skipped 为 0、reasons
+    为空数组。两侧已加载的未保存内容优先于磁盘。source buffer 不自动保存，不更新
+    文件属性；支持的 source 类型见 |:VimoiReAdd|。
 
                                                *vimoi.api.fold()*
 require("vimoi.api").fold({command})

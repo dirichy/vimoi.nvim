@@ -17,7 +17,7 @@
   hunk 可同时计入 merged/skipped，一个 hunk 可有多个跳过原因。内部 hunk 对象不承诺稳定。
 - 进程/config 路径、watch、keymaps 首次成功 setup 后固定；其余可更新选项在后续
   setup 省略时恢复默认值。这个行为已在中英文帮助和 README 说明。
-- `ReAdd` 只对模板静态修改写回 source buffer；`DiffApply` 写 target buffer。
+- `ReAdd` 将普通文件内容或模板静态修改写回 source buffer；`DiffApply` 写 target buffer。
   二者都不会自动保存，也不是直接执行 chezmoi 的 re-add/apply。
 
 暂时保留 `diff_files(source, target, opts)` 这个显式文件对入口；它和
