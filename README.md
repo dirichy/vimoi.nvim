@@ -2,7 +2,9 @@
 
 在 Neovim 中安全、顺手地编辑由 [chezmoi](https://www.chezmoi.io/) 管理的文件。
 
-> 项目仍处于早期开发阶段，API 和行为可能调整。
+[English documentation](doc/vimoi.txt) · [中文帮助](doc/vimoi.cnx)
+
+> 项目处于 alpha 阶段，API 和行为仍可能调整。
 
 ## 目标
 
@@ -10,7 +12,7 @@
 - 保持 chezmoi 的 source 与 target 分离；写回由用户手动触发，不做保存后自动 re-add。
 - 模板等无法安全反向同步的文件采用显式、安全的 source 编辑流程。
 - 尽可能复用 chezmoi CLI，不重复实现其模板和加密逻辑。
-- 成功时保持安静，只有失败或需要用户决定时才打断编辑。
+- 耗时操作可取消；写回结果、失败和需要用户决定的位置会明确提示。
 - 默认保持轻量，模板功能需要 gotmpl parser，不强制依赖其他 Neovim 插件。
 
 ## 要求
@@ -18,6 +20,8 @@
 - Neovim 0.12+
 - chezmoi 2.x（可执行文件需位于 `PATH` 中，或通过配置指定）
 - 模板功能需要安装 `gotmpl` Tree-sitter parser；目标语言 parser 可选，缺少时使用 Vim syntax 高亮。
+
+已在 Linux、Neovim 0.12.6 和 chezmoi 2.73.3 上测试；其他平台尚未验证。
 
 ## 安装
 
@@ -47,6 +51,27 @@ lazy.nvim 会提前读取本插件的 `ftdetect/`；遇到候选模板路径时�
 只用 `ft = "gotmpl"` 时，普通 source 不会触发首次加载；希望直接打开普通 source 即按
 target 识别文件类型，应提前 setup，而非只依赖该 filetype 触发。
 
+## 快速开始
+
+安装 gotmpl parser 并完成 setup 后，先运行 `:checkhealth vimoi` 检查环境。
+
+| 命令 | 用途 |
+| --- | --- |
+| `:VimoiToggle` | 在受管理文件的 source 和 target 间切换 |
+| `:VimoiPreview` | 使用未保存的模板内容预览只读结果 |
+| `:VimoiDiff` | 比较 source 与 target；模板使用渲染结果投影差异 |
+| `:VimoiReAdd` | 将 target 中可映射的静态修改写回模板 buffer |
+| `:VimoiCancel` | 取消正在执行的耗时命令 |
+
+在模板 diff 中，target 窗口的 `dp` 把当前 hunk 写回模板；source 窗口的 `dp`
+把当前 hunk 的渲染结果写入 target。两者都不自动保存，也不执行 chezmoi apply。
+普通文件使用原生双文件 diff；`VimoiReAdd` 只支持模板。
+
+模板诊断默认启用，会实际执行模板函数，可能调用密码助手。可通过
+`diagnostics = { enabled = false }` 关闭。渲染限制请先阅读下文的「模板渲染限制」。
+
+## 配置与 API
+
 用户日常调用的 Lua 接口位于 `require("vimoi.api")`：配置、预览、打开 diff、合并 hunk、
 同步折叠和路径跳转。补全由 `vimoi.blink` 提供，目前只集成 blink.cmp；
 只有 `setup`、帮助文档列出的 `vimoi.api` 操作和 `vimoi.blink` 集成属于公开接口；
@@ -57,15 +82,10 @@ target 识别文件类型，应提前 setup，而非只依赖该 filetype 触发
 等待渲染或选择时也返回 `nil`，因此不能用它判断最终是否成功。这些是交互入口，
 目前不提供供脚本等待完成的回调或 promise；详细参数和返回值见 `:help vimoi-api`。
 
-内部 `vimoi.job` 统一管理进程、进度浮窗和取消选择；`vimoi.cli` 负责 chezmoi 参数、
-输出处理和缓存，`vimoi.util` 保留协程及通用工具。延迟回调通过 `util.guard` 的
-`is_valid` / `on_fail` 接口检查调用是否仍有效，两者始终接收本次调用的原始参数。
-同一个 guard 也负责防抖（`delay`）、协程计算及结果发布（`on_result`）；默认串行，
-运行期间重复调用只保留最新参数，`allow_parallel = true` 可允许并行。
-`should_retry` 接收计算结果，返回 true 则异步重试，沿用 delay，未设置时默认等待 100ms；
-否则交给可选的 `on_result` 使用结果。两者均可独立启用协程计算和完成后的有效性检查。
-计算与检查紧密结合时，也可直接在 `should_retry` 内处理最终结果并返回 false，省略
-`on_result`，中英文帮助文档提供了示例。调用失效则直接丢弃，`on_fail` 的返回值不控制调度。
+内部任务调度与模块职责见中英文帮助；这些内部接口不属于用户 API。
+
+## 缓存和耗时命令
+
 chezmoi 路径查询、data 和模板结构渲染会缓存，静态文本在本地恢复。配置文件和已发现的 data 文件变化
 会自动清空缓存，包括编辑器外的修改；需要手动刷新时，可调用
 `require("vimoi.api").invalidate_cache()`，同时重新扫描文件监听范围。
@@ -86,6 +106,8 @@ chezmoi 路径查询、data 和模板结构渲染会缓存，静态文本在本�
 取消会结束进程（Unix 下包括同一进程组的子进程），不会继续执行待处理的写回。
 路径和配置路径查询等快速命令仍直接执行。模板 diff 的 put/apply/re-add 等待渲染时
 使用同一套浮窗；取消初次渲染会结束该 session，两侧 buffer 保留。
+
+## 默认键位
 
 默认普通模式映射如下；全局入口可从 target 或 source buffer 调用：
 
@@ -108,6 +130,8 @@ require("vimoi.api").setup({
   chezmoi_executable = "chezmoi", -- 也可以是可执行的 wrapper 路径
   chezmoi_config_path = nil, -- 可选；指定后所有命令统一传入 --config
   split = "vertical", -- "horizontal" 在上下分屏中打开 diff/preview
+  watch = { buffer_write_fallback = "auto" },
+  diff = { validate = false },
   completion = { enabled = true },
   diagnostics = { enabled = true },
   highlight = {
@@ -148,7 +172,7 @@ require("vimoi.api").setup({
 未设置时由 chezmoi 自动查找，插件只在 setup 时查询一次配置路径。
 支持 `~` 和相对路径；相对路径以 setup 时的工作目录为准。路径中的 `$` 按字面保留，
 不展开环境变量；需要时请显式使用 `vim.env`，例如
-`chezmoi_config_path = vim.env.XDG_CONFIG_HOME .. "/chezmoi/chezmoi.toml"`。
+`chezmoi_config_path = vim.env.MY_CHEZMOI_CONFIG`（需先设置该环境变量）。
 
 文件监听是 best-effort：监听 setup 或手动刷新时发现的 data/模板目录及相关父目录。
 新建、移动目录，文件系统不支持监听，或环境变量变化时，可能需要手动调用
@@ -454,19 +478,6 @@ source（例如 ignore/remove 中的路径）时，才打开 destination 中的�
 
 详见 [FEATURES.md](FEATURES.md)。
 
-## 开发
-
-```sh
-nvim --headless -u tests/minimal_init.lua \
-  "+lua require('vimoi').setup()" +qa
-```
-
-局部写入的性能、边界处理和测试说明见 [局部写入实测](docs/buffer-edits.md)。
-
-## License
-
-MIT
-
 ## 开发检查
 
 安装上述依赖后，运行 `python3 tests/run.py` 执行测试，也可追加测试文件名，例如
@@ -476,3 +487,9 @@ Neovim 的 runtimepath 找到。性能测试单独运行，见 [性能对比](do
 
 格式检查：`stylua --check lua ftdetect tests`。LuaLS 检查应包含真实的 Neovim runtime
 library，并保留全部诊断等级；不要通过关闭诊断使检查通过。
+
+局部写入的性能、边界处理和测试说明见 [局部写入实测](docs/buffer-edits.md)。
+
+## License
+
+[MIT](LICENSE)，Copyright (c) 2026 dirichy。

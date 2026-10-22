@@ -7,7 +7,7 @@
 [FEATURES.md](../FEATURES.md) 为准。
 
 后续更新：vimoi 已补上模板与非模板 source 的 target 文件类型识别、独立 Toggle 导航、
-导航、依赖失效后的视图刷新、块 snippet、可选 vim-matchup 查询及横向分屏。
+依赖失效后的视图刷新、块 snippet、可选 vim-matchup 查询及横向分屏。
 下文保留修改前的调研快照，当前完成状态以 FEATURES 和 benchmark 文档的状态表为准。
 
 ## 本地仓库与版本

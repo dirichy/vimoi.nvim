@@ -1,15 +1,16 @@
 # 合并结果局部写入
 
-`dp` 和 auto merge 仍先生成候选模板、验证完整渲染结果，通过后才修改 source buffer，
-不会自动写盘。变化仅在最后的写入阶段：复用转义后的实际 edits，倒序局部应用。
+`dp` 和手动 template re-add 先规划静态修改及候选位置，按需交互选择，再生成转义后的
+source edits，通过现有执行记录推算新输出和 source map，最后局部修改 buffer，不自动写盘。
+不重新渲染候选或验证完整输出；动态及无法推算的修改留给用户手动处理。
 
 ## 实现与取舍
 
-- `apply_source_edits()` 返回候选文本及实际使用的 edits，保留模板括号转义后的范围。
-  同一位置的 edits 也复用候选计算的实际应用顺序，不再另算一次 diff。
-- `merge_plan.plan()` 只规划 edits、choices 和 skipped；选择完成后，put 和 auto merge
-  用 `merge_plan.prepare_candidate()` 构造实际写入及预期输出；`merge` 负责选择和验证，
-  结构不变时复用 source map，否则异步渲染，并在写入前检查原始快照。
+- `merge_plan.plan()` 只规划 edits、choices 和 skipped。选择完成后，
+  `merge_plan.prepare_candidate()` 构造转义后的 source 文本和实际 edits；
+  `source_map.rebuild_after_edits()` 根据原有执行记录重建映射。
+- `merge` 负责等待、选择和写回前的快照检查，`buffer_edits.apply()` 只负责按 edits
+  写入 buffer，不理解模板。多个同位置 edits 使用候选构造时确定的实际顺序。
 - 完整行修改用 `nvim_buf_set_lines()`，行内修改用 `nvim_buf_set_text()`，减少对未修改
   文本、extmark 和解析缓存的影响。行首索引每次操作只建立一次。
 - 多处修改在 source buffer 中通过 `undojoin` 合为一次 undo/redo；没有另建撤销状态。
@@ -19,8 +20,8 @@
   状态经过回归验证；不额外保存/恢复折叠，几何范围变化仍遵循 Neovim 的处理方式。
 
 `gotmpl/buffer_edits.lua` 同时供合并及只读预览刷新使用；模板转义由 `merge_plan` 负责。
-没有引入新配置、写入阈值或按键劫持。完整候选解析、校验和 diff 刷新仍然存在，
-因此不是整个合并流程都变成增量计算。
+没有引入新配置、写入阈值或额外按键劫持。候选文本构造、映射重建和 diff 刷新仍有
+处理整份文本或映射数组的工作，因此不是整个合并流程都变成严格的局部计算。
 
 ## 一次本机测量（2026-10-20）
 
@@ -37,8 +38,9 @@ GC 保持开启，仅在每批之前主动回收。单位为毫秒，不代表�
 
 这里的解析是写入后实际查询 buffer 语法缓存的成本：全量写入报告整 buffer 变化，
 收集节点分别为 702/2802/11202；局部写入均为 2。这不是 `dp` 端到端耗时，不包含
-候选计算、渲染校验、diff 更新和 UI。大量分散 edits 的写入仍有多次 API 调用成本，
-不能据此推断任意 auto merge 都有同样的提速比例。
+候选计算、映射重建、diff 更新和 UI。测量时的合并实现还包含候选渲染校验，
+这一步后来已移除；表格仅测写入及解析成本。大量分散 edits 仍有多次 API 调用，
+不能据此推断任意 template re-add 都有同样的提速比例。
 
 复现：
 
@@ -53,6 +55,7 @@ env XDG_STATE_HOME=/tmp nvim --headless -n -i NONE -u tests/minimal_init.lua \
 整行/行内增删改、空 buffer、EOF、模板括号转义、多处 edits 和相同插入位置。
 另验证未修改行及同行未修改区域的 extmark，检查变更通知不会扩大到整 buffer。
 
-实际 diff 集成测试覆盖 put、auto merge、交互选择和取消、渲染验证失败、模板边界及
-转义。`diff_byte_edits_integration.lua` 验证真实 put 的一次 undo/redo 和模板标签标记；
+实际 diff 集成测试覆盖 put、手动 template re-add、交互选择和取消、模板边界及转义。
+初次渲染验证失败由单独的异步初始化测试覆盖，不是局部写入前的候选验证。
+`diff_byte_edits_integration.lua` 验证真实 put 的一次 undo/redo 和模板标签标记；
 `diff_fold_refresh.lua` 验证原生更新保留打开的折叠及 `zR` 状态。

@@ -44,7 +44,7 @@ differences in the isolated fixture with chezmoi 2.73.1.
 
 Init config templates additionally require `execute-template --init` for
 `prompt*Once` and related init-only functions. The diff renderer recognizes
-`.chezmoi.{toml,yaml,json,jsonc}.tmpl`, maps it to `.chezmoi.configFile`, and
+`.chezmoi.{toml,yaml,yml,json,jsonc}.tmpl`, maps it to `.chezmoi.configFile`, and
 enables this flag for every render and refresh.
 
 ## MVP policy
@@ -80,7 +80,7 @@ chezmoi --source <shadow-source> --working-tree <real-working-tree> cat <target>
 This preserves `sourceFile`, `targetFile`, `command`, include paths, and target
 semantics. It still changes `sourceDir` and `args`, so it does not remove the
 need for final equality validation. It also does not apply to
-`.chezmoi.{toml,yaml,json,jsonc}.tmpl`, which is an init config template rather
+`.chezmoi.{toml,yaml,yml,json,jsonc}.tmpl`, which is an init config template rather
 than a managed target.
 
 Temporarily replacing the real source file would preserve all context, but is

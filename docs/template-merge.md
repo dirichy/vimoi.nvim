@@ -35,8 +35,7 @@ B (rendered base)
                    -> R (new template)
 ```
 
-它与 chezmoi 自带 `merge_plan` 的状态模型一致：`Destination = M`、`Source = S`、
-`Target = B`。插件不应发明另一套状态含义。
+这里的 `S`、`B`、`M`、`R` 只表示本设计稿中的角色，不是 chezmoi CLI 的参数名。
 
 ## 为什么不直接套用 `diff(S, B)`
 

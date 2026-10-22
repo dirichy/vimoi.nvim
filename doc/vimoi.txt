@@ -39,9 +39,12 @@ REQUIREMENTS                                              *vimoi-requirements*
 
 - Neovim 0.12 or later.
 - chezmoi 2.x available in $PATH, or configured with |vimoi-setup|.
-- A `gotmpl` Tree-sitter parser for template source mapping.
+- A `gotmpl` Tree-sitter parser for template source mapping and diagnostics.
 - A Tree-sitter parser for the target language is optional but improves
   embedded syntax highlighting.
+
+Tested on Linux with Neovim 0.12.6 and chezmoi 2.73.3. Other platforms have not
+been verified.
 
 ==============================================================================
 SETUP                                                            *vimoi-setup*
@@ -112,7 +115,7 @@ discovers its config and the plugin queries its path once during setup.
 Paths support `~` and relative paths, resolved against the working directory at
 setup time. Dollar signs are literal; environment variables are not expanded.
 Read `vim.env` explicitly when needed, for example:
-`chezmoi_config_path = vim.env.XDG_CONFIG_HOME .. "/chezmoi/chezmoi.toml"`.
+`chezmoi_config_path = vim.env.MY_CHEZMOI_CONFIG` (set that variable first).
 
 `watch.buffer_write_fallback` controls BufWritePost invalidation:
   "auto" (default)  Use buffer saves only when the file's parent directory has
@@ -772,8 +775,9 @@ The sentinel renderer does not currently support:
 - Templates whose result depends on `.chezmoi.sourceFile`,
   `.chezmoi.targetFile`, `.chezmoi.command`, or `.chezmoi.args`.
 - `includeTemplate` calls whose result indirectly depends on those fields.
-- Automatic merging of dynamic, repeated, ambiguous, or cross-boundary
-  hunks.
+- Reverse-mapping dynamic or repeated output changes, or cross-boundary edits
+  whose placement cannot be inferred. Edit source manually for these cases.
+  Inferable but ambiguous static placements use an interactive choice.
 - Guaranteed valid host-language injections for incomplete template
   fragments; see |vimoi-highlighting|.
 
