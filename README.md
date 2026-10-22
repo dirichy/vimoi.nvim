@@ -1,135 +1,231 @@
 # vimoi.nvim
 
-在 Neovim 中安全、顺手地编辑由 [chezmoi](https://www.chezmoi.io/) 管理的文件。
+Edit [chezmoi](https://www.chezmoi.io/)-managed files safely and comfortably in Neovim.
 
-[English documentation](doc/vimoi.txt) · [中文帮助](doc/vimoi.cnx)
+[简体中文](README.zh-CN.md) · [English help](doc/vimoi.txt) · [中文帮助](doc/vimoi.cnx)
 
-> 项目处于 alpha 阶段，API 和行为仍可能调整。
+> This project is in alpha. APIs and behavior may change.
 
-## 演示
+## Demos
 
-编辑未保存的模板，右侧只读预览同步更新；修改条件分支和 undo 同样生效：
+Edit an unsaved template while its read-only preview updates alongside it, including
+conditional branches and undo:
 
-![实时模板预览：静态文本编辑、条件分支切换和撤销](docs/demos/preview.gif)
+![Live template preview: static edits, branch changes, and undo](docs/demos/preview.gif)
 
-模板 diff 与手动 re-add：把 target 的静态修改写回 source，保留模板表达式；动态修改留待手动处理：
+Compare a template with its target and manually re-add static changes to the source,
+preserving template expressions. Changes to dynamic output remain for manual editing:
 
-![模板 diff 与 re-add：静态修改写回，动态表达式保留](docs/demos/readd.gif)
+![Template diff and re-add: write back static edits and preserve expressions](docs/demos/readd.gif)
 
-[预览 MP4](docs/demos/preview.mp4) · [re-add MP4](docs/demos/readd.mp4) · [重录说明](docs/demos/README.md)
+[Preview MP4](docs/demos/preview.mp4) · [Re-add MP4](docs/demos/readd.mp4) · [Recording guide](docs/demos/README.md)
 
-## 功能
+## Features
 
-- 在 chezmoi source 和真实 target 之间切换，保留各自未保存的修改。
-- 编辑模板时预览只读结果，或比较模板与 target，并按 hunk 双向操作。
-- 手动 ReAdd：普通文件将 target 内容写回 source；模板保留表达式，写回可确定的静态修改。
-- 模板诊断、宿主语言高亮、blink.cmp 补全和路径跳转。
+- Switch between chezmoi source and actual target files, preserving unsaved changes on both sides.
+- Preview templates while editing, or compare templates with targets and transfer individual hunks in either direction.
+- Manual ReAdd: copy target content back to plain source files, or write back identifiable static changes while preserving template expressions.
+- Template diagnostics, host language highlighting, blink.cmp completion, and path navigation.
 
-所有写回都由用户主动触发，只修改 buffer，不自动保存，也不自动执行 chezmoi apply。
+All write-back operations are explicitly triggered by the user and only modify buffers.
+They do not save automatically or run chezmoi apply.
 
-## 要求
+## Requirements
 
-- Neovim 0.12+。
-- chezmoi 2.x，位于 `PATH` 中或通过配置指定。
-- 模板功能需要 `gotmpl` Tree-sitter parser。目标语言 parser 可选，缺少时回退到 Vim syntax 高亮。
+- Neovim 0.12+.
+- chezmoi 2.x, available on `PATH` or specified in the configuration.
+- The `gotmpl` Tree-sitter parser for template features. Target language parsers are optional;
+  highlighting falls back to Vim syntax when unavailable.
 
-已在 Linux、Neovim 0.12.6 和 chezmoi 2.73.3 上测试；其他平台尚未验证。
+Tested on Linux with Neovim 0.12.6 and chezmoi 2.73.3. Other platforms have not been verified.
 
-## 安装
+## Installation
 
-lazy.nvim：
+With lazy.nvim:
 
 ```lua
 {
   "dirichy/vimoi.nvim",
+  lazy = false,
   opts = {},
 }
 ```
 
-其他插件管理器安装 `dirichy/vimoi.nvim` 后调用：
+With another plugin manager, install `dirichy/vimoi.nvim` and call:
 
 ```lua
 require("vimoi").setup()
 ```
 
-安装 gotmpl parser 并完成配置后，执行 `:checkhealth vimoi` 检查环境。
-如需使用下文的默认快捷键，请先设置 `vim.g.mapleader`。
+After installing the gotmpl parser and configuring the plugin, run `:checkhealth vimoi`.
+Set `vim.g.mapleader` before setup to use the default mappings below.
 
-也可通过 `ft = "gotmpl"` 懒加载，但直接打开普通 source 文件不会触发加载。
-需要普通 source 的文件类型识别或全局命令时，使用上面的提前加载配置。
+You can also lazy-load with `ft = "gotmpl"`, but opening a plain source file will not
+trigger loading. Use the startup configuration above for plain source filetype detection
+and global commands.
 
-## 快速开始
+## Quick start
 
-打开一个受 chezmoi 管理的 source 或 target 文件：
+Open a chezmoi-managed source or target file:
 
-| 命令 | 用途 |
+| Command | Purpose |
 | --- | --- |
-| `:VimoiToggle [path]` | 打开 source/target 的另一侧 |
-| `:VimoiPreview [source]` | 预览模板的只读渲染结果 |
-| `:VimoiDiff` | 比较当前文件的 source 与 target |
-| `:VimoiDiff {source} {target}` | 比较指定的两个文件 |
-| `:VimoiReAdd [path]` | 将 target 修改写回 source buffer |
-| `:VimoiCancel` | 取消耗时命令 |
+| `:VimoiToggle [path]` | Open the other side of a source/target pair |
+| `:VimoiPreview [source]` | Preview a template's read-only rendered output |
+| `:VimoiDiff` | Compare the current file's source and target |
+| `:VimoiDiff {source} {target}` | Compare an explicit file pair |
+| `:VimoiReAdd [path]` | Write target changes back to the source buffer |
+| `:VimoiCancel` | Cancel a running command |
 
-### 编辑模板并预览
+### Edit and preview a template
 
-1. 执行 `:VimoiToggle` 切到 source 模板。
-2. 执行 `:VimoiPreview`，继续在 source 窗口编辑。
-3. 右侧只读结果随编辑更新，无须先保存。
+1. Run `:VimoiToggle` to switch to the source template.
+2. Run `:VimoiPreview` and keep editing in the source window.
+3. The read-only preview updates on the right without saving the source first.
 
-也可以执行 `:VimoiPreview /path/to/source.tmpl`。支持未命名 buffer 和没有独立
-target 的模板片段。预览不会修改真实 target；渲染失败时保留旧结果并标明过期。
+You can also run `:VimoiPreview /path/to/source.tmpl`. Unnamed buffers and template
+fragments without a standalone target are supported. Preview does not modify the actual
+target. If rendering fails, the previous output is retained and marked as stale.
 
-重复执行 diff/preview 会复用当前窗口对。关闭或替换任一侧即可结束该视图。
-`split = "horizontal"` 可改成上下分屏；已有窗口不会重新排列。
+Repeated diff/preview commands reuse the current window pair. Closing either window or
+replacing its buffer ends the view. Set `split = "horizontal"` for a horizontal split;
+existing windows are not rearranged.
 
-### 比较与修改一个 hunk
+### Compare and transfer a hunk
 
-执行 `:VimoiDiff` 后，使用 `[c` / `]c` 跳转差异，使用原生折叠键展开或收起上下文。
-模板 diff 中的按键方向如下：
+Run `:VimoiDiff`, use `[c` / `]c` to navigate changes, and use native fold keys to show
+or hide context. In a template diff, the transfer directions are:
 
-| 当前窗口 | `do`：取入当前窗口 | `dp`：送到另一侧 |
+| Current window | `do`: get into the current window | `dp`: put into the other side |
 | --- | --- | --- |
-| source 模板 | 将 target 的当前 hunk 写回模板 | 将当前 hunk 的渲染结果写入 target |
-| target | 取入模板当前 hunk 的渲染结果 | 将当前 hunk 写回模板 |
+| Source template | Write the current target hunk back to the template | Write the current hunk's rendered output to the target |
+| Target | Get the template's rendered output for the current hunk | Write the current hunk back to the template |
 
-也可执行 `:VimoiDiffPut` 将当前 target hunk 写入模板，或执行 `:VimoiDiffApply`
-将当前 hunk 的渲染结果写入 target。两侧修改都支持 undo/redo，不自动保存。
-模板动态输出的修改不能反向还原表达式，需要手动编辑 source；静态插入位置有歧义时会提示选择。
+Alternatively, run `:VimoiDiffPut` to write the current target hunk into the template,
+or `:VimoiDiffApply` to write the current hunk's rendered output into the target.
+Changes on both sides support undo/redo and are not saved automatically.
+Changes to dynamic output cannot be inverted into template expressions; edit the source
+manually. Ambiguous static insertion positions prompt you to choose a location.
 
-这些模板操作依赖插件映射或命令。直接使用原生 `:diffget` / `:diffput` 或 `normal!`
-会复制模板源码。普通文件使用原生双文件 diff，`do` / `dp` 保持原生含义。
+These template operations require the plugin mappings or commands. Native `:diffget` /
+`:diffput` or `normal!` copy template source text. Plain files use native two-file diff,
+where `do` / `dp` keep their native meaning.
 
-### 将 target 的修改写回 source
+### Write target changes back to the source
 
-执行 `:VimoiReAdd`，或者指定 source/target 路径：
+Run `:VimoiReAdd`, or specify a source or target path:
 
 ```vim
 :VimoiReAdd /path/to/file
 ```
 
-- **普通文本文件**：读取两侧当前 buffer，无须先保存；将 target 的全部内容写入 source。
-  source 原有未保存内容会被替换，可用一次 undo 恢复；相同内容不会重复修改。
-- **模板**：批量写回可确定的静态修改，保留表达式；动态或无法确定的修改留待手动处理。
-  位置有歧义时选择合适的插入位置；取消选择会跳过该处。
+- **Plain text files:** read both current buffers without saving and copy all target
+  content into the source. Existing unsaved source content is replaced; one undo restores
+  it. Identical content does not trigger another change.
+- **Templates:** write back identifiable static changes in bulk while preserving expressions.
+  Dynamic or uncertain changes remain for manual editing. Choose a location when an insertion
+  is ambiguous; canceling the choice skips that insertion.
 
-需要时自动打开 diff；模板渲染尚未完成时可以等待或取消。已有 diff 直接复用，
-只读预览会切换到真实 target diff。普通文件的 target 必须存在，或已在 buffer 中打开。
-加密文件、symlink 和脚本 source 暂不支持普通文本 ReAdd。
+A diff opens when needed. You can wait for template rendering or cancel it. An existing
+diff is reused; a read-only preview switches to a diff with the actual target.
+For plain files, the target must exist or already be open in a buffer.
+Encrypted files, symlinks, and script sources are not supported by plain text ReAdd.
 
-检查结果后，在 source 窗口用 `:write` 保存。ReAdd 不执行 chezmoi CLI 的 re-add，
-不更新文件属性，也不自动保存或 apply。`VimoiDiffApply` 同样只修改当前 target hunk，
-不等同于 chezmoi apply。
+Review the result and run `:write` in the source window. ReAdd does not invoke the chezmoi
+CLI's re-add, update file attributes, save automatically, or apply changes.
+Likewise, `VimoiDiffApply` only modifies the current target hunk; it is not chezmoi apply.
 
-## 配置和默认键位
+### Compare two buffers without file paths
 
-以下为完整默认配置，可只填写需要修改的部分：
+Pass two loaded buffers in source/target order. Unnamed and scratch buffers are supported:
+
+```lua
+require("vimoi.api").diff_buffers(source_buf, target_buf, { filetype = "yaml" })
+```
+
+The source is rendered as a chezmoi template using the configured template data and
+gets the `gotmpl` filetype. Optional `filetype` sets the host language for source
+highlighting and the target's filetype; omit it to use the target's current filetype,
+falling back to detection from its name and contents. `0` means the current buffer;
+source and target must be different loaded buffers.
+
+The view supports the same hunk operations and `:VimoiReAdd` as a template file diff.
+It uses current buffer contents, leaves buffer names intact, and never validates
+against `chezmoi cat`, even when `diff.validate = true`. Closing or replacing either
+window ends the view. No files are saved automatically.
+
+## Use as a chezmoi diff / merge interface
+
+Open a managed source or target in Neovim and run `:VimoiDiff` to compare and merge
+changes manually, without changing your chezmoi configuration. Templates compare rendered
+output with the actual file while keeping the source editable. See the tutorials above
+for individual hunks and bulk write-back. Changes to dynamic output still require manual
+template editing.
+
+### Open from `chezmoi merge`
+
+Make sure the plugin is loaded and setup has completed at Neovim startup, for example
+with the `lazy = false` configuration above. Add this to `~/.config/chezmoi/chezmoi.toml`:
+
+```toml
+[merge]
+command = "nvim"
+args = [
+    "-c",
+    "lua require('vimoi.api').diff_files(vim.fn.argv(0), vim.fn.argv(1))",
+    "--",
+    "{{ .Source }}",
+    "{{ .Destination }}",
+]
+```
+
+Then run:
+
+```sh
+chezmoi merge ~/.bashrc
+```
+
+chezmoi passes the source and actual file paths to the plugin. The plugin renders the
+template itself, so `.Target` is not passed. This opens the plugin's two-window template
+comparison rather than a native three-file merge layout.
+Template source buffers use the `gotmpl` filetype, with the target language injected
+for highlighting; the actual file keeps its own filetype.
+Use `do` / `dp` for individual hunks or `:VimoiReAdd` to write back identifiable static
+changes in bulk. Review the result, run `:write` in each window whose changes you want
+to keep, then exit with `:qa`. The plugin does not save or apply automatically and does
+not replace chezmoi's file attribute or encryption operations.
+See the [chezmoi merge reference](https://www.chezmoi.io/reference/commands/merge/) for the argument definitions.
+
+If you use another configuration file via `chezmoi --config /path/to/chezmoi.toml`, also
+set `chezmoi_config_path` to that path in Neovim so both use the same source and template data.
+
+If you put this configuration in a `.tmpl` that generates your config file, replace
+the two path arguments with:
+
+```gotmpl
+    {{ printf "%q" "{{ .Source }}" }},
+    {{ printf "%q" "{{ .Destination }}" }},
+```
+
+This preserves the placeholders in the generated TOML for expansion when merge runs.
+
+### `chezmoi diff` limitation
+
+For now, keep your existing `chezmoi diff` configuration and use `:VimoiDiff` inside Neovim.
+chezmoi's external diff interface provides `.Destination` and the rendered `.Target`,
+without directly providing `.Source`. The merge configuration above cannot be reused
+as-is to compare and write back template source through that interface.
+See the [chezmoi diff guide](https://www.chezmoi.io/user-guide/tools/diff/) for details.
+
+## Configuration and default mappings
+
+The complete defaults are shown below. Only specify the options you want to change:
 
 ```lua
 require("vimoi").setup({
-  chezmoi_executable = "chezmoi", -- 也可指定可执行的 wrapper
-  chezmoi_config_path = nil, -- 可选的 chezmoi 配置文件路径
-  split = "vertical", -- 或 "horizontal"
+  chezmoi_executable = "chezmoi", -- Can also be an executable wrapper
+  chezmoi_config_path = nil, -- Optional chezmoi configuration file path
+  split = "vertical", -- Or "horizontal"
   watch = { buffer_write_fallback = "auto" },
   diff = { validate = false },
   completion = { enabled = true },
@@ -160,37 +256,43 @@ require("vimoi").setup({
 })
 ```
 
-全局入口默认是 `<leader>cd` diff、`<leader>cp` preview、`<leader>ct` 切换、
-`<leader>ca` ReAdd、`<leader>cr` 刷新缓存、`<leader>cx` 取消命令。
-`gf` / `gF` 仅在模板及 symlink source 中启用；模板 diff 的 hunk 和折叠映射仅在相应窗口聚焦时启用。
+Global defaults are `<leader>cd` for diff, `<leader>cp` for preview, `<leader>ct` to toggle,
+`<leader>ca` for ReAdd, `<leader>cr` to refresh caches, and `<leader>cx` to cancel commands.
+`gf` / `gF` are enabled only in templates and symlink sources. Template diff hunk and fold
+mappings are active only while the corresponding window is focused.
 
-任一映射设为字符串可换键，设为 `false` 或空字符串可关闭；`keymaps = false` 关闭全部映射：
+Set a mapping to a string to change it, or to `false` or an empty string to disable it.
+Set `keymaps = false` to disable all mappings:
 
 ```lua
 require("vimoi").setup({ keymaps = { diff = "<leader>hd", readd = false } })
 ```
 
-`chezmoi_config_path` 支持 `~` 和相对路径，相对路径以 setup 时的工作目录为准。
-`$` 按字面保留；需要环境变量时显式传入，例如
-`chezmoi_config_path = vim.env.MY_CHEZMOI_CONFIG`（需先设置该变量）。
+`chezmoi_config_path` supports `~` and relative paths, resolved against the working directory
+at setup time. `$` is kept literally. Pass environment variables explicitly, for example
+`chezmoi_config_path = vim.env.MY_CHEZMOI_CONFIG` after setting that variable.
 
-进程/config 路径、watch 和 keymaps 在首次成功 setup 后固定，修改后需重启 Neovim。
-其余选项可再次 setup 更新；省略的可更新选项恢复默认值。
-`highlight.template_bg` 也可直接设为一个颜色字符串。
+Executable/config paths, watch options, and keymaps are fixed after the first successful
+setup; restart Neovim to change them. Other options can be updated by calling setup again;
+omitted updatable options revert to defaults.
+`highlight.template_bg` also accepts a single color string.
 
-## 模板诊断与高亮
+## Template diagnostics and highlighting
 
-模板诊断默认启用，无须打开 diff 或 preview。编辑后会检查语法和执行错误，
-使用原生 Neovim diagnostics，与其他 LSP 诊断共存。可通过
-`diagnostics = { enabled = false }` 关闭，显示样式用 `vim.diagnostic.config()` 调整。
+Template diagnostics are enabled by default, without opening diff or preview. Edits trigger
+syntax and execution checks using native Neovim diagnostics alongside other LSP diagnostics.
+Disable them with `diagnostics = { enabled = false }` and customize their appearance with
+`vim.diagnostic.config()`.
 
-诊断和预览会实际执行模板函数，可能调用密码助手；耗时任务可取消，没有默认超时。
-模板宿主语言会按 target 名称和 shebang 识别，例如 `dot_zshrc.tmpl` 使用 zsh 高亮。
-模板拼接不完整语句时，宿主语言高亮可能不准确。
+Diagnostics and previews execute template functions and may invoke password helpers.
+Slow tasks can be canceled and have no default timeout.
+The host language is detected from the target name and shebang; for example,
+`dot_zshrc.tmpl` uses zsh highlighting. Highlighting may be inaccurate when templates
+assemble incomplete host language statements.
 
-## blink.cmp 补全
+## blink.cmp completion
 
-只集成 blink.cmp，需要在 blink 配置中注册 source：
+Completion integrates with blink.cmp only. Register the source in its configuration:
 
 ```lua
 require("blink.cmp").setup({
@@ -214,68 +316,83 @@ require("blink.cmp").setup({
 })
 ```
 
+Completes template functions, data fields, current buffer variables, and include/template/glob
+paths without displaying data values. Outside template actions, it offers `if`, `ifelse`,
+`range`, `with`, `define`, `block`, and `comment` snippets.
+`blocked_filetypes` prevents inappropriate parentheses from being added when accepting
+template function completions.
 
-补全模板函数、data 字段、当前 buffer 的变量和 include/template/glob 路径，不展示 data 值。
-模板 action 外提供 `if`、`ifelse`、`range`、`with`、`define`、`block`、`comment` snippet。
-`blocked_filetypes` 防止接受模板函数候选时自动添加不适用的圆括号。
+## Path navigation
 
-## 路径跳转
+Use `gf` in templates or symlink sources. `gF` also supports `path:line` / `path:line:column`.
 
-在模板或 symlink source 中使用 `gf`；`gF` 还支持 `path:line` / `path:line:column`。
-
-| 位置 | 路径基准 |
+| Context | Path base |
 | --- | --- |
 | `include "path"` | chezmoi source directory |
 | `template "name"` / `includeTemplate "name"` | `.chezmoitemplates` |
-| `glob "pattern"`、`.chezmoiignore` / `.chezmoiremove` | destination directory |
-| `symlink_*` 内容 | 生成的 symlink 所在目录 |
-| 绝对路径、`~` 路径和 `file://` URL | 文件系统 |
+| `glob "pattern"`, `.chezmoiignore` / `.chezmoiremove` | Destination directory |
+| `symlink_*` content | Directory containing the generated symlink |
+| Absolute paths, `~` paths, and `file://` URLs | File system |
 
-多个匹配通过 picker 选择；无法解析时回退到原生跳转。对于受管理的 destination 路径，
-优先打开 source。安装可选的 vim-matchup 并启用其 Tree-sitter 匹配后，可用 `%` 跳转模板控制块。
+Multiple matches open a picker; unresolved paths fall back to native navigation.
+Managed destination paths open their source preferentially. With optional vim-matchup
+and its Tree-sitter matching enabled, `%` jumps between template control blocks.
 
-## 取消任务和手动刷新
+## Cancel tasks and refresh manually
 
-后台任务在右上角显示进度；执行 `:VimoiCancel` 或 `<leader>cx`，只有一个任务时直接取消，
-多个时选择要取消的任务。在聚焦的等待浮窗中按 `q`、`Esc`、`Ctrl-C`，关闭或离开浮窗也会取消。
-取消初次渲染会结束该视图，保留两侧 buffer；取消等待不会继续写回。
+Background tasks show progress in the upper right. Run `:VimoiCancel` or `<leader>cx`;
+a single task is canceled directly, while multiple tasks open a picker.
+In a focused waiting float, press `q`, `Esc`, or `Ctrl-C` to cancel. Closing or leaving
+the float also cancels. Canceling the initial render ends the view and preserves both
+buffers; canceling a wait prevents the pending write-back from continuing.
 
-data、配置和已发现的共享模板变化后会自动刷新。若结果未更新，执行 `<leader>cr` 或：
+Changes to data, configuration, and discovered shared templates trigger automatic refresh.
+If results are stale, press `<leader>cr` or run:
 
 ```lua
 require("vimoi.api").invalidate_cache()
 ```
 
-新增目录、环境变量变化或文件系统监听失效时，可能需要手动刷新。
-某些文件系统静默丢失监听事件时，可设置 `watch.buffer_write_fallback = true`，
-让当前 Neovim 的保存触发刷新；`false` 关闭保存兜底，默认 `"auto"` 按需使用。
-更换 source 根目录后应重启 Neovim。
+New directories, environment variable changes, or failed file watchers may require manual
+refresh. For file systems that silently lose watcher events, set
+`watch.buffer_write_fallback = true` to refresh when saving in the current Neovim instance.
+`false` disables this fallback; the default `"auto"` enables it as needed.
+Restart Neovim after changing the source root directory.
 
-## 已知限制
+## Known limitations
 
-- 模板动态或重复输出的修改通常需要手动编辑 source，不做通用反向合并。
-- 不支持自定义模板分隔符，以及依赖纯空白/注释的空 define/block 覆盖语义。
-- 不支持结果依赖 `.chezmoi.sourceFile`、`.chezmoi.targetFile`、`.chezmoi.command`、
-  `.chezmoi.args` 的模板，也包括间接读取这些字段的 includeTemplate。
-- `diff.validate = true` 可额外检查模板渲染与 chezmoi cat 是否一致，不一致时拒绝打开 diff；
-  默认关闭，不适用于未保存内容的 preview，也不代表上述不支持的模板已获支持。
-- 源码不能包含本次运行使用的保留哨兵前缀，动态输出不能产生完整保留标记。
-  随机标记只降低意外碰撞概率；详细约束见 `:help vimoi-limitations`。
-- 不提供自动 re-add、自动 apply，也不替代 chezmoi CLI 的文件属性和加密操作。
+- Changes to dynamic or repeated template output usually require manual source edits;
+  general reverse merging is not supported.
+- Custom template delimiters and empty define/block overrides that depend solely on
+  whitespace/comments are not supported.
+- Templates whose output depends on `.chezmoi.sourceFile`, `.chezmoi.targetFile`,
+  `.chezmoi.command`, or `.chezmoi.args` are not supported, including includeTemplate
+  calls that read those fields indirectly.
+- `diff.validate = true` additionally checks template rendering against chezmoi cat and
+  refuses to open the diff on mismatch. It is off by default and does not apply to previews
+  of unsaved content or make the unsupported templates above supported.
+- Source text must not contain the reserved sentinel prefix used by the current run,
+  and dynamic output must not produce complete reserved markers. Random markers only
+  reduce accidental collision risk; see `:help vimoi-limitations` for details.
+- No automatic re-add or apply. The plugin does not replace chezmoi CLI file attribute
+  or encryption operations.
 
-## Lua API 与帮助
+## Lua API and help
 
 ```lua
 local api = require("vimoi.api")
-api.toggle()                -- source / target 切换
-api.preview()               -- 预览当前模板
-api.diff()                  -- 打开当前文件的 diff
-api.readd()                 -- target 修改写回 source buffer
-api.cancel_command()        -- 取消耗时命令
+api.toggle()                -- Switch between source and target
+api.preview()               -- Preview the current template
+api.diff()                  -- Open a diff for the current file
+api.diff_buffers(source_buf, target_buf, { filetype = "yaml" })
+api.readd()                 -- Write target changes back to the source buffer
+api.cancel_command()        -- Cancel a running command
 ```
 
-这些是交互入口。diff/preview 返回 `nil`；写回操作等待渲染或选择时也返回 `nil`，
-不能用它判断最终是否成功。参数、即时结果和其他操作见 `:help vimoi-api`。
+These are interactive entry points. Diff/preview operations, including `diff_buffers`,
+return `nil`. Write-back operations also
+return `nil` while rendering or waiting for a choice, so this does not indicate final success.
+See `:help vimoi-api` for arguments, immediate results, and other operations.
 
 ```vim
 :help vimoi.nvim
@@ -284,16 +401,18 @@ api.cancel_command()        -- 取消耗时命令
 :help vimoi.nvim@cn
 ```
 
-## 开发与规划
+## Development and roadmap
 
-- [FEATURES](FEATURES.md)：已完成与后续候选。
-- [预览性能对比](docs/preview-benchmark.md)、[局部写入实测](docs/buffer-edits.md)。
-- [重录 README 演示](docs/demos/README.md)。
+- [FEATURES](FEATURES.md): implemented features and future candidates.
+- [Preview performance comparison](docs/preview-benchmark.md) and [buffer write measurements](docs/buffer-edits.md).
+- [Re-record the README demos](docs/demos/README.md).
 
-测试：`python3 tests/run.py`，也可追加测试文件名。需要 Python 3、Unix shell 和上述依赖，
-测试使用独立配置和临时文件。格式检查：`stylua --check lua ftdetect tests docs/demos/init.lua`。
-LuaLS 应使用真实 Neovim runtime library，并保留全部诊断等级。
+Run tests with `python3 tests/run.py`, optionally followed by test filenames.
+Tests require Python 3, a Unix shell, and the dependencies above, and use isolated
+configuration and temporary files.
+Check formatting with `stylua --check lua ftdetect tests docs/demos/init.lua`.
+LuaLS should use the real Neovim runtime library and retain all diagnostic levels.
 
 ## License
 
-[MIT](LICENSE)，Copyright (c) 2026 dirichy。
+[MIT](LICENSE), Copyright (c) 2026 dirichy.
