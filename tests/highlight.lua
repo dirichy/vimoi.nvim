@@ -1,12 +1,11 @@
 vim.cmd("syntax on")
 
-local api = require("vimoi.api")
 local function background()
   return vim.api.nvim_get_hl(0, { name = "VimoiTemplateAction", link = false }).bg
 end
 
 vim.o.background = "dark"
-api.setup()
+require("vimoi").setup()
 assert(background() == 0x343B52)
 
 local buf = vim.api.nvim_create_buf(true, false)
@@ -17,13 +16,13 @@ assert(vim.fn.synIDattr(vim.fn.synID(1, 14, 1), "name") == "VimoiTemplateAction"
 assert(vim.fn.synIDattr(vim.fn.synID(2, 1, 1), "name") == "")
 assert(vim.fn.synIDattr(vim.fn.synID(3, 2, 1), "name") == "VimoiTemplateAction")
 
-api.setup({ highlight = { template_bg = "#123456" } })
+require("vimoi").setup({ highlight = { template_bg = "#123456" } })
 assert(background() == 0x123456)
 vim.o.background = "light"
 vim.api.nvim_exec_autocmds("OptionSet", { pattern = "background" })
 assert(background() == 0x123456)
 
-api.setup()
+require("vimoi").setup()
 assert(background() == 0xE4E9F4)
 vim.api.nvim_set_hl(0, "VimoiTemplateAction", { bg = "#000000" })
 vim.api.nvim_exec_autocmds("ColorScheme", { pattern = "test-theme" })
@@ -99,3 +98,33 @@ for _, tree in pairs(yaml:trees()) do
 end
 assert(vim.treesitter.query.get("gotmpl", "injections").has_combined_injections)
 vim.api.nvim_buf_delete(yaml_buf, { force = true })
+
+-- Disabled removes native host injections even when switching directly from
+-- injection mode, while retaining gotmpl parsing and action highlighting.
+local disabled_buf = vim.api.nvim_create_buf(false, true)
+vim.api.nvim_buf_set_lines(disabled_buf, 0, -1, false, { "local x = {{ .value }}" })
+require("vimoi.highlight").configure_template_buffer(disabled_buf, "lua")
+local disabled_parser = assert(vim.treesitter.get_parser(disabled_buf, "gotmpl"))
+disabled_parser:parse(true)
+assert(disabled_parser:children().lua)
+require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+disabled_parser:parse(true)
+assert(not disabled_parser:children().lua, "disabled mode retained a host injection")
+assert(vim.bo[disabled_buf].filetype == "gotmpl" and vim.bo[disabled_buf].syntax == "gotmpl")
+vim.api.nvim_buf_call(disabled_buf, function()
+  assert(vim.fn.synIDattr(vim.fn.synID(1, 12, 1), "name") == "VimoiTemplateAction")
+end)
+require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "injection" } })
+disabled_parser:parse(true)
+assert(disabled_parser:children().lua, "injection did not recover after disabled mode")
+
+-- The Vim syntax fallback must also follow mode changes, including buffers
+-- first configured while disabled. This language deliberately has no parser.
+require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+require("vimoi.highlight").configure_template_buffer(disabled_buf, "vimoi_missing_parser")
+assert(vim.bo[disabled_buf].syntax == "gotmpl", "disabled enabled a host syntax fallback")
+require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "injection" } })
+assert(vim.bo[disabled_buf].syntax == "vimoi_missing_parser", "switching modes did not restore fallback syntax")
+require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+assert(vim.bo[disabled_buf].syntax == "gotmpl", "switching modes did not disable fallback syntax")
+vim.api.nvim_buf_delete(disabled_buf, { force = true })

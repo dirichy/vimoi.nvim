@@ -18,6 +18,7 @@ local defaults = {
     host = true,
   },
   highlight = {
+    mode = "injection",
     template_bg = { dark = "#343B52", light = "#E4E9F4" },
   },
   ---@type VimoiKeymaps
@@ -75,7 +76,7 @@ local structural_config
 ---@field diff? { validate?: boolean }
 ---@field completion? { enabled?: boolean }
 ---@field diagnostics? { enabled?: boolean, host?: boolean }
----@field highlight? { template_bg?: string|{ dark: string, light: string } }
+---@field highlight? { mode?: "injection"|"rendered"|"disabled", template_bg?: string|{ dark: string, light: string } }
 ---@field keymaps? VimoiKeymaps|false
 
 ---@param opts? VimoiConfig
@@ -93,6 +94,11 @@ function M.setup(opts)
     vim.validate(name .. ".enabled", config[name].enabled, "boolean")
   end
   vim.validate("diagnostics.host", config.diagnostics.host, "boolean")
+  vim.validate("highlight", config.highlight, "table")
+  assert(
+    config.highlight.mode == "injection" or config.highlight.mode == "rendered" or config.highlight.mode == "disabled",
+    "highlight.mode must be injection, rendered or disabled"
+  )
   vim.validate("diff", config.diff, "table")
   vim.validate("diff.validate", config.diff.validate, "boolean")
   vim.validate("watch", config.watch, "table")

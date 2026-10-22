@@ -27,7 +27,7 @@ vim.fn.writefile({ "echo plain" }, source .. "/readonly_dot_bash_profile")
 vim.fn.writefile({ "return true" }, source .. "/private_dot_config/plain.lua")
 
 local api = require("vimoi.api")
-api.setup({ chezmoi_executable = wrapper, diagnostics = { enabled = false } })
+require("vimoi").setup({ chezmoi_executable = wrapper, diagnostics = { enabled = false } })
 local filetype = require("vimoi.filetype")
 local cli = require("vimoi.cli")
 

@@ -3,8 +3,7 @@ vim.opt.swapfile = false
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
-local api = require("vimoi.api")
-api.setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 local util = require("vimoi.util")
 local cli = require("vimoi.cli")
 local host_namespace = vim.api.nvim_create_namespace("vimoi-host-diagnostics")
@@ -139,10 +138,10 @@ end)
 assert(runs == before + 1, "plain text host checks must not start a render")
 local other = vim.api.nvim_create_namespace("test-independent-provider")
 vim.diagnostic.set(other, buf, { { lnum = 0, col = 0, message = "keep" } })
-api.setup({ diagnostics = { host = false } })
+require("vimoi").setup({ diagnostics = { host = false } })
 assert(requests[5].cancelled and #diagnostics() == 0)
 assert(#vim.diagnostic.get(buf, { namespace = other }) == 1)
-api.setup({ diagnostics = { host = true } })
+require("vimoi").setup({ diagnostics = { host = true } })
 wait_for(function()
   return #requests == 6
 end)

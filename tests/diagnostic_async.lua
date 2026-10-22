@@ -2,8 +2,7 @@
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
-local api = require("vimoi.api")
-api.setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 local cli, util = require("vimoi.cli"), require("vimoi.util")
 local original_execute = cli.execute_template
 local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
@@ -119,13 +118,13 @@ end)
 -- chezmoi's diagnostics; unrelated diagnostics remain owned by their provider.
 local other = vim.api.nvim_create_namespace("another-provider")
 vim.diagnostic.set(other, buf, { { lnum = 0, col = 0, message = "other" } })
-api.setup({ diagnostics = { enabled = false } })
+require("vimoi").setup({ diagnostics = { enabled = false } })
 assert(requests[7].job.cancelled)
 deliver(requests[7], "cancelled")
 assert(
   #vim.diagnostic.get(buf, { namespace = namespace }) == 0 and #vim.diagnostic.get(buf, { namespace = other }) == 1
 )
-api.setup({ diagnostics = { enabled = true } })
+require("vimoi").setup({ diagnostics = { enabled = true } })
 wait_for(function()
   return #requests == 8
 end)

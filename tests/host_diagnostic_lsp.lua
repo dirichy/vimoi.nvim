@@ -2,8 +2,7 @@ vim.opt.swapfile = false
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
-local api = require("vimoi.api")
-api.setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
 vim.fn.writefile({}, root .. "/host-marker")
@@ -117,7 +116,7 @@ dispatch.notification("textDocument/publishDiagnostics", {
   },
 })
 assert(#vim.diagnostic.get(buf, { namespace = namespace }) == 0, "late LSP results crossed snapshot identities")
-api.setup({ diagnostics = { host = false } })
+require("vimoi").setup({ diagnostics = { host = false } })
 assert(not vim.api.nvim_buf_is_valid(attached[2].buf))
 vim.lsp.enable("vimoi_test_host", false)
 for _, client in ipairs(vim.lsp.get_clients({ name = "vimoi_test_host" })) do

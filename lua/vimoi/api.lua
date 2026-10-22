@@ -1,11 +1,5 @@
 local M = {}
 
----Configure vimoi.nvim. This and the functions below form the user-facing API.
----@param opts? VimoiConfig
-function M.setup(opts)
-  return require("vimoi").setup(opts)
-end
-
 ---Discard selected cached results and rescan file watches.
 ---@param scope? VimoiCacheScope Defaults to all; data also clears templates.
 function M.invalidate_cache(scope)

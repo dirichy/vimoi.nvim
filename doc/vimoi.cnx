@@ -49,7 +49,7 @@ vimoi.nvim 提供符合 Neovim 使用习惯的 chezmoi 文件比较流程。用�
 <
 在 Neovim 配置中调用 `setup()`，注册命令、文件类型和自动事件： >lua
 
-    require("vimoi.api").setup()
+    require("vimoi").setup()
 <
 使用 lazy.nvim 时，`opts = {}` 会自动调用 setup。也可以用 `ft = "gotmpl"`：
 lazy.nvim 会提前读取本插件的 `ftdetect/`，仅在遇到候选模板路径时才加载 Lua 模块，
@@ -59,7 +59,7 @@ source 类型时，应提前 setup，不只依赖该 filetype 触发。
 
 当前选项及默认值如下： >lua
 
-    require("vimoi.api").setup({
+    require("vimoi").setup({
       chezmoi_executable = "chezmoi",
       chezmoi_config_path = nil,
       split = "vertical",
@@ -77,6 +77,7 @@ source 类型时，应提前 setup，不只依赖该 filetype 触发。
         host = true,
       },
       highlight = {
+        mode = "injection",
         template_bg = { dark = "#343B52", light = "#E4E9F4" },
       },
       keymaps = {
@@ -186,7 +187,7 @@ owner_is_current、compute_item、publish 均由调用方提供）： >lua
 
                                                     *vimoi-diagnostics*
 模板诊断默认启用，可通过配置关闭： >lua
-    require("vimoi.api").setup({ diagnostics = { enabled = false } })
+    require("vimoi").setup({ diagnostics = { enabled = false } })
 <
 `vimoi-diagnostics` namespace 展示 gotmpl 语法错误和异步哨兵渲染错误。编辑后等待 300ms
 检查，包括原生补全菜单显示时的编辑，无须打开 diff/preview，也不清除其他 LSP
@@ -234,13 +235,13 @@ init 模板使用 --init；空 define/block 等已有哨兵限制仍适用。
 
 先设置 `vim.g.mapleader` 再调用 setup。任一 keymap 值改为其他字符串可以换键，
 设为 `false` 或空字符串可关闭单项；`keymaps = false` 可关闭全部。省略的项使用默认值： >lua
-    require("vimoi.api").setup({
+    require("vimoi").setup({
       keymaps = { diff = "<leader>hd", readd = false },
     })
 <
 `gf` / `gF` 仅在模板和 symlink source 中启用；hunk 写回和折叠仅在模板 diff session
 窗口聚焦时启用，离开窗口即恢复原有 buffer 映射。只读预览不安装 hunk 写回映射；re-add 会切换到真实 diff。`require("vimoi").setup()` 是 lazy.nvim 默认 main 模块使用的配置入口，
-`vimoi.api.setup()` 转发到该入口。
+交互操作放在 `vimoi.api` 中。
 
 进程/config 路径、watch 和 keymaps 在 setup 成功后固定；后续 setup 省略它们时保留
 初始值，尝试修改时会报错，且不会更新配置。split、completion、diagnostics、diff.validate 和 highlight
@@ -440,6 +441,19 @@ ignore/remove 文件借用 `gitignore` 高亮，但 chezmoi 的模式匹配语�
 可能产生错误节点、缺失高亮或错误高亮。这不会影响模板解析、source map 或 chezmoi
 最终渲染。
 
+实验性的渲染高亮可以替代宿主 injection： >lua
+    require("vimoi").setup({ highlight = { mode = "rendered" } })
+<
+它对完整渲染结果使用原生宿主 query、高亮组和优先级，把可见静态文本映射回 source，
+模板 action 保留 gotmpl 高亮。与 diagnostics 和视图共享异步渲染缓存，关闭
+diagnostics.enabled 后仍能使用。编辑后等待 debounce 和渲染成功再恢复宿主颜色。
+当前渲染未执行的静态文本使用 Comment 高亮，模板 action 保留 gotmpl 高亮；循环体
+采用第一次执行的结果。暂不映射 LSP semantic tokens、
+conceal_lines 和拼写导航。没有宿主 parser 时保留 Vim syntax 回退。
+默认模式为 "injection"；设置该模式可恢复宿主 injection。
+设置 highlight.mode = "disabled" 可关闭宿主高亮，包括 Vim syntax 回退；模板 action
+保留 gotmpl 高亮和背景。此选项不影响 diagnostics 和 source map。
+
 ==============================================================================
 路径跳转                                                *vimoi-navigation*
 
@@ -578,8 +592,8 @@ put 直接加载该合并模块。打开 diff/preview 不会加载合并规划�
 `merge.lua` 负责 put 和 template re-add 的位置选择、映射推算、
 写入及刷新流程；`merge_plan.lua` 保留字节定位和花括号转义。
 
-                                              *vimoi.api.setup()*
-require("vimoi.api").setup({opts})
+                                              *vimoi.setup()*
+require("vimoi").setup({opts})
     把 `{opts}` 与 |vimoi-setup| 中的默认配置合并。
 
                                     *vimoi.api.invalidate_cache()*

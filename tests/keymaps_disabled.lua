@@ -4,7 +4,7 @@ vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
 local api = require("vimoi.api")
-api.setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh", keymaps = false })
+require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh", keymaps = false })
 for name, lhs in pairs(require("vimoi").config.keymaps) do
   assert(lhs == false, name .. " stayed enabled")
 end
@@ -30,7 +30,7 @@ assert(#session.keymaps == 0, "keymaps=false installed session mappings")
 for _, buf in ipairs({ session.source_buf, session.target_buf }) do
   assert(#vim.api.nvim_buf_get_keymap(buf, "n") == 0, "keymaps=false installed buffer mappings")
 end
-api.setup()
+require("vimoi").setup()
 assert(require("vimoi").config.keymaps.readd == false, "repeated setup reset disabled mappings")
 sessions.close(session)
 vim.fn.delete(source)

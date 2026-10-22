@@ -4,7 +4,7 @@ vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
 local api = require("vimoi.api")
-api.setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 local cli = require("vimoi.cli")
 local sessions = require("vimoi.gotmpl.session")
 local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
@@ -49,7 +49,7 @@ end
 -- Disable diagnostics during a shared render: the view must still finish.
 local session = open("A", "0.8")
 assert(#jobs == 1, "view and diagnostics launched duplicate processes")
-api.setup({ diagnostics = { enabled = false } })
+require("vimoi").setup({ diagnostics = { enabled = false } })
 wait_for(function()
   return session.trace ~= nil
 end)
@@ -57,7 +57,7 @@ assert(not jobs[1].cancelled and session.trace.output == "A\n")
 sessions.close(session)
 
 -- Closing the view must not cancel a render still needed by diagnostics.
-api.setup({ diagnostics = { enabled = true } })
+require("vimoi").setup({ diagnostics = { enabled = true } })
 local before = publications
 session = open("B", "0.8")
 assert(#jobs == 2)
@@ -74,7 +74,7 @@ assert(#vim.diagnostic.get(session.source_buf, { namespace = namespace }) == 0)
 -- Release both consumers: the underlying process is actually terminated.
 session = open("C", "30")
 assert(#jobs == 3)
-api.setup({ diagnostics = { enabled = false } })
+require("vimoi").setup({ diagnostics = { enabled = false } })
 sessions.close(session)
 wait_for(function()
   return jobs[3].finished
@@ -87,7 +87,7 @@ for _, buf in ipairs(vim.api.nvim_list_bufs()) do
     vim.bo[buf].filetype = "text"
   end
 end
-api.setup({ diagnostics = { enabled = true } })
+require("vimoi").setup({ diagnostics = { enabled = true } })
 session = open("D", "30")
 assert(#jobs == 4)
 api.readd()

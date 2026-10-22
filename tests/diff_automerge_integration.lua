@@ -7,7 +7,7 @@ local target_path = vim.fn.tempname()
 
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
-require("vimoi.api").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 vim.opt.swapfile = false
 assert(vim.fn.exists(":VimoiReAdd") == 2)
 

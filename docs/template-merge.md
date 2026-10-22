@@ -204,7 +204,7 @@ extmark 只投影视图状态并跟随 Result 的编辑移动。真实映射保�
 ## 建议配置
 
 ```lua
-require("vimoi.api").setup({
+require("vimoi").setup({
   template_sync = {
     -- "safe": 自动迁移安全 hunk；有冲突时打开 merge mode
     -- "prompt": 每次先询问

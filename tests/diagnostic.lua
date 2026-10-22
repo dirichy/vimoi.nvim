@@ -3,8 +3,7 @@ local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-local api = require("vimoi.api")
-api.setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 assert(require("vimoi").config.diagnostics.enabled, "diagnostics must default to enabled")
 local cli, util = require("vimoi.cli"), require("vimoi.util")
 local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
@@ -115,7 +114,7 @@ diagnostics = change('{{ if false }}{{ promptStringOnce . "key" "Question" }}{{ 
 assert(#diagnostics == 0 and last_args[2] == "--init")
 
 -- Disable at runtime clears this namespace and detaches future buffers.
-api.setup({ diagnostics = { enabled = false } })
+require("vimoi").setup({ diagnostics = { enabled = false } })
 assert(#vim.diagnostic.get(buf, { namespace = namespace }) == 0)
 before = runs
 util.set_buffer_text(buf, "{{ invalidAfterDisable . }}")
@@ -131,7 +130,7 @@ assert(runs == before and #vim.diagnostic.get(buf, { namespace = namespace }) ==
 
 -- Re-enable attaches buffers that were already open.
 before = publications
-api.setup({ diagnostics = { enabled = true } })
+require("vimoi").setup({ diagnostics = { enabled = true } })
 assert(vim.wait(5000, function()
   return publications > before
 end, 5))

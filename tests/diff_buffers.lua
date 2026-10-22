@@ -3,7 +3,7 @@ local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 local api = require("vimoi.api")
-api.setup({
+require("vimoi").setup({
   chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
   diagnostics = { enabled = false },
   diff = { validate = true },

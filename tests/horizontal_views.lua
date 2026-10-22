@@ -11,7 +11,7 @@ local source, target = source_root .. "/dot_demo.tmpl", target_root .. "/.demo"
 vim.fn.writefile({ "value={{ 1 }}" }, source)
 vim.fn.writefile({ "value=2" }, target)
 local api = require("vimoi.api")
-api.setup({
+require("vimoi").setup({
   chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
   split = "horizontal",
   diagnostics = { enabled = false },
@@ -35,7 +35,7 @@ session = await()
 assert(vim.fn.winlayout()[1] == "col" and #vim.api.nvim_tabpage_list_wins(0) == 2)
 
 -- Reconfiguration affects newly created splits; reusing a pair never rearranges it.
-api.setup({ split = "vertical", diagnostics = { enabled = false } })
+require("vimoi").setup({ split = "vertical", diagnostics = { enabled = false } })
 api.diff()
 await()
 assert(vim.fn.winlayout()[1] == "col")
@@ -45,7 +45,7 @@ await()
 assert(vim.fn.winlayout()[1] == "row")
 
 -- Ordinary native diff shares the same split option.
-api.setup({ split = "horizontal", diagnostics = { enabled = false } })
+require("vimoi").setup({ split = "horizontal", diagnostics = { enabled = false } })
 vim.cmd("tabnew")
 local plain_source, plain_target = source_root .. "/plain", target_root .. "/plain"
 vim.fn.writefile({ "before" }, plain_source)
@@ -53,6 +53,6 @@ vim.fn.writefile({ "after" }, plain_target)
 api.diff_files(plain_source, plain_target)
 assert(vim.fn.winlayout()[1] == "col" and vim.wo.diff)
 local before = vim.deepcopy(require("vimoi").config)
-assert(not pcall(api.setup, vim.json.decode('{"split":"diagonal"}')))
+assert(not pcall(require("vimoi").setup, vim.json.decode('{"split":"diagonal"}')))
 assert(vim.deep_equal(before, require("vimoi").config), "invalid split option changed the active configuration")
 print("horizontal views: diff, preview, plain diff, reuse, and runtime configuration verified")

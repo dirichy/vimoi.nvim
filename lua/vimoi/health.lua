@@ -38,7 +38,7 @@ function M.check()
     end
   else
     health.warn("setup() has not completed; source paths are unavailable", {
-      'Call require("vimoi.api").setup() with your options.',
+      'Call require("vimoi").setup() with your options.',
       "If setup failed, inspect the startup error; this report uses the last successful settings or defaults.",
     })
   end

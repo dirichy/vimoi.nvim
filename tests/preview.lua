@@ -16,7 +16,7 @@ vim.fn.writefile({
   "exec " .. vim.fn.shellescape(fixture .. "/chezmoi-wrapper.sh") .. ' "$@"',
 }, wrapper)
 assert(vim.uv.fs_chmod(wrapper, 493))
-api.setup({ chezmoi_executable = wrapper, diff = { validate = true } })
+require("vimoi").setup({ chezmoi_executable = wrapper, diff = { validate = true } })
 vim.opt.swapfile = false
 local function executions()
   return #vim.tbl_filter(function(command)

@@ -18,7 +18,7 @@ local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
 
 ---@type table<integer, VimoiDiagnosticBuffer>
 local buffers = {}
-local enabled, host_enabled
+local enabled, host_enabled, rendered_enabled
 
 ---@param node TSNode
 ---@param message string
@@ -148,14 +148,21 @@ end
 local function publish(buf, state)
   local result = assert(state.result)
   local diagnostic = result.error and render_error(state)
-  vim.diagnostic.set(namespace, buf, diagnostic and { diagnostic } or {})
-  if host_enabled and not result.error then
+  if enabled then
+    vim.diagnostic.set(namespace, buf, diagnostic and { diagnostic } or {})
+  end
+  if (host_enabled or rendered_enabled) and not result.error then
     local trace = require("vimoi.gotmpl.source_map").restore(assert(state.prepared), result.rendered_skeleton)
     if trace then
-      require("vimoi.host_diagnostic").update(buf, trace)
+      if host_enabled then
+        require("vimoi.host_diagnostic").update(buf, trace)
+      end
+      if rendered_enabled then
+        require("vimoi.host_highlight").update(buf, trace)
+      end
     end
   end
-  if result.error and not diagnostic and not result.reported then
+  if enabled and result.error and not diagnostic and not result.reported then
     result.reported = true
     util.notify(result.error, "diagnostic", vim.log.levels.WARN)
   end
@@ -255,6 +262,9 @@ local function request_check(buf)
     if package.loaded["vimoi.host_diagnostic"] then
       require("vimoi.host_diagnostic").clear(buf)
     end
+    if package.loaded["vimoi.host_highlight"] then
+      require("vimoi.host_highlight").clear(buf)
+    end
     assert(state.check)()
   end
 end
@@ -268,6 +278,9 @@ local function detach(buf)
     if package.loaded["vimoi.host_diagnostic"] then
       require("vimoi.host_diagnostic").clear(buf)
     end
+    if package.loaded["vimoi.host_highlight"] then
+      require("vimoi.host_highlight").clear(buf)
+    end
   end
 end
 
@@ -275,13 +288,15 @@ end
 function M.setup()
   local requested = require("vimoi").config.diagnostics.enabled
   local requested_host = requested and require("vimoi").config.diagnostics.host
-  if enabled == requested and host_enabled == requested_host then
+  local requested_rendered = require("vimoi").config.highlight.mode == "rendered"
+  if enabled == requested and host_enabled == requested_host and rendered_enabled == requested_rendered then
     return
   end
   enabled = requested
   host_enabled = requested_host
+  rendered_enabled = requested_rendered
   local group = vim.api.nvim_create_augroup("vimoi-diagnostics", { clear = true })
-  if not enabled then
+  if not enabled and not rendered_enabled then
     for buf in pairs(buffers) do
       detach(buf)
     end
@@ -307,7 +322,9 @@ function M.setup()
             return
           end
           if result.diagnostics then
-            vim.diagnostic.set(namespace, buf, result.diagnostics)
+            if enabled then
+              vim.diagnostic.set(namespace, buf, result.diagnostics)
+            end
           else
             publish(buf, state)
           end

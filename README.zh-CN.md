@@ -209,6 +209,7 @@ require("vimoi").setup({
   completion = { enabled = true },
   diagnostics = { enabled = true, host = true },
   highlight = {
+    mode = "injection",
     template_bg = { dark = "#343B52", light = "#E4E9F4" },
   },
   keymaps = {
@@ -278,6 +279,22 @@ nvim-lint 只运行支持 stdin 的检查器，其他检查插件暂不接入。
 诊断和预览会实际执行模板函数，可能调用密码助手；耗时任务可取消，没有默认超时。
 模板宿主语言会按 target 名称和 shebang 识别，例如 `dot_zshrc.tmpl` 使用 zsh 高亮。
 模板拼接不完整语句时，宿主语言高亮可能不准确。
+
+可以试用基于完整渲染结果的高亮，替代宿主 injection：
+
+```lua
+require("vimoi").setup({ highlight = { mode = "rendered" } })
+```
+
+这个实验模式沿用宿主的 Tree-sitter query、颜色和优先级，只把可见静态文本映射回
+模板；模板 action 保留 gotmpl 高亮。它共享异步渲染缓存，关闭 diagnostics 后也能
+使用。编辑后，宿主颜色会在 debounce 后渲染成功时恢复。当前渲染未执行的静态文本
+使用配色方案的 `Comment` 高亮，模板 action 保留 gotmpl 高亮；循环内重复文本采用
+第一次执行的高亮。暂不映射 LSP semantic tokens、整行 conceal
+和拼写导航。默认仍用 injection；设置 `highlight.mode = "injection"` 可切回。
+缺少宿主 parser 时仍回退到 Vim syntax。
+设置 `highlight.mode = "disabled"` 可关闭宿主高亮，包括 Vim syntax 回退。
+模板 action 仍保留 gotmpl 高亮和背景；不影响 diagnostics 和 source map。
 
 ## blink.cmp 补全
 

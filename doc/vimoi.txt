@@ -56,7 +56,7 @@ Install `dirichy/vimoi.nvim` with your plugin manager. For lazy.nvim: >lua
 Call setup from your Neovim configuration to register commands, filetypes,
 and autocommands: >lua
 
-    require("vimoi.api").setup()
+    require("vimoi").setup()
 <
 With lazy.nvim, `opts = {}` calls setup automatically. `ft = "gotmpl"` also
 works: lazy.nvim sources this plugin's `ftdetect/` before loading it. Its
@@ -67,7 +67,7 @@ Run setup earlier when target-aware plain-source detection is needed immediately
 
 The available options and their defaults are: >lua
 
-    require("vimoi.api").setup({
+    require("vimoi").setup({
       chezmoi_executable = "chezmoi",
       chezmoi_config_path = nil,
       split = "vertical",
@@ -85,6 +85,7 @@ The available options and their defaults are: >lua
         host = true,
       },
       highlight = {
+        mode = "injection",
         template_bg = { dark = "#343B52", light = "#E4E9F4" },
       },
       keymaps = {
@@ -223,7 +224,7 @@ for a render. Cancelling an initial render ends its session, keeping both buffer
 
                                                     *vimoi-diagnostics*
 Template diagnostics are enabled by default: >lua
-    require("vimoi.api").setup({ diagnostics = { enabled = false } })
+    require("vimoi").setup({ diagnostics = { enabled = false } })
 <
 The `vimoi-diagnostics` namespace reports gotmpl syntax errors and errors from
 asynchronous sentinel-template rendering. Checks run 300ms after edits, without
@@ -290,15 +291,15 @@ Default normal-mode entry mappings:
 Set `vim.g.mapleader` before setup. Set any keymap value to another string to
 change its left-hand side, or to `false`/an empty string to disable that entry.
 Set `keymaps = false` to disable all mappings. Omitted entries use defaults: >lua
-    require("vimoi.api").setup({
+    require("vimoi").setup({
       keymaps = { diff = "<leader>hd", readd = false },
     })
 <
 `gf`/`gF` are buffer-local to templates and symlink sources. Hunk transfer and
 folds are enabled while a diff window is focused; leaving it restores previous
 buffer mappings, so another window of that buffer keeps its normal keys. Read-only preview has no hunk-transfer mappings; re-add switches to a real diff.
-`require("vimoi").setup()` is the setup entry used by lazy.nvim's default main
-module; `vimoi.api.setup()` delegates to it.
+`require("vimoi").setup()` is the configuration entry, also used by lazy.nvim's
+default main module. Interactive operations live in `vimoi.api`.
 
 Process/config paths, watch options, and keymaps are fixed after successful
 setup. Later setup calls retain these settings when omitted and reject changes
@@ -548,6 +549,22 @@ loops may generate fragments. Tree-sitter cannot see the final rendered
 program, so injected regions can contain errors or inaccurate highlighting.
 This does not affect template parsing, source mapping, or chezmoi rendering.
 
+Experimental rendered highlighting replaces host injections: >lua
+    require("vimoi").setup({ highlight = { mode = "rendered" } })
+<
+It uses native host queries, highlight groups and priorities on complete rendered
+output, projecting visible literal ranges onto source. Template actions retain
+gotmpl highlighting. Rendering shares the asynchronous cache with diagnostics and
+views, and still runs when diagnostics.enabled is false. After edits, host colors
+wait for the debounced render to succeed. Literal text not executed in the current
+render uses Comment; template actions retain gotmpl highlighting. Loop bodies use
+their first execution. LSP semantic tokens, conceal_lines and spell
+navigation are not projected. Missing host parsers retain the Vim syntax fallback.
+The default mode is "injection"; setting it restores host injections.
+Set highlight.mode = "disabled" to disable host highlighting, including the Vim
+syntax fallback. Template actions retain gotmpl highlighting and their background.
+Diagnostics and source mapping are independent of this setting.
+
 ==============================================================================
 PATH NAVIGATION                                         *vimoi-navigation*
 
@@ -716,8 +733,8 @@ toggle. `cli.resolve_paths()` orders the same paths as source/target for diff an
 `merge.lua` coordinates put and template re-add: resolve placements, infer, write, and refresh;
 `merge_plan.lua` locates byte edits and escapes literal braces.
 
-                                              *vimoi.api.setup()*
-require("vimoi.api").setup({opts})
+                                              *vimoi.setup()*
+require("vimoi").setup({opts})
     Merge `{opts}` with the defaults described in |vimoi-setup|.
 
                                     *vimoi.api.invalidate_cache()*

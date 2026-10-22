@@ -4,7 +4,7 @@ local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 local api = require("vimoi.api")
-api.setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh", diagnostics = { enabled = false } })
+require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh", diagnostics = { enabled = false } })
 local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
 local sessions = require("vimoi.gotmpl.session")

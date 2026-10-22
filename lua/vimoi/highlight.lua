@@ -1,4 +1,5 @@
 local M = {}
+local mode = "injection"
 
 local function apply()
   local background = require("vimoi").config.highlight.template_bg
@@ -15,7 +16,7 @@ local initialize = require("vimoi.util").once(function()
       return
     end
     local language = vim.b[source].vimoi_template_language
-    if language and language ~= "" then
+    if language and language ~= "" and require("vimoi").config.highlight.mode == "injection" then
       metadata["injection.language"] = language
     end
   end, { force = true })
@@ -25,9 +26,44 @@ local initialize = require("vimoi.util").once(function()
   vim.api.nvim_create_autocmd("OptionSet", { group = group, pattern = "background", callback = apply })
 end)
 
+---@param buf integer
+local function configure_syntax(buf)
+  local filetype = vim.b[buf].vimoi_template_filetype
+  if
+    require("vimoi").config.highlight.mode == "disabled"
+    or vim.b[buf].vimoi_template_language
+    or not filetype
+    or filetype == ""
+    or filetype == "gotmpl"
+  then
+    vim.bo[buf].syntax = "gotmpl"
+  else
+    -- Keep Go-template parsing, but use Vim syntax for a host without a parser.
+    vim.bo[buf].syntax = filetype
+  end
+  -- Vim syntax supplies action backgrounds; Tree-sitter keeps the foregrounds.
+  vim.api.nvim_buf_call(buf, function()
+    vim.cmd([[syntax region VimoiTemplateAction start=/{{-\?/ end=/-\?}}/ keepend contains=NONE containedin=ALL]])
+  end)
+end
+
 function M.setup()
   initialize()
   apply()
+  -- Injection queries depend on the rendering mode as well as the host language.
+  local requested = require("vimoi").config.highlight.mode
+  if mode ~= requested then
+    mode = requested
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(buf) and vim.b[buf].vimoi_template_configured then
+        local parser = vim.treesitter.get_parser(buf, "gotmpl")
+        if parser then
+          parser:invalidate()
+        end
+        configure_syntax(buf)
+      end
+    end
+  end
 end
 
 ---@param buf integer
@@ -60,18 +96,7 @@ function M.configure_template_buffer(buf, filetype)
     parser:invalidate()
   end
   pcall(vim.treesitter.start, buf, "gotmpl")
-  if has_host_parser or not filetype or filetype == "" or filetype == "gotmpl" then
-    vim.bo[buf].syntax = "gotmpl"
-  else
-    -- Keep Go-template parsing, but use Vim syntax for a host language without
-    -- a Tree-sitter parser (notably sh on installations without a sh parser).
-    vim.bo[buf].syntax = filetype
-  end
-  -- Vim syntax provides the action background in both parser and fallback modes;
-  -- Tree-sitter's higher-priority captures retain their more precise foregrounds.
-  vim.api.nvim_buf_call(buf, function()
-    vim.cmd([[syntax region VimoiTemplateAction start=/{{-\?/ end=/-\?}}/ keepend contains=NONE containedin=ALL]])
-  end)
+  configure_syntax(buf)
   if previous_filetype ~= filetype then
     vim.api.nvim_exec_autocmds("User", { pattern = "VimoiHostFiletypeChanged", data = { buf = buf } })
   end

@@ -231,6 +231,7 @@ require("vimoi").setup({
   completion = { enabled = true },
   diagnostics = { enabled = true, host = true },
   highlight = {
+    mode = "injection",
     template_bg = { dark = "#343B52", light = "#E4E9F4" },
   },
   keymaps = {
@@ -310,6 +311,26 @@ Slow tasks can be canceled and have no default timeout.
 The host language is detected from the target name and shebang; for example,
 `dot_zshrc.tmpl` uses zsh highlighting. Highlighting may be inaccurate when templates
 assemble incomplete host language statements.
+
+To try highlighting from the complete rendered output instead of host injections:
+
+```lua
+require("vimoi").setup({ highlight = { mode = "rendered" } })
+```
+
+This experimental mode uses the host's Tree-sitter queries, colors, and priorities,
+and maps visible literal text back to the template. Template actions keep gotmpl
+highlighting. It shares the asynchronous render cache and works with diagnostics
+disabled. After an edit, host colors return when the debounced render succeeds.
+Literal text not executed in the current render uses your colorscheme's `Comment`
+highlight, while template actions keep gotmpl highlighting. Repeated loop text uses
+its first execution.
+LSP semantic tokens, whole-line conceal, and spell navigation are not projected.
+The default remains injection highlighting; set `highlight.mode = "injection"` to return
+to it. A missing host parser still uses the Vim syntax fallback.
+Use `highlight.mode = "disabled"` to turn off host highlighting, including the Vim
+syntax fallback. Template actions retain their gotmpl highlighting and background;
+diagnostics and source mapping are unaffected.
 
 ## blink.cmp completion
 
