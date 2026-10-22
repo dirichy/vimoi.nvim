@@ -1,0 +1,2578 @@
+{
+  "date": "2026-10-22",
+  "platform": "Linux-7.2.9-arch1-1-x86_64-with-glibc2.44",
+  "nvim": "NVIM v0.12.6",
+  "chezmoi": "chezmoi version v2.73.3, built at 2026-10-20T15:29:53Z",
+  "upstream_commit": "670ba83095ba6571f3125a5e5fd4118505a2c3c6",
+  "results": [
+    {
+      "plugin": "vimoi",
+      "samples": [
+        {
+          "max_stall_ms": 4.544539,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "initial",
+          "latency_ms": 24.819801
+        },
+        {
+          "max_stall_ms": 7.377487,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 122.415464
+        },
+        {
+          "max_stall_ms": 8.083004,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 121.868135
+        },
+        {
+          "max_stall_ms": 6.800585999999999,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 121.423723
+        },
+        {
+          "max_stall_ms": 4.910247,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 120.755139
+        },
+        {
+          "max_stall_ms": 6.228859999999999,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 121.390198
+        },
+        {
+          "max_stall_ms": 6.267711,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 120.731199
+        },
+        {
+          "max_stall_ms": 9.682594,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 166.705027
+        },
+        {
+          "max_stall_ms": 7.531008999999999,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 159.28489
+        },
+        {
+          "max_stall_ms": 6.674001000000001,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 152.868425
+        },
+        {
+          "max_stall_ms": 5.580472,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 165.256307
+        },
+        {
+          "max_stall_ms": 5.87162,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 155.123795
+        },
+        {
+          "max_stall_ms": 7.786016,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 145.32086
+        }
+      ],
+      "lines": 203,
+      "bytes": 3895,
+      "helper_ms": 0,
+      "repetition": 0
+    },
+    {
+      "plugin": "chezmoi-template",
+      "samples": [
+        {
+          "latency_ms": 19.679571,
+          "max_stall_ms": 2.337974,
+          "kind": "initial",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 172.33608,
+          "max_stall_ms": 0.8830720000000003,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 168.765738,
+          "max_stall_ms": 0.7920790000000002,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 176.999069,
+          "max_stall_ms": 0.9165010000000002,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 180.584951,
+          "max_stall_ms": 3.168526,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 184.046051,
+          "max_stall_ms": 0.9416789999999997,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 184.469203,
+          "max_stall_ms": 0.4253080000000002,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 177.966357,
+          "max_stall_ms": 1.907025,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 172.083736,
+          "max_stall_ms": 0.4036920000000004,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 183.978238,
+          "max_stall_ms": 0.8495290000000004,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 180.938692,
+          "max_stall_ms": 0.3135180000000002,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 181.546271,
+          "max_stall_ms": 1.730996,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 173.494527,
+          "max_stall_ms": 1.990019,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          }
+        }
+      ],
+      "lines": 203,
+      "bytes": 3895,
+      "helper_ms": 0,
+      "repetition": 0
+    },
+    {
+      "samples": [
+        {
+          "latency_ms": 18.110344,
+          "kind": "initial",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 2.342305
+        },
+        {
+          "latency_ms": 171.383949,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.7388630000000003
+        },
+        {
+          "latency_ms": 170.720094,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.3122819999999997
+        },
+        {
+          "latency_ms": 171.31808,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.7822760000000004
+        },
+        {
+          "latency_ms": 186.943994,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.3078390000000004
+        },
+        {
+          "latency_ms": 174.648087,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 3.467107
+        },
+        {
+          "latency_ms": 181.852906,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.4331209999999999
+        },
+        {
+          "latency_ms": 176.998344,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.4430740000000002
+        },
+        {
+          "latency_ms": 181.437913,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.6879369999999998
+        },
+        {
+          "latency_ms": 175.031844,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 1.355867
+        },
+        {
+          "latency_ms": 179.664323,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.3443009999999997
+        },
+        {
+          "latency_ms": 176.795259,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.8324499999999997
+        },
+        {
+          "latency_ms": 180.121239,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 3.149547999999999
+        }
+      ],
+      "plugin": "chezmoi-template",
+      "lines": 203,
+      "bytes": 3895,
+      "helper_ms": 0,
+      "repetition": 1
+    },
+    {
+      "samples": [
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 4.673901000000001,
+          "latency_ms": 21.765508,
+          "kind": "initial"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 5.812073,
+          "latency_ms": 120.708711,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 6.223851,
+          "latency_ms": 121.005795,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 10.546856,
+          "latency_ms": 121.127801,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 5.964600000000001,
+          "latency_ms": 122.143281,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 6.800834999999999,
+          "latency_ms": 121.173462,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 5.105264999999999,
+          "latency_ms": 121.27468,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 8.282641,
+          "latency_ms": 153.261052,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.914077000000001,
+          "latency_ms": 144.2884,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 4.600623000000001,
+          "latency_ms": 145.450778,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.799630000000001,
+          "latency_ms": 166.076048,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 7.151871999999999,
+          "latency_ms": 152.64178,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 8.383007,
+          "latency_ms": 157.089665,
+          "kind": "structural"
+        }
+      ],
+      "plugin": "vimoi",
+      "lines": 203,
+      "bytes": 3895,
+      "helper_ms": 0,
+      "repetition": 1
+    },
+    {
+      "plugin": "vimoi",
+      "samples": [
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 23.747777,
+          "kind": "initial",
+          "max_stall_ms": 7.567466
+        },
+        {
+          "commands": {},
+          "latency_ms": 120.509665,
+          "kind": "static",
+          "max_stall_ms": 3.663624
+        },
+        {
+          "commands": {},
+          "latency_ms": 121.568443,
+          "kind": "static",
+          "max_stall_ms": 2.715492
+        },
+        {
+          "commands": {},
+          "latency_ms": 122.18613,
+          "kind": "static",
+          "max_stall_ms": 6.446343000000001
+        },
+        {
+          "commands": {},
+          "latency_ms": 121.663833,
+          "kind": "static",
+          "max_stall_ms": 7.750468
+        },
+        {
+          "commands": {},
+          "latency_ms": 120.410881,
+          "kind": "static",
+          "max_stall_ms": 5.254917000000001
+        },
+        {
+          "commands": {},
+          "latency_ms": 121.352356,
+          "kind": "static",
+          "max_stall_ms": 4.896948999999999
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 157.916123,
+          "kind": "structural",
+          "max_stall_ms": 7.428724000000001
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 144.805573,
+          "kind": "structural",
+          "max_stall_ms": 4.566826000000001
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 148.871928,
+          "kind": "structural",
+          "max_stall_ms": 4.127912
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 144.203472,
+          "kind": "structural",
+          "max_stall_ms": 3.483580999999999
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 152.466045,
+          "kind": "structural",
+          "max_stall_ms": 5.068649000000001
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 148.019537,
+          "kind": "structural",
+          "max_stall_ms": 7.820377000000001
+        }
+      ],
+      "lines": 203,
+      "bytes": 3895,
+      "helper_ms": 0,
+      "repetition": 2
+    },
+    {
+      "plugin": "chezmoi-template",
+      "samples": [
+        {
+          "kind": "initial",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 2.151572,
+          "latency_ms": 21.468049
+        },
+        {
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.3639640000000002,
+          "latency_ms": 194.241897
+        },
+        {
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.974253,
+          "latency_ms": 190.248251
+        },
+        {
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.9621370000000002,
+          "latency_ms": 178.490836
+        },
+        {
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.8043370000000003,
+          "latency_ms": 173.485175
+        },
+        {
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 1.35582,
+          "latency_ms": 171.377815
+        },
+        {
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.3900030000000001,
+          "latency_ms": 181.419319
+        },
+        {
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 3.305903000000001,
+          "latency_ms": 171.438694
+        },
+        {
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 3.172587,
+          "latency_ms": 182.512705
+        },
+        {
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 0.8823559999999997,
+          "latency_ms": 181.411142
+        },
+        {
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 1.908099,
+          "latency_ms": 182.376995
+        },
+        {
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 2.361653,
+          "latency_ms": 169.716164
+        },
+        {
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 2.024123,
+          "latency_ms": 180.656785
+        }
+      ],
+      "lines": 203,
+      "bytes": 3895,
+      "helper_ms": 0,
+      "repetition": 2
+    },
+    {
+      "samples": [
+        {
+          "kind": "initial",
+          "max_stall_ms": 7.419074,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 28.071044
+        },
+        {
+          "kind": "static",
+          "max_stall_ms": 8.856233,
+          "commands": {},
+          "latency_ms": 123.907089
+        },
+        {
+          "kind": "static",
+          "max_stall_ms": 13.292761,
+          "commands": {},
+          "latency_ms": 123.544823
+        },
+        {
+          "kind": "static",
+          "max_stall_ms": 7.267939,
+          "commands": {},
+          "latency_ms": 126.365517
+        },
+        {
+          "kind": "static",
+          "max_stall_ms": 7.091663,
+          "commands": {},
+          "latency_ms": 123.117577
+        },
+        {
+          "kind": "static",
+          "max_stall_ms": 14.284082,
+          "commands": {},
+          "latency_ms": 123.049337
+        },
+        {
+          "kind": "static",
+          "max_stall_ms": 9.439026,
+          "commands": {},
+          "latency_ms": 126.75756
+        },
+        {
+          "kind": "structural",
+          "max_stall_ms": 9.908004,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 158.47117
+        },
+        {
+          "kind": "structural",
+          "max_stall_ms": 8.295837,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 163.954947
+        },
+        {
+          "kind": "structural",
+          "max_stall_ms": 10.050422,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 160.4041
+        },
+        {
+          "kind": "structural",
+          "max_stall_ms": 7.3743,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 156.628322
+        },
+        {
+          "kind": "structural",
+          "max_stall_ms": 13.611046,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 149.599928
+        },
+        {
+          "kind": "structural",
+          "max_stall_ms": 7.278508,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 153.2658
+        }
+      ],
+      "plugin": "vimoi",
+      "lines": 2003,
+      "bytes": 41515,
+      "helper_ms": 0,
+      "repetition": 0
+    },
+    {
+      "samples": [
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 19.486635,
+          "kind": "initial",
+          "max_stall_ms": 2.33865
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 195.043746,
+          "kind": "static",
+          "max_stall_ms": 0.4619330000000001
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 190.663411,
+          "kind": "static",
+          "max_stall_ms": 5.957700000000001
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 175.775419,
+          "kind": "static",
+          "max_stall_ms": 0.5373590000000004
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 183.669947,
+          "kind": "static",
+          "max_stall_ms": 0.3292120000000001
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 179.765431,
+          "kind": "static",
+          "max_stall_ms": 3.739034
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 177.724699,
+          "kind": "static",
+          "max_stall_ms": 1.959517
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 186.565,
+          "kind": "structural",
+          "max_stall_ms": 3.638899
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 198.235928,
+          "kind": "structural",
+          "max_stall_ms": 3.928191
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 188.226037,
+          "kind": "structural",
+          "max_stall_ms": 4.746530999999999
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 187.792977,
+          "kind": "structural",
+          "max_stall_ms": 2.774122
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 188.338785,
+          "kind": "structural",
+          "max_stall_ms": 3.879803000000001
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 194.17692,
+          "kind": "structural",
+          "max_stall_ms": 1.353388
+        }
+      ],
+      "plugin": "chezmoi-template",
+      "lines": 2003,
+      "bytes": 41515,
+      "helper_ms": 0,
+      "repetition": 0
+    },
+    {
+      "plugin": "chezmoi-template",
+      "samples": [
+        {
+          "max_stall_ms": 2.594068,
+          "kind": "initial",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 18.987277
+        },
+        {
+          "max_stall_ms": 2.856716,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 185.669653
+        },
+        {
+          "max_stall_ms": 2.767329,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 187.062008
+        },
+        {
+          "max_stall_ms": 1.649349,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 175.248257
+        },
+        {
+          "max_stall_ms": 1.876826,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 175.510117
+        },
+        {
+          "max_stall_ms": 1.828134,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 191.80269
+        },
+        {
+          "max_stall_ms": 3.751386,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 181.5293
+        },
+        {
+          "max_stall_ms": 2.379522,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 177.363439
+        },
+        {
+          "max_stall_ms": 3.071553,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 181.79956
+        },
+        {
+          "max_stall_ms": 3.401759999999999,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 188.053947
+        },
+        {
+          "max_stall_ms": 1.87815,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 181.66786
+        },
+        {
+          "max_stall_ms": 1.645319,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 200.226533
+        },
+        {
+          "max_stall_ms": 0.3521029999999996,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 202.311529
+        }
+      ],
+      "lines": 2003,
+      "bytes": 41515,
+      "helper_ms": 0,
+      "repetition": 1
+    },
+    {
+      "plugin": "vimoi",
+      "samples": [
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 5.85407,
+          "latency_ms": 26.697387,
+          "kind": "initial"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 7.230414,
+          "latency_ms": 123.094723,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 14.685796,
+          "latency_ms": 123.89686,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 8.96531,
+          "latency_ms": 127.289347,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 6.657638,
+          "latency_ms": 124.20317,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 8.07936,
+          "latency_ms": 123.18256,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 6.664467,
+          "latency_ms": 127.046872,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 4.644348000000001,
+          "latency_ms": 159.541363,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 8.821033,
+          "latency_ms": 150.092148,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 12.244639,
+          "latency_ms": 150.860192,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 7.666632,
+          "latency_ms": 151.257563,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 4.541836,
+          "latency_ms": 144.290499,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.253729999999999,
+          "latency_ms": 147.610333,
+          "kind": "structural"
+        }
+      ],
+      "lines": 2003,
+      "bytes": 41515,
+      "helper_ms": 0,
+      "repetition": 1
+    },
+    {
+      "samples": [
+        {
+          "kind": "initial",
+          "max_stall_ms": 8.987283,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 28.440583
+        },
+        {
+          "kind": "static",
+          "max_stall_ms": 8.885822,
+          "commands": {},
+          "latency_ms": 124.630569
+        },
+        {
+          "kind": "static",
+          "max_stall_ms": 6.593944,
+          "commands": {},
+          "latency_ms": 124.486175
+        },
+        {
+          "kind": "static",
+          "max_stall_ms": 6.513558,
+          "commands": {},
+          "latency_ms": 127.549685
+        },
+        {
+          "kind": "static",
+          "max_stall_ms": 4.011063999999999,
+          "commands": {},
+          "latency_ms": 123.250305
+        },
+        {
+          "kind": "static",
+          "max_stall_ms": 4.652725999999999,
+          "commands": {},
+          "latency_ms": 122.840788
+        },
+        {
+          "kind": "static",
+          "max_stall_ms": 9.135719,
+          "commands": {},
+          "latency_ms": 124.360446
+        },
+        {
+          "kind": "structural",
+          "max_stall_ms": 6.055025000000001,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 149.692925
+        },
+        {
+          "kind": "structural",
+          "max_stall_ms": 7.445606,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 153.332508
+        },
+        {
+          "kind": "structural",
+          "max_stall_ms": 9.255941,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 154.254212
+        },
+        {
+          "kind": "structural",
+          "max_stall_ms": 10.290041,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 154.218377
+        },
+        {
+          "kind": "structural",
+          "max_stall_ms": 4.963838000000001,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 154.351074
+        },
+        {
+          "kind": "structural",
+          "max_stall_ms": 16.363762,
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 153.887901
+        }
+      ],
+      "plugin": "vimoi",
+      "lines": 2003,
+      "bytes": 41515,
+      "helper_ms": 0,
+      "repetition": 2
+    },
+    {
+      "samples": [
+        {
+          "max_stall_ms": 2.371802,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "initial",
+          "latency_ms": 20.935335
+        },
+        {
+          "max_stall_ms": 3.290013999999999,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "static",
+          "latency_ms": 178.600144
+        },
+        {
+          "max_stall_ms": 4.695741,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "static",
+          "latency_ms": 178.395121
+        },
+        {
+          "max_stall_ms": 1.347831,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "static",
+          "latency_ms": 178.847302
+        },
+        {
+          "max_stall_ms": 1.545364,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "static",
+          "latency_ms": 171.959348
+        },
+        {
+          "max_stall_ms": 0.3509650000000004,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "static",
+          "latency_ms": 175.759594
+        },
+        {
+          "max_stall_ms": 2.758047,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "static",
+          "latency_ms": 171.057506
+        },
+        {
+          "max_stall_ms": 4.278130000000001,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 194.458967
+        },
+        {
+          "max_stall_ms": 1.956841,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 184.929729
+        },
+        {
+          "max_stall_ms": 1.337024,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 183.228123
+        },
+        {
+          "max_stall_ms": 0.5807149999999996,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 168.796053
+        },
+        {
+          "max_stall_ms": 0.5292139999999996,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 188.846548
+        },
+        {
+          "max_stall_ms": 1.509361,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 174.818657
+        }
+      ],
+      "plugin": "chezmoi-template",
+      "lines": 2003,
+      "bytes": 41515,
+      "helper_ms": 0,
+      "repetition": 2
+    },
+    {
+      "plugin": "vimoi",
+      "samples": [
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 36.518415,
+          "max_stall_ms": 28.132952,
+          "kind": "initial"
+        },
+        {
+          "commands": {},
+          "latency_ms": 138.119674,
+          "max_stall_ms": 28.230475,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "latency_ms": 131.027682,
+          "max_stall_ms": 16.122612,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "latency_ms": 128.932854,
+          "max_stall_ms": 13.971923,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "latency_ms": 132.040679,
+          "max_stall_ms": 15.74914,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "latency_ms": 136.50125,
+          "max_stall_ms": 24.03055,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "latency_ms": 132.531048,
+          "max_stall_ms": 17.263619,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 166.901225,
+          "max_stall_ms": 12.650927,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 194.171181,
+          "max_stall_ms": 20.405167,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 164.104624,
+          "max_stall_ms": 15.384052,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 169.221003,
+          "max_stall_ms": 20.264417,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 161.570303,
+          "max_stall_ms": 10.930702,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 169.419688,
+          "max_stall_ms": 20.720327,
+          "kind": "structural"
+        }
+      ],
+      "lines": 10003,
+      "bytes": 223115,
+      "helper_ms": 0,
+      "repetition": 0
+    },
+    {
+      "plugin": "chezmoi-template",
+      "samples": [
+        {
+          "latency_ms": 35.696226,
+          "kind": "initial",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 2.909874
+        },
+        {
+          "latency_ms": 198.113317,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.638648
+        },
+        {
+          "latency_ms": 207.816376,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.176781999999999
+        },
+        {
+          "latency_ms": 187.910245,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.424125
+        },
+        {
+          "latency_ms": 213.510659,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 8.338024
+        },
+        {
+          "latency_ms": 200.415768,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.442396
+        },
+        {
+          "latency_ms": 211.911008,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.041385
+        },
+        {
+          "latency_ms": 198.992956,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.372659000000001
+        },
+        {
+          "latency_ms": 206.135982,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 8.493327
+        },
+        {
+          "latency_ms": 198.297812,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 4.697215999999999
+        },
+        {
+          "latency_ms": 197.907692,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.261704
+        },
+        {
+          "latency_ms": 195.966018,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 7.513776
+        },
+        {
+          "latency_ms": 212.627864,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.198707000000001
+        }
+      ],
+      "lines": 10003,
+      "bytes": 223115,
+      "helper_ms": 0,
+      "repetition": 0
+    },
+    {
+      "samples": [
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 40.305075,
+          "max_stall_ms": 3.866255000000001,
+          "kind": "initial"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 199.376625,
+          "max_stall_ms": 6.876322999999999,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 197.524944,
+          "max_stall_ms": 4.491835,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 206.106815,
+          "max_stall_ms": 4.083917,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 214.32571,
+          "max_stall_ms": 6.361008999999999,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 199.243978,
+          "max_stall_ms": 6.758379,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 185.331113,
+          "max_stall_ms": 6.422831,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 188.755574,
+          "max_stall_ms": 4.394657,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 208.712987,
+          "max_stall_ms": 6.133015,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 199.130481,
+          "max_stall_ms": 4.311868,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 230.616682,
+          "max_stall_ms": 7.08394,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 201.290559,
+          "max_stall_ms": 6.471754000000001,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 175.68028,
+          "max_stall_ms": 2.252807,
+          "kind": "structural"
+        }
+      ],
+      "plugin": "chezmoi-template",
+      "lines": 10003,
+      "bytes": 223115,
+      "helper_ms": 0,
+      "repetition": 1
+    },
+    {
+      "samples": [
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 25.447663,
+          "latency_ms": 35.111079,
+          "kind": "initial"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 25.038349,
+          "latency_ms": 135.945688,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 25.43449,
+          "latency_ms": 139.094899,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 12.746124,
+          "latency_ms": 128.045269,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 16.561714,
+          "latency_ms": 131.414552,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 12.943486,
+          "latency_ms": 128.829916,
+          "kind": "static"
+        },
+        {
+          "commands": {},
+          "max_stall_ms": 14.685772,
+          "latency_ms": 128.631849,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 11.947858,
+          "latency_ms": 162.357387,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 16.911271,
+          "latency_ms": 164.341001,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 17.322152,
+          "latency_ms": 161.304649,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 9.728451,
+          "latency_ms": 153.899522,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 13.94838,
+          "latency_ms": 154.578503,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 21.260935,
+          "latency_ms": 167.339499,
+          "kind": "structural"
+        }
+      ],
+      "plugin": "vimoi",
+      "lines": 10003,
+      "bytes": 223115,
+      "helper_ms": 0,
+      "repetition": 1
+    },
+    {
+      "samples": [
+        {
+          "max_stall_ms": 21.361423,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "initial",
+          "latency_ms": 31.486504
+        },
+        {
+          "max_stall_ms": 28.676087,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 136.77235
+        },
+        {
+          "max_stall_ms": 15.330408,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 127.891301
+        },
+        {
+          "max_stall_ms": 14.351361,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 128.314664
+        },
+        {
+          "max_stall_ms": 16.299682,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 131.057887
+        },
+        {
+          "max_stall_ms": 21.136755,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 135.159284
+        },
+        {
+          "max_stall_ms": 25.545183,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 135.82773
+        },
+        {
+          "max_stall_ms": 20.86626,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 176.121782
+        },
+        {
+          "max_stall_ms": 16.932632,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 166.691612
+        },
+        {
+          "max_stall_ms": 19.610348,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 172.66761
+        },
+        {
+          "max_stall_ms": 14.072528,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 170.613945
+        },
+        {
+          "max_stall_ms": 11.877436,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 166.772899
+        },
+        {
+          "max_stall_ms": 29.727593,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 171.958059
+        }
+      ],
+      "plugin": "vimoi",
+      "lines": 10003,
+      "bytes": 223115,
+      "helper_ms": 0,
+      "repetition": 2
+    },
+    {
+      "plugin": "chezmoi-template",
+      "samples": [
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 30.34062,
+          "max_stall_ms": 4.180842,
+          "kind": "initial"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 194.955196,
+          "max_stall_ms": 3.13287,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 232.474799,
+          "max_stall_ms": 8.018798,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 209.450214,
+          "max_stall_ms": 6.519152,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 216.925499,
+          "max_stall_ms": 6.613617,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 190.784214,
+          "max_stall_ms": 3.442570999999999,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 195.400996,
+          "max_stall_ms": 6.427944999999999,
+          "kind": "static"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 193.233942,
+          "max_stall_ms": 6.450684000000001,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 206.972562,
+          "max_stall_ms": 3.124829999999999,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 204.489,
+          "max_stall_ms": 7.061590000000001,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 194.329169,
+          "max_stall_ms": 9.476608,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 211.445606,
+          "max_stall_ms": 6.378614000000001,
+          "kind": "structural"
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 211.196273,
+          "max_stall_ms": 9.044973,
+          "kind": "structural"
+        }
+      ],
+      "lines": 10003,
+      "bytes": 223115,
+      "helper_ms": 0,
+      "repetition": 2
+    },
+    {
+      "plugin": "vimoi",
+      "samples": [
+        {
+          "latency_ms": 232.343124,
+          "kind": "initial",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 8.753653
+        },
+        {
+          "latency_ms": 125.891084,
+          "kind": "static",
+          "commands": {},
+          "max_stall_ms": 9.11497
+        },
+        {
+          "latency_ms": 123.431198,
+          "kind": "static",
+          "commands": {},
+          "max_stall_ms": 12.98508
+        },
+        {
+          "latency_ms": 124.330146,
+          "kind": "static",
+          "commands": {},
+          "max_stall_ms": 5.649459999999999
+        },
+        {
+          "latency_ms": 123.070422,
+          "kind": "static",
+          "commands": {},
+          "max_stall_ms": 7.188323
+        },
+        {
+          "latency_ms": 123.555976,
+          "kind": "static",
+          "commands": {},
+          "max_stall_ms": 4.9848
+        },
+        {
+          "latency_ms": 122.74644,
+          "kind": "static",
+          "commands": {},
+          "max_stall_ms": 6.762606
+        },
+        {
+          "latency_ms": 353.379793,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.295534999999999
+        },
+        {
+          "latency_ms": 357.5491,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 6.443265999999999
+        },
+        {
+          "latency_ms": 362.331917,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 8.596397
+        },
+        {
+          "latency_ms": 361.663775,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 4.472199
+        },
+        {
+          "latency_ms": 357.525279,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 9.140267
+        },
+        {
+          "latency_ms": 354.494598,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "max_stall_ms": 17.78506
+        }
+      ],
+      "lines": 2003,
+      "bytes": 41539,
+      "helper_ms": 200,
+      "repetition": 0
+    },
+    {
+      "plugin": "chezmoi-template",
+      "samples": [
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 226.592933,
+          "kind": "initial",
+          "max_stall_ms": 2.635093
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 380.910343,
+          "kind": "static",
+          "max_stall_ms": 1.004098
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 383.304102,
+          "kind": "static",
+          "max_stall_ms": 2.028309
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 381.37354,
+          "kind": "static",
+          "max_stall_ms": 1.013776
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 397.300825,
+          "kind": "static",
+          "max_stall_ms": 1.755071
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 400.674677,
+          "kind": "static",
+          "max_stall_ms": 3.720582
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 391.835259,
+          "kind": "static",
+          "max_stall_ms": 1.380887
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 394.98584,
+          "kind": "structural",
+          "max_stall_ms": 2.877701
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 384.459723,
+          "kind": "structural",
+          "max_stall_ms": 4.279426000000001
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 384.899127,
+          "kind": "structural",
+          "max_stall_ms": 2.880944
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 395.256636,
+          "kind": "structural",
+          "max_stall_ms": 0.6632530000000001
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 383.887751,
+          "kind": "structural",
+          "max_stall_ms": 0.883032
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 384.388613,
+          "kind": "structural",
+          "max_stall_ms": 2.878366
+        }
+      ],
+      "lines": 2003,
+      "bytes": 41539,
+      "helper_ms": 200,
+      "repetition": 0
+    },
+    {
+      "samples": [
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "initial",
+          "latency_ms": 227.620611,
+          "max_stall_ms": 2.490778
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "static",
+          "latency_ms": 398.85874,
+          "max_stall_ms": 1.194893
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "static",
+          "latency_ms": 413.005304,
+          "max_stall_ms": 2.281243
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "static",
+          "latency_ms": 396.536703,
+          "max_stall_ms": 1.402978
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "static",
+          "latency_ms": 398.817669,
+          "max_stall_ms": 0.6644940000000004
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "static",
+          "latency_ms": 387.939455,
+          "max_stall_ms": 1.892925
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "static",
+          "latency_ms": 389.806331,
+          "max_stall_ms": 1.883145
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 395.523474,
+          "max_stall_ms": 1.012135
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 396.002485,
+          "max_stall_ms": 1.93165
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 391.064808,
+          "max_stall_ms": 1.55097
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 379.347468,
+          "max_stall_ms": 1.716607
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 405.787914,
+          "max_stall_ms": 1.340105
+        },
+        {
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 381.830264,
+          "max_stall_ms": 3.931497
+        }
+      ],
+      "plugin": "chezmoi-template",
+      "lines": 2003,
+      "bytes": 41539,
+      "helper_ms": 200,
+      "repetition": 1
+    },
+    {
+      "plugin": "vimoi",
+      "samples": [
+        {
+          "max_stall_ms": 14.183057,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "initial",
+          "latency_ms": 236.785973
+        },
+        {
+          "max_stall_ms": 8.434275,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 123.487279
+        },
+        {
+          "max_stall_ms": 5.860795,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 123.285895
+        },
+        {
+          "max_stall_ms": 6.301037000000001,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 125.62422
+        },
+        {
+          "max_stall_ms": 11.590243,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 124.077335
+        },
+        {
+          "max_stall_ms": 5.572571,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 123.330616
+        },
+        {
+          "max_stall_ms": 10.076377,
+          "commands": {},
+          "kind": "static",
+          "latency_ms": 124.27696
+        },
+        {
+          "max_stall_ms": 8.759786,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 365.118943
+        },
+        {
+          "max_stall_ms": 4.448073000000001,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 358.046115
+        },
+        {
+          "max_stall_ms": 7.50699,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 354.706401
+        },
+        {
+          "max_stall_ms": 9.946992,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 377.782101
+        },
+        {
+          "max_stall_ms": 8.102911,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 363.844276
+        },
+        {
+          "max_stall_ms": 7.215966,
+          "commands": {
+            "execute-template": 1
+          },
+          "kind": "structural",
+          "latency_ms": 352.898475
+        }
+      ],
+      "lines": 2003,
+      "bytes": 41539,
+      "helper_ms": 200,
+      "repetition": 1
+    },
+    {
+      "samples": [
+        {
+          "kind": "initial",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 236.029152,
+          "max_stall_ms": 11.853101
+        },
+        {
+          "kind": "static",
+          "commands": {},
+          "latency_ms": 124.047032,
+          "max_stall_ms": 7.093406
+        },
+        {
+          "kind": "static",
+          "commands": {},
+          "latency_ms": 122.550635,
+          "max_stall_ms": 11.372751
+        },
+        {
+          "kind": "static",
+          "commands": {},
+          "latency_ms": 127.303021,
+          "max_stall_ms": 16.745175
+        },
+        {
+          "kind": "static",
+          "commands": {},
+          "latency_ms": 123.492582,
+          "max_stall_ms": 6.035437999999999
+        },
+        {
+          "kind": "static",
+          "commands": {},
+          "latency_ms": 123.161323,
+          "max_stall_ms": 7.17179
+        },
+        {
+          "kind": "static",
+          "commands": {},
+          "latency_ms": 123.681373,
+          "max_stall_ms": 15.845449
+        },
+        {
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 355.206559,
+          "max_stall_ms": 13.051278
+        },
+        {
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 359.559391,
+          "max_stall_ms": 11.009692
+        },
+        {
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 364.929171,
+          "max_stall_ms": 14.311969
+        },
+        {
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 351.277271,
+          "max_stall_ms": 8.08906
+        },
+        {
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 364.111651,
+          "max_stall_ms": 9.988291
+        },
+        {
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          },
+          "latency_ms": 353.40574,
+          "max_stall_ms": 10.467518
+        }
+      ],
+      "plugin": "vimoi",
+      "lines": 2003,
+      "bytes": 41539,
+      "helper_ms": 200,
+      "repetition": 2
+    },
+    {
+      "plugin": "chezmoi-template",
+      "samples": [
+        {
+          "latency_ms": 224.905368,
+          "max_stall_ms": 2.522938,
+          "kind": "initial",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 392.335473,
+          "max_stall_ms": 2.813383,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 391.645881,
+          "max_stall_ms": 3.586861000000001,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 392.942945,
+          "max_stall_ms": 0.8665940000000001,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 378.967194,
+          "max_stall_ms": 1.766835,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 393.373913,
+          "max_stall_ms": 0.6249399999999996,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 378.72383,
+          "max_stall_ms": 0.6003109999999996,
+          "kind": "static",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 379.337991,
+          "max_stall_ms": 2.880448,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 400.748722,
+          "max_stall_ms": 3.819713,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 392.937473,
+          "max_stall_ms": 3.283697999999999,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 383.496503,
+          "max_stall_ms": 2.21959,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 373.374969,
+          "max_stall_ms": 1.071378,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          }
+        },
+        {
+          "latency_ms": 397.670869,
+          "max_stall_ms": 0.7166259999999998,
+          "kind": "structural",
+          "commands": {
+            "execute-template": 1
+          }
+        }
+      ],
+      "lines": 2003,
+      "bytes": 41539,
+      "helper_ms": 200,
+      "repetition": 2
+    }
+  ],
+  "match_debounce": false
+}

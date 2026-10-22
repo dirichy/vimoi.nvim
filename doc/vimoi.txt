@@ -1,0 +1,857 @@
+*vimoi.nvim*                    Edit chezmoi-managed files from Neovim
+
+==============================================================================
+CONTENTS                                                     *vimoi-contents*
+
+1. Introduction ............................................. |vimoi-intro|
+2. Requirements ....................................... |vimoi-requirements|
+3. Setup ..................................................... |vimoi-setup|
+4. Commands ............................................... |vimoi-commands|
+5. Template diff ..................................... |vimoi-template-diff|
+6. Template preview ...................................... |vimoi-preview|
+7. Merge ..................................................... |vimoi-merge|
+8. Syntax highlighting ............................. |vimoi-highlighting|
+9. Path navigation ................................... |vimoi-navigation|
+10. Completion ......................................... |vimoi-completion|
+11. Lua API ................................................ |vimoi-api|
+12. Limitations .................................... |vimoi-limitations|
+13. Troubleshooting ............................. |vimoi-troubleshooting|
+
+==============================================================================
+INTRODUCTION                                                    *vimoi-intro*
+
+vimoi.nvim provides a Neovim-native workflow for comparing a file managed
+by chezmoi with its source state. The normal target file remains editable, so
+LSP clients, formatters, project detection, and other path-sensitive tools
+continue to work as usual.
+
+For a plain source file, the plugin opens a normal two-way Neovim diff. For a
+template, it renders a hidden third version and compares:
+
+    source template --renders--> rendered base --compared with--> target
+
+Only the source template and target are shown. Differences found between the
+rendered base and target are projected back onto the template using sentinel
+source mappings, then displayed with Neovim's native diff UI.
+
+==============================================================================
+REQUIREMENTS                                              *vimoi-requirements*
+
+- Neovim 0.12 or later.
+- chezmoi 2.x available in $PATH, or configured with |vimoi-setup|.
+- A `gotmpl` Tree-sitter parser for template source mapping.
+- A Tree-sitter parser for the target language is optional but improves
+  embedded syntax highlighting.
+
+==============================================================================
+SETUP                                                            *vimoi-setup*
+
+Install `dirichy/vimoi.nvim` with your plugin manager. For lazy.nvim: >lua
+
+    { "dirichy/vimoi.nvim", opts = {} }
+<
+Call setup from your Neovim configuration to register commands, filetypes,
+and autocommands: >lua
+
+    require("vimoi.api").setup()
+<
+With lazy.nvim, `opts = {}` calls setup automatically. `ft = "gotmpl"` also
+works: lazy.nvim sources this plugin's `ftdetect/` before loading it. Its
+lightweight rules defer requiring Lua modules until a candidate template is
+seen, so a custom `chezmoi_executable` can be configured before path checks.
+With only `ft = "gotmpl"`, plain sources do not trigger initial plugin loading.
+Run setup earlier when target-aware plain-source detection is needed immediately.
+
+The available options and their defaults are: >lua
+
+    require("vimoi.api").setup({
+      chezmoi_executable = "chezmoi",
+      chezmoi_config_path = nil,
+      split = "vertical",
+      watch = {
+        buffer_write_fallback = "auto",
+      },
+      diff = {
+        validate = false,
+      },
+      completion = {
+        enabled = true,
+      },
+      diagnostics = {
+        enabled = true,
+      },
+      highlight = {
+        template_bg = { dark = "#343B52", light = "#E4E9F4" },
+      },
+      keymaps = {
+        diff = "<leader>cd",
+        preview = "<leader>cp",
+        toggle = "<leader>ct",
+        invalidate_cache = "<leader>cr",
+        readd = "<leader>ca",
+        cancel_command = "<leader>cx",
+        goto_file = "gf",
+        goto_file_line = "gF",
+        diff_get = "do",
+        diff_put = "dp",
+        fold_open = "zo",
+        fold_close = "zc",
+        fold_toggle = "za",
+        fold_open_recursive = "zO",
+        fold_close_recursive = "zC",
+        fold_toggle_recursive = "zA",
+        fold_open_all = "zR",
+        fold_close_all = "zM",
+      },
+    })
+<
+`chezmoi_executable` is the executable or wrapper used for all chezmoi invocations.
+`chezmoi_config_path` optionally selects a config file via `--config` for every
+command, including setup queries and template rendering. Without it, chezmoi
+discovers its config and the plugin queries its path once during setup.
+Paths support `~` and relative paths, resolved against the working directory at
+setup time. Dollar signs are literal; environment variables are not expanded.
+Read `vim.env` explicitly when needed, for example:
+`chezmoi_config_path = vim.env.XDG_CONFIG_HOME .. "/chezmoi/chezmoi.toml"`.
+
+`watch.buffer_write_fallback` controls BufWritePost invalidation:
+  "auto" (default)  Use buffer saves only when the file's parent directory has
+                    no working watcher. Allocation/start errors and runtime
+                    watcher errors are detected; refresh retries registration.
+  true              Always use buffer saves too, for filesystems that silently
+                    omit events despite a successful watcher start.
+  false             Never use buffer saves; rely on watchers/manual invalidation.
+Healthy watches suppress the buffer fallback, avoiding double invalidation on
+ordinary and atomic editor saves. Unknown new subdirectories automatically use
+the buffer fallback until a manual refresh discovers them. The fallback cannot
+detect edits made outside this Neovim instance. Forced mode can duplicate events
+if filesystem watching is actually working.
+
+Path lookups and `chezmoi data` share a global cache across working directories
+with no automatic expiry. Source paths are queried again if their source files
+disappear. The CLI also caches up to 32 rendered template structures; literal
+text is restored locally. Template execution is otherwise uncached unless
+explicitly requested internally. Unchanged text can reuse the last complete
+source map, checked against the CLI's invalidation version. `chezmoi cat`
+is never cached. Configuration
+and discovered data/template directories are watched for changes, including
+external writes and atomic saves. Changes below `.chezmoitemplates` clear only
+template results and derived source maps, preserving cached paths/data.
+Exact `.chezmoiignore` files invalidate only path mappings. Other `.chezmoi*`
+names are not treated as cache dependencies merely because of their prefix.
+Template/data/config invalidation also schedules refreshes of open diff/preview
+views, including other tabs. Loading views retry through their initial-render
+guard. Refresh never writes a real source or target file. Other cached queries
+reload on demand. Call `require("vimoi.api").invalidate_cache()` to clear it manually
+and rescan the watch list. See |vimoi-limitations| for watch coverage.
+The source root and init-template/config mapping are initialized once by
+`setup()` and retained when the cache is invalidated.
+
+`split` selects "vertical" (default, side by side) or "horizontal" (stacked)
+for newly created diff/preview splits, including ordinary file diff. Existing
+window pairs are reused without rearranging them when the option changes.
+
+`highlight.template_bg` colors the entire `{{ ... }}` action without replacing
+its foreground syntax colors. Set it to a single color (for example,
+`"#4A3555"`) or override the dark/light defaults separately. Changes to
+`background` or the colorscheme reapply the selected color.
+
+When `diff.validate` is true, opening a template diff also runs `chezmoi cat`.
+The diff is rejected if its output differs from the sentinel rendering. This
+detects templates that depend on an unsupported execution context, at the
+cost of one additional chezmoi process whenever a diff is opened.
+Initial rendering and validation await sequentially without blocking editing.
+Source/context changes retry on the next event-loop turn; obsolete renders skip
+validation. Target edits made while rendering are included when the view opens.
+
+Internal `vimoi.job` owns process execution, progress floats and cancellation;
+`vimoi.cli` owns chezmoi arguments, output handling and caching. Shared
+data/template requests deliver to all waiting consumers even if one callback fails; the first callback error is then propagated. Coroutine and
+general helpers remain in `vimoi.util`. Its internal util.guard(callback,
+{ is_valid = ..., on_fail = ... }) owns task validity and scheduling. `is_valid`
+checks the original call arguments before starting and before publishing;
+`on_fail` receives those same arguments when the call is invalid. Its return
+value never controls scheduling. `delay` debounces queued calls, keeping the
+latest arguments. Either `should_retry` or `on_result` enables coroutine execution
+and rechecking call validity after computation. `should_retry` receives the
+computation results: true requests a deferred retry using delay, or 100ms when
+delay is unset; false passes results to optional on_result. The on_result
+return value never triggers retries. Invalid calls are never retried. A queued call already
+covers a retry, preserving its debounce. By default one computation runs at a
+time; calls while it runs coalesce into one latest invocation, starting after
+both completion and the debounce. `allow_parallel = true` permits overlap.
+Callers own cleanup; mandatory cleanup belongs in the computation, since
+rejected results skip on_result. Use `vimoi.api` for user operations.
+
+Usually should_retry checks freshness and on_result consumes final results.
+When computing and checking each item are closely coupled, should_retry may
+also consume the final result, omitting on_result. For example (compute,
+owner_is_current, compute_item and publish are caller-provided functions): >lua
+    require("vimoi.util").guard(compute, {
+      is_valid = owner_is_current,
+      should_retry = function(items)
+        local values = {}
+        for _, item in ipairs(items) do
+          local value, stale = compute_item(item)
+          if stale then
+            return true
+          end
+          values[#values + 1] = value
+        end
+        publish(values)
+        return false
+      end,
+    })()
+<
+Return true to retry or false when handling is complete. Keep intermediate work
+local until the retry decision is final, so retries cannot apply partial results
+twice. on_result is optional; omitting it returns the computation results after
+should_retry finishes, or nil while asynchronous work/retries remain pending.
+
+`data`, `cat`, and user-template rendering have no default timeout, allowing
+password prompts to wait. Background calls show progress floats at the top right without taking
+focus. Calls that need the result suspend in a coroutine behind a focused float;
+Neovim continues processing input. Press q, Esc, Ctrl-C or close the float to
+cancel; leaving a focused float also cancels. Cancellation terminates the process
+(and its process group on Unix) and prevents pending writes. Quick path/config
+identity queries still run directly. Put/apply/re-add share this UI when waiting
+for a render. Cancelling an initial render ends its session, keeping both buffers.
+
+                                                    *vimoi-diagnostics*
+Template diagnostics are enabled by default: >lua
+    require("vimoi.api").setup({ diagnostics = { enabled = false } })
+<
+The `vimoi-diagnostics` namespace reports gotmpl syntax errors and errors from
+asynchronous sentinel-template rendering. Checks run 300ms after edits, without
+opening a diff or preview. Edits while the native completion menu is visible also
+trigger checks. Only template syntax is checked, not injected host
+language syntax. Ordinary LSP diagnostics remain separate.
+
+The renderer reuses the same skeleton and completed CLI cache as diff/preview.
+Concurrent cached requests for the same skeleton/init mode/timeout share one
+process. Cancelling a view or diagnostics releases that caller; the process is
+killed when no caller remains. Cancelling an explicit modal wait or the global command stops the shared job.
+Diagnostics cache the current skeleton's success/failure per buffer: literal
+edits only move error positions; changed tags or invalidated data/template inputs
+trigger a new check. Path-only invalidation does not trigger rendering.
+
+Go execution errors carry a one-based line and zero-based byte column. Tag
+positions in the skeleton map them back to source, including multiline tags.
+Line-only undefined-function/variable errors are located using template syntax;
+errors without a reliable source location are notified instead of attached to
+an arbitrary line. Old results are discarded after edits, context changes,
+unload, filetype changes or disabling diagnostics. Init templates use --init.
+
+These checks execute user template functions and can invoke password helpers.
+They use the same cancellable background job UI and have no default timeout.
+Cancelling a check produces no diagnostic; editing or invalidation can retry it.
+Existing sentinel limitations, including empty define/block semantics, also apply.
+The runtime enabled switch clears this namespace and releases pending checks;
+re-enabling attaches templates that are already open. Customize presentation
+with vim.diagnostic.config, using vim.api.nvim_get_namespaces()["vimoi-diagnostics"]
+when a namespace-specific setting is desired.
+
+Default normal-mode entry mappings:
+    <leader>cd    Open diff                      global
+    <leader>cp    Open template preview          global
+    <leader>ct    Toggle source/target           global
+    <leader>cr    Clear caches and rescan watches  global
+    <leader>ca    Re-add target changes to template  global
+    <leader>cx    Select and cancel a slow command     global
+
+Set `vim.g.mapleader` before setup. Set any keymap value to another string to
+change its left-hand side, or to `false`/an empty string to disable that entry.
+Set `keymaps = false` to disable all mappings. Omitted entries use defaults: >lua
+    require("vimoi.api").setup({
+      keymaps = { diff = "<leader>hd", readd = false },
+    })
+<
+`gf`/`gF` are buffer-local to templates and symlink sources. Hunk transfer and
+folds are enabled while a diff window is focused; leaving it restores previous
+buffer mappings, so another window of that buffer keeps its normal keys. Read-only preview has no hunk-transfer mappings; re-add switches to a real diff.
+`require("vimoi").setup()` is the setup entry used by lazy.nvim's default main
+module; `vimoi.api.setup()` delegates to it.
+
+Process/config paths, watch options, and keymaps are fixed after successful
+setup. Later setup calls retain these settings when omitted and reject changes
+before publishing a new configuration. Split orientation, completion, diagnostics, diff validation, and highlight
+options can be updated; omitted runtime options reset to defaults.
+
+==============================================================================
+COMMANDS                                                       *vimoi-commands*
+
+                                                             *:VimoiToggle*
+:VimoiToggle [path]
+    Open the counterpart of the current buffer, or of an explicit source/target
+    path, without diff. Preview output switches back to its source; a source
+    switches to its real target. Source-only files report no counterpart.
+    Default mapping: <leader>ct. No rendering, apply, or automatic save;
+    native modified-buffer protections still apply.
+
+                                                            *:VimoiPreview*
+:VimoiPreview [source]
+    Preview the current or explicit source template in a read-only split.
+    Uses unsaved buffer contents, keeps focus in the source, and does not
+    open or write a real target. See |vimoi-preview|.
+
+                                                               *:VimoiDiff*
+:VimoiDiff
+    Open a diff for the current target or chezmoi source file. The other path
+    is resolved using `chezmoi source-path` or `chezmoi target-path`.
+
+:VimoiDiff {source} {target}
+    Open a diff for an explicit pair of files. This is useful for testing and
+    for integrations that already know both paths. `{source}` may be a plain
+    file or a `.tmpl` file.
+
+                                                            *:VimoiDiffPut*
+:VimoiDiffPut
+    Copy the hunk under the cursor from the target into a template source.
+    This is equivalent to `dp` in the target window or `do` in the template
+    window during a template diff session.
+
+                                                          *:VimoiDiffApply*
+:VimoiDiffApply
+    Apply the current hunk from rendered output to the target buffer. Equivalent
+    to dp in the source window or do in the target window; template actions are
+    rendered rather than copied literally. Only this hunk changes; neither file
+    is saved automatically.
+
+                                                            *:VimoiCancel*
+:VimoiCancel
+    Cancel the only running command immediately, or pick one with vim.ui.select
+    when several are running. Dismissing the picker cancels nothing.
+    Default mapping: <leader>cx. Lua: `require("vimoi.api").cancel_command()`.
+    Do nothing when no command is running.
+
+                                                          *:VimoiReAdd*
+:VimoiReAdd [path]
+    Re-add target changes while preserving the source template. Accept a source
+    or target path; omit it to use the current buffer. Reuse an existing diff
+    session, or open one and wait for its initial render before continuing.
+    Preview switches to a real target diff. Dynamic/repeated edits stay manual;
+    ambiguous placements prompt for a choice. Only the source buffer changes;
+    it is not saved automatically. Plain files are rejected.
+
+==============================================================================
+TEMPLATE DIFF                                          *vimoi-template-diff*
+
+The template diff uses Neovim's native diff machinery for highlights, filler
+lines, `foldmethod=diff`, and `[c` / `]c` navigation. The source map supplies
+custom hunks because comparing the template text directly with its target
+would mark every template action as a change.
+
+The two windows use source-map-aware cursor, viewport, and fold
+synchronization. Buffer-local mappings are installed for:
+
+    zo  zc  za  zO  zC  zA  zR  zM
+
+Snacks smooth scrolling is disabled for both buffers while the session is
+open and restored when the last view of each buffer closes. This prevents animated intermediate scroll
+positions from desynchronizing the mapped views.
+
+The initial open first displays editable source/target windows with a rendering
+hint, then renders asynchronously (including optional `cat` validation). You can
+edit, switch tabs, or close the windows while waiting. Completion does not take
+focus; changed source/context retries and closed/replaced windows discard old
+results. Native diff/folds and merge become available once rendering completes.
+The window-owned session records initial work in `loading`. Errors leave the
+buffers open without enabling a misleading ordinary template-vs-target diff.
+Diff and preview keep their opening buffer/window/path bindings. Renaming or
+replacing either side invalidates the session; old refresh/merge results are
+discarded. Repeated diff opens reuse the two windows. Switching diff/preview
+reuses the same pair; another window/tab displaying the same buffers can own
+an independent view. Buffer text remains shared, so edits refresh every view.
+
+Refresh is debounced. Target-only edits recalculate hunks without rendering.
+Source edits update syntax in the changed tree/byte ranges. Literal changes,
+including repeated/inactive text and trim changes, reuse the rendered structure.
+A new uncached action sequence invokes `chezmoi execute-template` asynchronously.
+Stale render results are discarded.
+
+Puts and template re-adds apply local source edits rather than replacing
+the entire buffer. Multiple edits in one operation share one undo/redo step.
+Puts no longer close all folds; Neovim updates fold ranges and open states
+natively. The final newline remains controlled by the buffer's `endofline`
+option, which native text undo does not restore, as with the previous behavior.
+
+Source mapping uses literal text parts (`literal_parts`) between template tags
+(`template_tags`), including file boundaries and empty parts. Each part records
+its source range, trimmed text, and rendered `output_ranges` (zero for skipped
+branches; multiple for loops). Parser-specific text-node splits do
+not create merge boundaries; inserting a literal brace inside a slot does not
+require a placement choice. Real template-tag/control boundaries remain distinct.
+
+Plain, non-template source files bypass sentinel mapping and use a regular
+two-way Neovim diff, including native `scrollbind`, `cursorbind`, `do`, and
+`dp` behavior.
+
+==============================================================================
+TEMPLATE PREVIEW                                            *vimoi-preview*
+
+Use `:VimoiPreview` while editing a template, or pass an explicit source path.
+The source remains editable on the left; a temporary read-only buffer on the
+right displays its rendered output with the host filetype. Unnamed buffers and
+template fragments without a managed target are supported. No save, re-add, or
+apply is performed. Init templates use `execute-template --init`, as in diff.
+
+Preview shares diff's asynchronous rendering, 120ms debounce, incremental
+syntax/structure caches, and source-map-aware cursor/viewport synchronization.
+Literal edits reuse rendered structures. It does not enable diff highlighting,
+filler lines, diff folds, or merge mappings. Original mappings temporarily
+shadowed by diff are restored when switching modes or closing the session.
+
+Parse/render errors retain the last successful output with a visible
+"Preview out of date" message. Editing the template retries and clears the
+message on success. Initial errors remain editable and can recover as well.
+`diff.validate` does not apply: preview renders unsaved text, not the target
+produced from the on-disk source. Other |vimoi-limitations| still apply.
+
+Invoking preview from either side of an active diff/preview uses its source.
+Repeated invocation refreshes and reuses the same pair; switching between diff
+and preview reuses two windows. Closing/replacing either side stops updates;
+the scratch output is wiped when hidden. A still-visible output after closing
+the source remains a read-only snapshot.
+
+Watched data/include/config changes refresh open views automatically. Call
+|vimoi.api.invalidate_cache()| when a change or new directory was missed;
+there is no need to reopen preview. Set `split = "horizontal"` for stacked windows.
+The session records initial rendering in `loading` and a stale-output error
+in `preview_error`. These belong to that pair of windows, not the source buffer.
+
+==============================================================================
+MERGE                                                            *vimoi-merge*
+
+In a template diff session, place the cursor on a changed hunk and use:
+
+    target window:    dp
+    template window:  do
+    either window:    :VimoiDiffPut
+
+The plugin writes the target hunk into the source template and refreshes the
+remaining diff. Each line hunk is split into independent byte edits, so
+several changes across literal slots on one line can be applied together.
+The complete hunk is applied in one transaction. An insertion at a
+control-block boundary prompts for its intended source position. Dynamic,
+repeated, and otherwise unresolvable edits remain manual.
+Literal `{{` in a target edit is escaped as a Go-template string action in
+the source; surrounding text stays static. Deletions or adjacent edits that
+join braces are escaped too. Static merges infer output and a new source map
+from the recorded execution order and trim rules, without another render.
+
+For the opposite direction, use dp in the source window, do in the target
+window, or :VimoiDiffApply from either. The selected hunk is copied from
+rendered output, including dynamic values and loop expansion, into target;
+source template text is never copied literally. Other target hunks remain
+untouched. Writes are local, support undo/redo, and never save either file.
+`keymaps.diff_get` and `keymaps.diff_put` configure do and dp on both sides.
+These semantics require the mappings or plugin commands. Native :diffget,
+:diffput, and normal! bypass them and still copy raw template source.
+
+Whenever put, apply, or template re-add needs rendering (initial render or stale source map), it opens a focused waiting window and
+continues asynchronously. Press q, <Esc>, or <C-c>, close the window, or leave it to cancel the merge. Put/apply retain
+the line where they were requested. Changes to either buffer or the render context
+while waiting or choosing a placement also cancel the request. Closing or
+replacing the session invalidates outstanding choices. Rendering does not block
+the editor event loop; cancellation leaves both buffers untouched by the merge.
+
+For plain files, `do` and `dp` retain their standard Neovim meanings.
+
+`:VimoiReAdd` applies all independent static hunks in one transaction
+and prompts for ambiguous control-boundary insertions. Sentinel markers in
+every gap between template actions record whether that gap executed and where
+it appeared in the output, even for an empty branch. Candidate placements are
+inferred from those markers and trim rules. The selected edits reuse the old
+dynamic output and execution order; known output from generated brace actions
+is inserted locally, including new literal slots and their markers.
+Edits to existing control structure or dynamic output stay manual.
+
+At an `if`, `range`, or `with` boundary, inserting before or after the template
+action can render identically now but behave differently later. The selector
+shows those finite possibilities; an empty `if` can have positions before,
+inside, and after the block. Inline actions use the same placement inference. Insertions inside one literal slot remain automatic.
+An inline addition such as `ooo` becoming `ooouuu` is recognized as an
+insertion even when the line-level diff reports a replacement. If it borders
+a control action, the same candidate selection applies.
+Removing or replacing inline bytes is applied directly when the old bytes map
+to one non-repeated literal slot. If distinct slots can explain the same
+edit, the source position is selected interactively.
+Several independent inline additions, deletions, and replacements in one
+hunk are located separately and committed together.
+
+==============================================================================
+SYNTAX HIGHLIGHTING                                    *vimoi-highlighting*
+
+Template sources use the `gotmpl` filetype. Static `text` nodes are injected
+into the Tree-sitter language inferred from the target filename, so a file
+such as `init.lua.tmpl` receives both Go-template and Lua highlighting.
+For ordinary templates inside the source directory, cached chezmoi path queries
+resolve the real target name: `dot_zshrc.tmpl` uses zsh even if the target does
+not exist. If resolution fails, detection falls back to the source name and
+contents. Special source files below retain their own host-language rules.
+Ordinary non-template managed sources also inherit the target's filetype, such
+as zsh for `dot_zshrc`, including Neovim's detection callback. Source-only files
+fall back to their own names; symlink sources retain their normal filetype.
+Vimoi files that are templates without a `.tmpl` suffix also use `gotmpl`:
+`.chezmoiignore`, `.chezmoiremove`, `.chezmoiexternal.{json,jsonc,toml,yaml,yml}`,
+and files below `.chezmoitemplates/` or `.chezmoiexternals/`.
+Automatic `gotmpl` detection applies only inside the configured chezmoi source
+directory; files elsewhere with the same names keep their normal filetype.
+The external file format determines its host language (for example, TOML for
+`.chezmoiexternal.toml`). Ignore and remove files reuse `gitignore` highlighting;
+this does not mean their pattern semantics are identical to Gitignore.
+For scripts, the shebang can refine the filename-derived host type: a `.sh.tmpl`
+file starting with `#!/usr/bin/env zsh` uses zsh rather than sh.
+
+If the inferred host language has no Tree-sitter parser, the template keeps
+its `gotmpl` filetype and parser but uses the host's Vim syntax highlighting
+instead. For example, `script.sh.tmpl` uses `syntax/sh.vim` when no `sh`
+parser is available. Template actions receive a basic syntax highlight too.
+Both highlighting paths give template actions the same configurable background;
+see |vimoi-setup|.
+
+Host-language highlighting is best effort. A template action may generate a
+required token, branches may contain individually incomplete statements, and
+loops may generate fragments. Tree-sitter cannot see the final rendered
+program, so injected regions can contain errors or inaccurate highlighting.
+This does not affect template parsing, source mapping, or chezmoi rendering.
+
+==============================================================================
+PATH NAVIGATION                                         *vimoi-navigation*
+
+Use |:VimoiToggle| to switch between source and target, without
+opening a diff, rendering, saving, or applying changes.
+
+vimoi.nvim installs a buffer-local `gf` mapping in Go templates,
+`.chezmoitemplates`, and special path-list files. Relative paths use the same
+base directories as chezmoi:
+
+    include "path"                 source directory
+    template "name"                .chezmoitemplates directories
+    includeTemplate "name"         .chezmoitemplates directories
+    glob "pattern"                 destination directory
+    .chezmoiignore{,.tmpl} entries destination directory
+    .chezmoiremove{,.tmpl} entries destination directory
+    symlink_* contents              directory containing the target symlink
+
+Absolute paths, `~` paths, and local `file://` URLs are also expanded. If a
+glob or template name has multiple matches, |vim.ui.select()| chooses the
+destination. When the text is not a recognized chezmoi path, or no matching
+file exists, the mapping falls back to Neovim's original `gf` behavior.
+
+Paths resolved in the destination directory are passed through `chezmoi
+source-path`. A managed target therefore opens its source-state file by
+default, avoiding edits that a later apply would overwrite. The destination
+path is used only when the target is unmanaged or has no concrete source
+file, which is common for ignore and remove entries.
+
+The `gF` mapping uses the same resolver and additionally recognizes
+`path:line` and `path:line:column`. Without a location suffix it behaves like
+the enhanced `gf`. Each mapping can be configured or disabled independently.
+
+Optional vim-matchup integration uses the bundled gotmpl matchup query. With
+vim-matchup's Tree-sitter matching enabled, % follows if/else/end, range, with,
+define and block, including trim markers and else chains. vimoi does not map %
+itself; without vim-matchup its native behavior is unchanged.
+
+==============================================================================
+COMPLETION                                                *vimoi-completion*
+
+vimoi.nvim includes an optional blink.cmp source. It does not set
+'omnifunc', and blink.cmp is not a hard dependency. Register it explicitly: >lua
+
+    require("blink.cmp").setup({
+      completion = {
+        accept = {
+          auto_brackets = {
+            blocked_filetypes = { "gotmpl" },
+          },
+        },
+      },
+      sources = {
+        default = { "lsp", "path", "snippets", "buffer", "vimoi" },
+        providers = {
+          vimoi = {
+            name = "Vimoi",
+            module = "vimoi.blink",
+            score_offset = 100,
+          },
+        },
+      },
+    })
+<
+Go templates pass function arguments with whitespace rather than `()`. The
+native blink.cmp `blocked_filetypes` option above prevents automatic brackets
+while preserving the Function kind and icon in the completion menu.
+
+The source is enabled only in `gotmpl` buffers. It completes Go-template
+actions, chezmoi and common Sprig functions, fields below `.` from `chezmoi
+data`, `$variables` declared earlier and still in scope, and paths for `include`,
+`includeTemplate`, `template`, and `glob`. Syntax tokens recognize multiline
+actions and distinguish delimiters from braces inside strings/comments. Variable
+completion respects control branches, range bindings, and named-template scopes.
+Outside actions, block snippets complete if, ifelse, range, with, define, block,
+and comment into full templates with editable placeholders. Items use standard
+LSP snippet format and blink's configured snippet engine; comments are excluded.
+
+Completion loads data asynchronously on demand; navigation shares the cache
+until invalidation. Values are omitted from item details to avoid exposing secrets in
+the completion menu. Shared-template directory discovery is cached across
+completion and navigation, and cleared by filesystem/cache invalidation.
+Set `completion.enabled` to false to disable this source.
+
+==============================================================================
+LUA API                                                            *vimoi-api*
+
+`require("vimoi.api")` contains user actions intended for configuration,
+keymaps, and commands. Module-specific integration and diagnostic functions
+remain internal, except for the documented vimoi.blink integration. Only setup,
+the listed vimoi.api operations and that integration form the public surface.
+Session tables and debugging data are internal. diff, diff_files and preview
+always return nil, without a session handle; template rendering is asynchronous.
+Interactive writeback also returns nil while rendering or selection is pending,
+so nil does not determine eventual success. Completion callbacks/promises are
+not currently provided.
+`filetype` owns filename rules, filetype registration, and host-language
+detection. CLI init-template lookup and diff dispatch reuse its rules; top-level
+setup supplies the source root. Ordinary templates resolve their target names
+through the CLI path cache; filename classification itself requires no CLI calls.
+It also classifies ignore/remove contents as destination patterns and symlink
+contents as link targets; navigation and event registration share those rules.
+`highlight` owns template colors, buffer highlighting, host-language injection,
+and Vim syntax fallback. Top-level setup starts the CLI
+and watches; CLI methods own query caches, including shared-template directory
+discovery.
+Ex commands are registered once during setup by the API module; loading it alone
+does not register commands or load the diff and path-navigation implementations.
+
+`require("vimoi.gotmpl.source_map")` owns template parsing, sentinel rendering, and
+source-to-output mappings, including incremental syntax and render reuse.
+It also projects literal occurrences and intervening dynamic output into rendered regions.
+Its syntax cache stores complete tag ranges, located through sibling delimiter
+tokens; control-action nodes also contain their bodies and cannot serve as tags.
+Literal text, including empty insertion slots, is derived from adjacent tags
+after applying whitespace trim.
+
+Within `vimoi.gotmpl`, `native_diff` adapts mapped hunks to Neovim's diffexpr
+and manages native diff windows and synchronized folds. `buffer_edits` applies
+local byte edits, including EOF
+and undo handling, for both merging and preview refreshes. Template escaping
+remains in `merge_plan`; the shared session registry belongs to `gotmpl/session.lua`.
+
+Coordinates distinguish template source, rendered output, and target text.
+Hunks use `rendered_start_line`/`target_start_line` and their `*_line_count`
+fields, following vim.text.diff: one-based starts, or the preceding line
+(possibly zero) for an empty range. Merge edits use source `start_byte`/
+`end_byte` and `rendered_start_byte`/`rendered_end_byte`; byte ranges are
+zero-based and half-open.
+
+`merge_plan.plan(trace, target_text, hunks)` returns edits, choices, and skipped
+hunks. It uses the trace's complete control-tag ranges, including multiline tags.
+`merge_plan.prepare_candidate()` constructs escaped source edits without UI
+or subprocesses. `source_map.rebuild_after_edits()` infers a complete trace,
+including newly generated constant brace actions. `merge` owns placement
+selection, snapshot checks, and explicit source writes for put/template re-add.
+The source map types distinguish prepared structure from a complete trace,
+which always has both output and rendered skeleton.
+
+`init.lua` resolves paths, opens windows, and dispatches user operations.
+`session.lua` owns the single `by_window` registry (indexed by both window IDs),
+refreshes, event listeners,
+temporary mappings, and cleanup. WinEnter/WinLeave install and restore mappings
+for the focused window, including when its buffer appears in another view.
+Loading/error decorations are window-scoped. Its initial rendering handles retries, strict
+validation, and completion. Opening paths are stored on the session so late
+results cannot revive renamed or replaced buffers. `session.is_valid()` checks
+registry ownership and the original buffer/window/path bindings for initial
+rendering, delayed refreshes, and explicit merges. Text/context checks retain
+the retry or cancellation policy of each operation. The API loads `merge.lua`
+directly on put/template re-add; opening diff/preview does not load merge planning.
+`cli.counterpart_path()` owns the bidirectional path cache used directly by
+toggle. `cli.resolve_paths()` orders the same paths as source/target for diff and re-add.
+`merge.lua` coordinates put and template re-add: resolve placements, infer, write, and refresh;
+`merge_plan.lua` locates byte edits and escapes literal braces.
+
+                                              *vimoi.api.setup()*
+require("vimoi.api").setup({opts})
+    Merge `{opts}` with the defaults described in |vimoi-setup|.
+
+                                    *vimoi.api.invalidate_cache()*
+require("vimoi.api").invalidate_cache({scope})
+    Discard selected results and rescan file-watch directories. Optional scope:
+      "all"       Clear paths/data/template results (default).
+      "paths"     Clear only source/target mappings.
+      "data"      Clear data and dependent template results/source maps.
+      "templates" Clear all template results/source maps; keep paths/data.
+    Use this when automatic invalidation misses a change or a new directory.
+    The source root and init-template/config mapping retain their setup-time
+    values. Open views schedule a refresh; otherwise reload happens on demand.
+
+                                             *vimoi.api.toggle()*
+require("vimoi.api").toggle({path})
+    Open the counterpart of optional source/target path, defaulting to the
+    current buffer. Preview output returns to its source. Native edit behavior
+    preserves or protects unsaved buffers. No rendering or automatic save.
+    Return the opened path, or nil on resolution failure.
+
+                                               *vimoi.api.diff()*
+require("vimoi.api").diff({opts})
+    Open the current file's diff. Optional fields are `source`, `target`,
+    and `validate`. Always returns nil. Template opening returns before rendering finishes;
+    see |vimoi-template-diff| for the pending state.
+
+                                         *vimoi.api.diff_files()*
+require("vimoi.api").diff_files({source}, {target}, {opts})
+    Open an explicit source/target pair. `{opts}` accepts `validate`.
+    Always returns nil. Template rendering and optional validation complete asynchronously.
+
+                                            *vimoi.api.preview()*
+require("vimoi.api").preview({opts})
+    Preview a source template alongside read-only rendered output. Optional
+    `source` selects a source path; otherwise use the current buffer, including
+    unsaved text. Always returns nil. See |vimoi-preview|.
+
+                                           *vimoi.api.put_hunk()*
+require("vimoi.api").put_hunk()
+    Merge the current projected hunk into the template source. Returns true
+    on immediate success, false on immediate choice cancellation, and nil on
+    failure or while an asynchronous render/placement choice is pending.
+
+                                         *vimoi.api.apply_hunk()*
+require("vimoi.api").apply_hunk()
+    Apply the current hunk from rendered output to target in a template diff
+    session. Returns true on immediate success, or nil on failure or while
+    rendering is pending. Source is untouched; target is not saved.
+
+                                         *vimoi.api.readd()*
+require("vimoi.api").readd({path})
+    Re-add target changes to a template, opening a diff when needed. `{path}`
+    is an optional source or target path, defaulting to the current buffer.
+    Reuse an existing diff session or promote a preview to a real target diff.
+    Dynamic edits stay manual; ambiguous placements prompt for a choice. Returns a table with
+    `merged`, `skipped`, and `reasons` on immediate completion, or nil on failure
+    or while rendering/selection is pending. merged/skipped count original hunks
+    with applied/skipped edits; partially merged hunks can count in both. reasons
+    is an array of skipped edits, each with an optional reason string; multiple
+    entries may belong to one hunk. Other internal fields are not public API.
+    The source buffer is not written automatically.
+
+                                               *vimoi.api.fold()*
+require("vimoi.api").fold({command})
+    Apply and synchronize one of `zo`, `zc`, `za`, `zO`, `zC`, `zA`, `zR`,
+    or `zM` in the active diff session.
+
+                                          *vimoi.api.goto_file()*
+require("vimoi.api").goto_file({opts})
+    Resolve and open the chezmoi-aware path under the cursor. See
+    |vimoi-navigation|. Set `{opts}.line` to true to recognize a trailing
+    `:line` or `:line:column`, matching the enhanced `gF` behavior.
+
+                                       *vimoi.api.cancel_command()*
+require("vimoi.api").cancel_command()
+    Cancel the only running command, or open a picker if several are running.
+    Returns nil; see |vimoi-commands| for :VimoiCancel.
+
+Integration-specific functions are available directly from their modules:
+`vimoi.blink` provides the blink.cmp source, including candidate generation;
+blink.cmp is the only supported completion integration.
+`require("vimoi.goto").resolve(buf, row, col, line)` resolves paths
+without opening them. For debugging, `require("vimoi.gotmpl.session").last_profile`
+holds the latest template-view opening timings (`mode` is "diff" or "preview").
+These are not part of the user-action API above.
+
+==============================================================================
+LIMITATIONS                                                *vimoi-limitations*
+
+The sentinel renderer does not currently support:
+
+- Custom Go-template delimiters.
+- Empty/whitespace-only define or block override semantics: inserting nonempty
+  sentinels changes Go's empty-definition rules. Ordinary empty if/range and
+  whitespace trim are supported.
+- Templates whose result depends on `.chezmoi.sourceFile`,
+  `.chezmoi.targetFile`, `.chezmoi.command`, or `.chezmoi.args`.
+- `includeTemplate` calls whose result indirectly depends on those fields.
+- Automatic merging of dynamic, repeated, ambiguous, or cross-boundary
+  hunks.
+- Guaranteed valid host-language injections for incomplete template
+  fragments; see |vimoi-highlighting|.
+
+The sentinel prefix is generated randomly once when the module loads. A complete
+marker is `prefix .. ID .. prefix`. The current implementation conservatively
+rejects any source containing this prefix. Static text would not itself cause
+misdecoding: it is replaced before rendering and is not scanned again when
+restored. The source check does not yet distinguish static text from template
+tags.
+Dynamic output from expressions, data, includes, etc. must not contain a current
+complete marker. An unknown ID causes an error; a valid ID may be mistaken for a
+real sentinel, corrupting output or source mappings. A prefix alone in dynamic
+output does not trigger replacement. Randomization reduces accidental collisions
+but does not guarantee collision-free rendering of arbitrary dynamic output.
+
+Init templates named `.chezmoi.toml.tmpl`, `.chezmoi.yaml.tmpl`, `.chezmoi.yml.tmpl`,
+`.chezmoi.json.tmpl`, or `.chezmoi.jsonc.tmpl` are a special case. They map to
+`.chezmoi.configFile` and are rendered with `execute-template --init`, so
+init-only functions such as `prompt*Once` are available.
+
+Cache invalidation is best-effort. Watches cover the config directory, the
+source root, and data/template directories and ignore-file parents discovered
+at setup or manual refresh; `.chezmoitemplates` subdirectories are watched too, but
+the plugin does not continuously track the entire source tree. Newly created or
+moved directories, failed/silent watches, and environment changes may need
+`require("vimoi.api").invalidate_cache()` for external edits. Successful start
+does not guarantee events on remote filesystems; use the forced buffer fallback
+for editor saves if needed. Symlinked directories are not
+traversed. Setup-time source-root and init mappings are not recomputed.
+The same invalidation clears rendered structure caches. Undetected changes to
+data, other included files, environment, or time-sensitive functions may leave cached
+dynamic output stale. Literal text is restored locally; updates are debounced
+by 120ms, and unchanged source text can reuse the last complete trace.
+
+==============================================================================
+TROUBLESHOOTING                                    *vimoi-troubleshooting*
+
+Path navigation drops delayed lookup/picker results if the originating window is
+closed/replaced, focus changes, or the original buffer text changes.
+
+Run `:checkhealth vimoi` to inspect the Neovim requirement, configured executable,
+source/config paths discovered during setup, gotmpl parser and highlights/injections
+queries. Open a template to also check the optional parser for its already
+configured host language; health reads existing state without inferring it again. A missing host
+parser uses Vim syntax fallback and does not prevent source mapping.
+
+Health does not call setup, launch chezmoi, render templates, load data/password
+helpers, or write files. Without successful CLI setup, it reports that paths have
+not been discovered. Config files are checked for existence/readability, not
+executed or validated; an absent default config is valid. After failed setup,
+inspect the original startup error too: health uses the last successful options
+or defaults. Saved target files are never automatically re-added; use explicit
+commands. Complex dynamic output changes require manual source editing.
+
+`gotmpl Tree-sitter parser is required`
+    Install and enable a Tree-sitter parser that registers the `gotmpl`
+    language, then reopen the buffer.
+
+`sentinel rendering differs from chezmoi cat`
+    Strict validation found an environment-sensitive template. Disable
+    `diff.validate` only if the difference is understood, or use a plain
+    chezmoi workflow for that template.
+
+The two views scroll incorrectly
+    Make sure both windows belong to the same active diff session. The plugin
+    disables Snacks scrolling automatically, but another plugin that changes
+    views on `CursorMoved` or `WinScrolled` may still interfere.
+
+Host-language highlighting is incomplete
+    Check that a parser exists for the target filetype. If it does, the
+    template may split an incomplete statement across dynamic regions; this
+    is an expected limitation described in |vimoi-highlighting|.
+
+For Chinese help, set `helplang`: >vim
+
+    set helplang=cn
+<
+Use `:help vimoi.nvim@en` or `:help vimoi.nvim@cn` to select a language
+explicitly.
+
+vim:tw=78:ts=8:noet:ft=help:norl:

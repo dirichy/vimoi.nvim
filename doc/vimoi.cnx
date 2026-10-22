@@ -1,0 +1,696 @@
+*vimoi.nvim*                         在 Neovim 中编辑 chezmoi 管理的文件
+
+==============================================================================
+目录                                                         *vimoi-contents*
+
+1. 简介 ...................................................... |vimoi-intro|
+2. 环境要求 ............................................ |vimoi-requirements|
+3. 配置 ...................................................... |vimoi-setup|
+4. 命令 ................................................... |vimoi-commands|
+5. 模板 Diff ........................................ |vimoi-template-diff|
+6. 模板预览 .............................................. |vimoi-preview|
+7. 合并 ...................................................... |vimoi-merge|
+8. 语法高亮 ......................................... |vimoi-highlighting|
+9. 路径跳转 ........................................... |vimoi-navigation|
+10. 补全 ................................................. |vimoi-completion|
+11. Lua API ................................................ |vimoi-api|
+12. 已知限制 ........................................ |vimoi-limitations|
+13. 故障排查 ..................................... |vimoi-troubleshooting|
+
+==============================================================================
+简介                                                            *vimoi-intro*
+
+vimoi.nvim 提供符合 Neovim 使用习惯的 chezmoi 文件比较流程。用户仍然编辑
+真实目标文件，因此 LSP、formatter、项目检测以及其他依赖真实路径的工具可以照常工作。
+
+普通 source 文件使用标准双文件 Diff。对于模板，插件会在后台渲染第三个版本：
+
+    source template --渲染--> rendered base --比较--> target
+
+界面只显示 source template 和 target。插件通过哨兵建立 source map，把 rendered base
+与 target 之间的差异投影到模板上，再交给 Neovim 原生 Diff 界面显示。
+
+==============================================================================
+环境要求                                                  *vimoi-requirements*
+
+- Neovim 0.12 或更高版本。
+- `PATH` 中存在 chezmoi 2.x，或者通过 |vimoi-setup| 指定命令。
+- 用于模板 source map 的 `gotmpl` Tree-sitter parser。
+- 目标语言的 Tree-sitter parser 是可选项，但安装后能改善嵌入语法高亮。
+
+==============================================================================
+配置                                                            *vimoi-setup*
+
+用插件管理器安装 `dirichy/vimoi.nvim`。lazy.nvim 配置： >lua
+
+    { "dirichy/vimoi.nvim", opts = {} }
+<
+在 Neovim 配置中调用 `setup()`，注册命令、文件类型和自动事件： >lua
+
+    require("vimoi.api").setup()
+<
+使用 lazy.nvim 时，`opts = {}` 会自动调用 setup。也可以用 `ft = "gotmpl"`：
+lazy.nvim 会提前读取本插件的 `ftdetect/`，仅在遇到候选模板路径时才加载 Lua 模块，
+因此自定义的 `chezmoi_executable` 也能在路径确认前生效。
+只用 `ft = "gotmpl"` 时，普通 source 不触发首次加载；需要立即按 target 识别普通
+source 类型时，应提前 setup，不只依赖该 filetype 触发。
+
+当前选项及默认值如下： >lua
+
+    require("vimoi.api").setup({
+      chezmoi_executable = "chezmoi",
+      chezmoi_config_path = nil,
+      split = "vertical",
+      watch = {
+        buffer_write_fallback = "auto",
+      },
+      diff = {
+        validate = false,
+      },
+      completion = {
+        enabled = true,
+      },
+      diagnostics = {
+        enabled = true,
+      },
+      highlight = {
+        template_bg = { dark = "#343B52", light = "#E4E9F4" },
+      },
+      keymaps = {
+        diff = "<leader>cd",
+        preview = "<leader>cp",
+        toggle = "<leader>ct",
+        invalidate_cache = "<leader>cr",
+        readd = "<leader>ca",
+        cancel_command = "<leader>cx",
+        goto_file = "gf",
+        goto_file_line = "gF",
+        diff_get = "do",
+        diff_put = "dp",
+        fold_open = "zo",
+        fold_close = "zc",
+        fold_toggle = "za",
+        fold_open_recursive = "zO",
+        fold_close_recursive = "zC",
+        fold_toggle_recursive = "zA",
+        fold_open_all = "zR",
+        fold_close_all = "zM",
+      },
+    })
+<
+`chezmoi_executable` 是所有 chezmoi 调用使用的可执行文件或 wrapper。
+`chezmoi_config_path` 可选，指定后所有命令统一传入 `--config`，包括 setup 查询和模板
+渲染。未指定时由 chezmoi 自动查找，插件只在 setup 时查询一次配置路径。
+支持 `~` 和相对路径；相对路径以 setup 时的工作目录为准。路径中的 `$` 按字面保留，
+不展开环境变量；需要时请显式使用 `vim.env`，例如
+`chezmoi_config_path = vim.env.XDG_CONFIG_HOME .. "/chezmoi/chezmoi.toml"`。
+
+`watch.buffer_write_fallback` 控制 BufWritePost 兜底：
+  "auto"（默认） 文件父目录没有正常 watcher 时才启用。自动识别句柄创建/启动失败、
+                 运行时错误和未覆盖的新目录；手动刷新会重新尝试注册。
+  true           始终使用 buffer 保存事件，适合 watcher 启动成功但静默丢事件的文件系统。
+  false          禁用 buffer 保存兜底，只依赖 watcher 或手动失效。
+正常监听时不再因编辑器保存而重复失效，包含原地写入和原子替换。兜底只能覆盖当前
+Neovim 内的保存，不能发现编辑器外的修改；强制开启而 watcher 实际正常时仍可能重复失效。
+
+source/target 路径查询和 `chezmoi data` 使用全局缓存，切换工作目录共享结果，缓存不
+自动过期。源文件消失时会重新查询路径；CLI 还统一缓存最多 32 条模板结构渲染结果，
+静态文本在本地恢复。其他模板执行默认不缓存，除非内部调用显式启用。
+最近一次全文未变时复用完整 source map，并检查 CLI 的失效版本；`chezmoi cat` 不缓存。
+插件监听配置目录和已发现的 data/模板目录，覆盖外部写入和原子保存。
+`.chezmoitemplates` 下的修改只清空模板结果及派生 source map，保留路径/data 缓存。
+`.chezmoiignore` 精确匹配，只清空路径对应关系；不会仅因文件名以 `.chezmoi` 开头就失效。
+模板、data 或配置失效后，会延迟刷新已打开的 diff/preview，包含其他 tab；初次渲染中的
+视图由已有 guard 重试。刷新不写真实 source/target 文件，其他缓存仍按需重新加载。
+可调用 `require("vimoi.api").invalidate_cache()` 手动清空并
+重新扫描监听范围；监听覆盖范围参见 |vimoi-limitations|。
+source root 和 init 模板/config 的对应关系只在 `setup()` 时初始化一次，清空缓存时保留。
+
+`split` 选择新建 diff/preview 分屏的方向：`"vertical"`（默认）为左右，`"horizontal"`
+为上下，普通文件 diff 也适用。修改选项不重新排列已存在并复用的窗口对。
+
+`highlight.template_bg` 为整个 `{{ ... }}` action 设置背景，不替换原有的语法前景色。
+可以设置单个颜色（例如 `"#4A3555"`），也可以分别覆盖深色、浅色默认值。
+切换 `background` 或配色方案时会重新应用对应颜色。
+
+启用 `diff.validate` 后，每次打开模板 Diff 还会运行 `chezmoi cat`。如果它的输出与
+哨兵渲染结果不同，插件会拒绝显示 Diff。这可以检测依赖暂不支持的执行上下文的模板，
+代价是打开 Diff 时额外启动一个 chezmoi 进程。
+初次渲染与验证按顺序异步等待，不阻塞编辑。source 或渲染上下文变化后，在下一轮
+事件循环重试；已过期的渲染跳过验证。等待期间对 target 的编辑会用于最终视图。
+
+内部 `vimoi.job` 管理进程执行、进度浮窗和取消选择；`vimoi.cli` 负责 chezmoi
+参数、输出处理和缓存。共享 data/模板请求会向所有等待者交付结果，再抛出首个回调异常，
+避免一个消费者出错卡住其他消费者。协程及通用工具保留在 `vimoi.util`，用户操作仍通过 `vimoi.api`。
+内部 util.guard(callback, { is_valid = ..., on_fail = ... }) 统一有效性检查与调度。
+is_valid 在启动前及发布前检查本次调用，始终接收原始调用参数；调用失效后，on_fail
+接收同样的参数，负责通知或收尾，返回值不参与调度。`delay` 对尚未启动的调用防抖，
+只保留最新参数。设置 `should_retry` 或 `on_result` 均会启用协程计算，并在计算后再次
+检查调用有效性。should_retry 接收计算结果：返回 true 时异步重试，沿用 delay，未设置
+时默认等待 100ms；返回 false 时将结果交给可选的 on_result。on_result 的返回值不触发重试。
+调用失效则不重试。已有新调用排队时直接沿用，不重置防抖。默认串行：运行期间重复
+调用只保留最新参数，等前一轮结束且防抖到期后启动；`allow_parallel = true` 允许并行。
+必要收尾应在计算过程中完成，因为被拒绝的结果不会进入 on_result。
+
+通常让 should_retry 判断是否需要重算，on_result 处理最终结果。逐项计算与合法性检查
+紧密结合时，也可以在 should_retry 中直接处理最终结果，省略 on_result。例如（compute、
+owner_is_current、compute_item、publish 均由调用方提供）： >lua
+    require("vimoi.util").guard(compute, {
+      is_valid = owner_is_current,
+      should_retry = function(items)
+        local values = {}
+        for _, item in ipairs(items) do
+          local value, stale = compute_item(item)
+          if stale then
+            return true
+          end
+          values[#values + 1] = value
+        end
+        publish(values)
+        return false
+      end,
+    })()
+<
+返回 true 表示重试，返回 false 表示本轮处理完成。在确定不需要重试前，将中间计算保留
+在局部变量中，避免重试时重复应用部分结果。on_result 可省略，此时 should_retry 完成后
+返回计算函数的原始结果；尚在异步等待或重试时返回 nil。
+
+`data`、`cat` 和用户模板渲染没有默认超时，允许等待密码输入。后台调用在右上角显示不抢焦点的
+进度浮窗；需要等待结果时，异步进程配合聚焦浮窗暂停调用流程，Neovim 仍正常处理输入。
+在浮窗按 q、Esc、Ctrl-C 或关窗会取消；离开聚焦浮窗也会取消。取消会结束进程（Unix
+下包括同一进程组的子进程），阻止待处理的写回。路径和配置路径查询等快速命令仍直接
+执行。put/apply/re-add 等待渲染复用相同浮窗；取消初次渲染会结束 session，保留 buffer。
+
+                                                    *vimoi-diagnostics*
+模板诊断默认启用，可通过配置关闭： >lua
+    require("vimoi.api").setup({ diagnostics = { enabled = false } })
+<
+`vimoi-diagnostics` namespace 展示 gotmpl 语法错误和异步哨兵渲染错误。编辑后等待 300ms
+检查，包括原生补全菜单显示时的编辑，无须打开 diff/preview；仅检查模板，不检查
+injection 宿主语法，也不清除其他 LSP
+的诊断。展示样式通过 vim.diagnostic.config 设置；单独配置时可使用
+vim.api.nvim_get_namespaces()["vimoi-diagnostics"] 取得 namespace。
+
+诊断复用 diff/preview 的骨架及已完成 CLI 缓存；相同骨架/init 模式/timeout 的并发缓存
+请求共用一个进程。关闭视图或诊断只取消该使用方，最后一个使用方取消时才杀掉进程；
+显式等待浮窗的取消和全局取消命令会结束整个共享任务。每个 buffer 缓存当前骨架的成功或失败；静态修改只移动
+错误位置，tag 或 data/include 等依赖变化才重新执行；仅路径缓存失效不会重渲染。
+
+执行错误的一基行号、零基 byte 列号通过 tag 骨架位置映射回 source，支持多行 tag。
+只有行号的未定义函数/变量错误结合模板语法树定位；无法可靠定位时通知，不随意标在
+第一行。编辑、上下文变化、卸载、切换 filetype 或关闭诊断后，旧结果不会覆盖新状态。
+init 模板使用 --init；空 define/block 等已有哨兵限制仍适用。
+
+诊断会实际执行模板函数，可能调用密码助手；复用可取消后台任务 UI，没有默认超时。
+取消不会产生模板诊断，后续编辑或失效可以重试。运行时禁用会清除本 namespace 并释放
+待处理检查，重新启用会附加已有模板 buffer。
+
+默认普通模式入口映射：
+    <leader>cd    打开 diff                 全局
+    <leader>cp    打开模板预览             全局
+    <leader>ct    切换 source/target       全局
+    <leader>cr    清理缓存并重新扫描监听   全局
+    <leader>ca    将 target 修改写回模板    全局
+    <leader>cx    选择并取消耗时命令   全局
+
+先设置 `vim.g.mapleader` 再调用 setup。任一 keymap 值改为其他字符串可以换键，
+设为 `false` 或空字符串可关闭单项；`keymaps = false` 可关闭全部。省略的项使用默认值： >lua
+    require("vimoi.api").setup({
+      keymaps = { diff = "<leader>hd", readd = false },
+    })
+<
+`gf` / `gF` 仅在模板和 symlink source 中启用；hunk 写回和折叠仅在模板 diff session
+窗口聚焦时启用，离开窗口即恢复原有 buffer 映射。只读预览不安装 hunk 写回映射；re-add 会切换到真实 diff。`require("vimoi").setup()` 是 lazy.nvim 默认 main 模块使用的配置入口，
+`vimoi.api.setup()` 转发到该入口。
+
+进程/config 路径、watch 和 keymaps 在 setup 成功后固定；后续 setup 省略它们时保留
+初始值，尝试修改时会报错，且不会更新配置。split、completion、diagnostics、diff.validate 和 highlight
+可以重新配置，省略的运行时选项恢复默认值。
+
+==============================================================================
+命令                                                           *vimoi-commands*
+
+                                                             *:VimoiToggle*
+:VimoiToggle [path]
+    不开 diff，打开当前文件的另一侧；传入 path 时打开该 source/target 路径的另一侧。
+    预览结果窗口切回 source，source 窗口打开真实 target；没有 target 的共享模板等
+    source-only 文件会报错。默认 <leader>ct，不渲染、apply 或自动保存，保留原生保护。
+
+                                                            *:VimoiPreview*
+:VimoiPreview [source]
+    为当前或指定 source 模板打开只读结果分屏。使用未保存的 buffer 内容，焦点保留
+    在 source，不打开或写入真实 target。参见 |vimoi-preview|。
+
+                                                               *:VimoiDiff*
+:VimoiDiff
+    为当前 target 或 chezmoi source 文件打开 Diff。插件通过 `chezmoi source-path`
+    或 `chezmoi target-path` 自动找到另一侧路径。
+
+:VimoiDiff {source} {target}
+    为明确指定的两个文件打开 Diff，适合测试以及已经知道两侧路径的集成。
+    `{source}` 可以是普通文件，也可以是 `.tmpl` 文件。
+
+                                                            *:VimoiDiffPut*
+:VimoiDiffPut
+    把光标所在 target hunk 写入模板 source。在模板 Diff session 中，这等价于在
+    target 窗口按 `dp`，或者在模板窗口按 `do`。
+
+                                                          *:VimoiDiffApply*
+:VimoiDiffApply
+    把当前 hunk 的渲染结果写入 target buffer，等价于 source 窗口的 dp 或 target 窗口
+    的 do。模板 action 会渲染为结果，不会直接复制源码；只修改当前 hunk，不自动保存。
+
+                                                            *:VimoiCancel*
+:VimoiCancel
+    只有一个运行中的耗时命令时直接取消，多个时通过 picker 选择。默认映射 <leader>cx；
+    也可调用
+    `require("vimoi.api").cancel_command()`。没有运行中的命令时不做任何事。
+
+                                                          *:VimoiReAdd*
+:VimoiReAdd [path]
+    将 target 修改写回 source，保留模板结构。path 可指定 source 或 target，省略时
+    使用当前 buffer。已有 diff session 直接复用；否则自动打开 diff，初次渲染完成后
+    继续写回。只读预览会切换到真实 target diff。动态或重复区域仍需手动处理，位置
+    有歧义时交互选择。仅修改 source buffer，不自动保存。不支持普通文件。
+
+==============================================================================
+模板 DIFF                                             *vimoi-template-diff*
+
+模板 Diff 使用 Neovim 原生 Diff 机制提供高亮、filler lines、`foldmethod=diff` 以及
+`[c` / `]c` 跳转。直接比较模板和 target 会把所有模板 action 都标为差异，因此插件
+通过 source map 向原生 Diff 提供投影后的 hunks。
+
+两个窗口使用能感知 source map 的光标、viewport 和折叠同步。以下按键会被设置为
+buffer-local 映射：
+
+    zo  zc  za  zO  zC  zA  zR  zM
+
+Session 打开时会在两个 buffer 中禁用 Snacks smooth scroll；共享 buffer 的最后一个视图
+关闭后恢复，避免动画产生的
+中间滚动位置破坏映射视图的同步。
+
+初次打开先显示可编辑的 source/target 双窗口和渲染提示，再异步渲染；可选的 `cat`
+校验也异步执行。等待期间可编辑、切换 tab 或关闭窗口，完成后不会抢回焦点。源文本或
+上下文改变会重试，窗口关闭/替换会丢弃旧结果。完成后才启用原生 diff、折叠和合并。
+窗口所属 session 的 `loading` 表示首次渲染状态。
+错误会保留已打开的 buffer，不会退化为误导性的模板原文与 target 普通 diff。
+Diff 和 preview 都保存打开时的 buffer/window/path 绑定；重命名或替换任一侧会使
+session 失效，旧的刷新或合并结果会被丢弃。重复打开 diff 或切换 diff/preview 会复用
+同一对窗口；同一 buffer 在其他窗口/tab 中可以有独立视图。文本仍由 buffer 共享，
+因此编辑后各视图都会刷新。
+
+刷新带有 debounce。只修改 target 时不会重新渲染，只重新计算 hunks。修改模板时会先
+按语法树与字节变化范围局部更新。静态文本变化（包括重复/未执行文本及 trim 变化）
+复用已渲染的结构；新的、未缓存的 action 序列才会异步执行
+`chezmoi execute-template`，过期结果会被丢弃。
+
+put 和 template re-add 仅局部写回 source，不再替换整个 buffer；一次操作的
+多处修改可一次 undo/redo。put 后不再强制收起全部折叠，由 Neovim 原生更新折叠范围
+和打开状态。末尾换行仍由 buffer 的 `endofline` 选项控制；与之前相同，原生文本 undo
+不会恢复该选项。
+
+source map 统一使用相邻模板标签（`template_tags`）之间的字面文本（`literal_parts`），包含文件
+首尾和空文本。每段文本保存源范围、trim 后的文本和输出范围 `output_ranges`：未执行
+分支没有输出范围，循环则可能有多个。parser 对普通文本的节点拆分不再形成合并边界；内部插入字面量
+括号不会弹出位置选择。真正的 action/控制块边界仍然保留。
+
+普通的非模板 source 文件不会进入哨兵映射流程，而是直接使用标准双文件 Diff，包括原生
+`scrollbind`、`cursorbind`、`do` 和 `dp` 行为。
+
+==============================================================================
+模板预览                                                   *vimoi-preview*
+
+编辑模板时执行 `:VimoiPreview`，也可传入明确的 source 路径。左侧继续编辑模板，
+右侧用临时只读 buffer 显示渲染结果，并使用宿主 filetype。支持未命名 buffer 和没有
+受管理 target 的模板片段；不会保存、re-add 或 apply。Init 模板和 diff 一样使用
+`execute-template --init`。
+
+预览复用 diff 的异步渲染、120ms debounce、增量语法/结构缓存和 source map 光标与
+viewport 同步；静态编辑复用已渲染结构。不启用 diff 高亮、filler、diff 折叠或合并映射。
+切换模式或结束 session 时会恢复被 diff 临时覆盖的原有映射。
+
+解析/渲染失败保留上次成功结果，并显示 "Preview out of date"。编辑模板后重试，成功
+则清除提示；首次渲染失败也可继续编辑并恢复。`diff.validate` 不适用于预览，因为预览
+使用未保存的文本，而非磁盘 source 对应的真实 target；其他 |vimoi-limitations| 仍适用。
+
+在活动的 diff/preview 任一侧执行均使用对应 source。重复执行会刷新并复用当前窗口；
+diff 与 preview 互相切换时复用双窗口。关闭或替换任一侧会停止更新；结果 buffer 隐藏
+时自动清理。关闭 source 后仍然可见的结果保留为只读快照。
+
+已监听的 data/include/config 变化会自动刷新视图；遗漏变化或新增目录时，可调用
+|vimoi.api.invalidate_cache()|，无需重新打开预览。`split = "horizontal"` 改为上下分屏。
+session 的 `loading` 表示首次渲染状态，
+`preview_error` 保存过期错误，直到成功刷新；它们属于窗口对，不属于 source buffer。
+
+==============================================================================
+合并                                                            *vimoi-merge*
+
+在模板 Diff session 中把光标放到发生变化的 hunk，然后使用：
+
+    target 窗口：    dp
+    模板窗口：       do
+    任一窗口：       :VimoiDiffPut
+
+插件会把 target hunk 写入 source template，然后刷新剩余 Diff。每个行级 hunk 会拆成
+独立的字节编辑，同一行跨多个静态槽位的修改也能一起应用；整个 hunk 一次提交。
+控制块边界处的插入会提示用户选择位置；动态、重复或无法确定的编辑仍需手动处理。
+若目标编辑包含字面量 `{{`，写入 source 时会用 Go template 字符串 action 转义；
+其他文本仍保持静态。删除或相邻修改拼出的 `{{` 也会转义。静态合并根据已记录的
+执行顺序和 trim 规则直接推算输出及新 source map，不额外渲染。
+
+反方向，在 source 按 dp、target 按 do，或执行 :VimoiDiffApply，会把当前 hunk 的
+渲染结果写入 target，包括动态值和循环展开，不会复制模板源码。其余 target hunk 保留；
+局部写入支持 undo/redo，不自动保存任何文件。`keymaps.diff_get`、`keymaps.diff_put`
+分别配置两侧的 do、dp。上述语义依赖映射或插件命令；原生 :diffget、:diffput 及
+normal! 会绕过它们，仍直接复制模板源码。
+
+put、apply 或 template re-add 需要渲染时（首次渲染或 source map 过期），
+会打开并聚焦等待窗口，异步完成后继续合并。按 q、<Esc>、<C-c>、关闭或离开等待窗口都会取消本次合并。put/apply
+保留触发时的光标行；等待或选择位置期间，两侧文本或渲染上下文变化都会取消。
+关闭或替换 session 后，旧的选择回调也不能再写入。渲染进程不会
+阻塞编辑器事件循环；取消后不会因本次合并修改两侧 buffer。
+
+对于普通文件，`do` 和 `dp` 保持 Neovim 原本的含义。
+
+`:VimoiReAdd` 会在一个事务中应用所有互不冲突的静态 hunk，并对控制块边界的
+插入进行交互选择。相邻 action 之间的哨兵会记录空槽位是否执行、执行次数和输出位置；
+候选位置根据这些记录和 trim 规则推算。选定修改后复用已有动态输出和执行顺序，
+局部补入转义标签的已知花括号输出，以及新增静态槽位和哨兵。修改已有控制结构或
+动态输出仍需手动处理。
+
+在 `if`、`range` 或 `with` 边界，把内容插在 template action 前后可能当前结果相同，
+但以后表现不同，因此选择器会列出这些有限的位置；空 `if` 最多有块前、块内和块后三个
+候选。行内控制 action 也使用相同的候选枚举和本地推算。静态槽位内部仍会自动合并。
+例如渲染行从 `ooo` 变成 `ooouuu`，即使按整行 diff 属于替换，也会提取新增的 `uuu`；
+如果它紧邻控制 action，就提供 action 两侧的候选位置。
+删除或替换行内字节时，若旧字节只映射到一个非重复静态槽位，就直接应用；若不同静态
+槽位都能解释同一次编辑，则提示用户选择 source 位置。
+同一 hunk 内的多处行内增删改会分别定位，再一起提交。
+
+==============================================================================
+语法高亮                                                *vimoi-highlighting*
+
+模板 source 使用 `gotmpl` filetype。插件根据目标文件名推断宿主语言，并把静态 `text`
+节点注入对应 Tree-sitter 语言。因此 `init.lua.tmpl` 可以同时获得 Go template 和 Lua
+语法高亮。
+source 目录内的普通模板通过 chezmoi 的缓存路径查询取得真实 target 名称，因此
+`dot_zshrc.tmpl` 也能识别为 zsh，无需 target 已存在。查询失败时回退到 source
+文件名和内容；下面列出的特殊 source 文件继续使用自身的宿主语言规则。
+非模板 managed source 也按 target 识别，例如 `dot_zshrc` 使用 zsh，并保留 Neovim
+的文件类型初始化回调。没有 target 的文件按自身名称回退；symlink source 保留原有类型。
+不以 `.tmpl` 结尾但 chezmoi 仍会解析为模板的文件也使用 `gotmpl`：
+`.chezmoiignore`、`.chezmoiremove`、`.chezmoiexternal.{json,jsonc,toml,yaml,yml}`，
+以及 `.chezmoitemplates/` 和 `.chezmoiexternals/` 下的文件。
+自动识别 `gotmpl` 仅限当前 chezmoi source 目录；其他目录中的同名文件不会被接管。
+external 文件按格式推断宿主语言，例如 `.chezmoiexternal.toml` 使用 TOML；
+ignore/remove 文件借用 `gitignore` 高亮，但 chezmoi 的模式匹配语义与 Gitignore
+并不完全相同。
+脚本会结合 shebang 推断宿主语言；例如 `.sh.tmpl` 以 `#!/usr/bin/env zsh`
+开头时使用 zsh，而不是 sh。
+
+若推断出的宿主语言没有 Tree-sitter parser，模板仍保持 `gotmpl` filetype 和 parser，
+宿主文本则回退到 Vim syntax 高亮。例如没有 `sh` parser 时，`script.sh.tmpl`
+使用 `syntax/sh.vim`；模板 action 也保留基本的 syntax 高亮。
+两种高亮路径都会给模板 action 加上同一套可配置的背景色，见 |vimoi-setup|。
+
+宿主语言高亮只能尽力而为。模板 action 可能生成关键 token，不同条件分支可能各自包含
+不完整语句，循环也可能只生成代码片段。Tree-sitter 看不到最终渲染程序，所以注入区域
+可能产生错误节点、缺失高亮或错误高亮。这不会影响模板解析、source map 或 chezmoi
+最终渲染。
+
+==============================================================================
+路径跳转                                                *vimoi-navigation*
+
+使用 |:VimoiToggle| 可在 source/target 间切换，不必打开 diff，
+也不会渲染、保存或 apply。
+
+vimoi.nvim 会在 Go template、`.chezmoitemplates` 和特殊路径列表文件中设置
+buffer-local `gf`。相对路径使用与 chezmoi 一致的基准目录：
+
+    include "path"                 source directory
+    template "name"                .chezmoitemplates directories
+    includeTemplate "name"         .chezmoitemplates directories
+    glob "pattern"                 destination directory
+    .chezmoiignore{,.tmpl} 条目     destination directory
+    .chezmoiremove{,.tmpl} 条目     destination directory
+    symlink_* 内容                  生成的 symlink 所在目录
+
+绝对路径、`~` 路径和本地 `file://` URL 也会展开。如果 glob 或 template name 有多个
+匹配，则通过 |vim.ui.select()| 选择。无法识别为 chezmoi 路径或者没有匹配文件时，会
+回退到 Neovim 原生 `gf`。
+
+从 destination directory 解析出的路径还会经过 `chezmoi source-path`。受管理的 target
+默认打开 source-state 文件，避免修改在下次 apply 时被覆盖。只有目标未受管理或没有
+实体 source 时才打开 destination 路径，这在 ignore 和 remove 条目中很常见。
+
+`gF` 使用相同的解析器，并额外识别 `path:line` 和 `path:line:column`。没有位置后缀时，
+它与增强版 `gf` 相同。两个映射都可以独立换键或关闭。
+
+可选的 vim-matchup 集成使用附带的 gotmpl matchup 查询。安装 vim-matchup 并启用其
+Tree-sitter 匹配后，% 可以跳转 if/else/end、range、with、define 和 block，支持 trim
+以及 else 链。vimoi 不自行覆盖 %；未安装 vim-matchup 时保留原生行为。
+
+==============================================================================
+补全                                                      *vimoi-completion*
+
+vimoi.nvim 提供可选的 blink.cmp source。它不会设置 'omnifunc'，blink.cmp 也不是
+硬依赖。需要在 blink 配置中显式注册： >lua
+
+    require("blink.cmp").setup({
+      completion = {
+        accept = {
+          auto_brackets = {
+            blocked_filetypes = { "gotmpl" },
+          },
+        },
+      },
+      sources = {
+        default = { "lsp", "path", "snippets", "buffer", "vimoi" },
+        providers = {
+          vimoi = {
+            name = "Vimoi",
+            module = "vimoi.blink",
+            score_offset = 100,
+          },
+        },
+      },
+    })
+<
+Go template 函数使用空格传参而不是 `()`。上面的 blink.cmp 原生
+`blocked_filetypes` 配置会禁止自动添加括号，同时保留补全菜单中的 Function 类型和图标。
+
+该 source 只在 `gotmpl` buffer 中启用。它补全 Go template action、chezmoi 与常用
+Sprig 函数、来自 `chezmoi data` 的 `.` 字段、当前作用域内已声明的 `$variable`，
+以及 `include`、`includeTemplate`、`template` 与 `glob` 的路径。分隔符和变量声明由
+语法树识别，支持跨行 action、字符串/注释内的括号、控制分支、range 绑定和命名模板
+的变量作用域。
+action 外提供 if、ifelse、range、with、define、block 和 comment 块 snippet，
+展开后可编辑占位符。候选使用标准 LSP snippet 格式，交给 blink 配置的 snippet 引擎；
+注释中不提供这些候选。
+
+补全按需异步读取 data，缓存供补全和路径跳转共享，直到被清空。候选说明不会展示 data 值，
+以免敏感配置出现在补全菜单。共享模板目录的发现结果也由补全和跳转共用缓存，文件
+变化或清空缓存时失效。设置 `completion.enabled = false` 可以关闭 source。
+
+==============================================================================
+LUA API                                                            *vimoi-api*
+
+`require("vimoi.api")` 包含供用户配置、映射和命令调用的操作。集成和调试用途的
+函数留在各自模块；发布前它们仍可能调整。
+`filetype` 统一负责文件名规则、文件类型注册及宿主语言识别，CLI 的 init 模板查询和
+diff 分流复用这些规则。顶层 setup 传入 source root；普通模板通过 CLI 路径缓存
+解析 target 名称，单纯的文件名分类不调用 CLI。
+ignore/remove 内容作为 destination patterns、symlink 内容作为链接目标的分类也在这里
+定义，供路径跳转和事件注册复用。
+`highlight` 统一负责模板颜色、buffer 高亮、宿主语言注入及 Vim syntax 回退。顶层
+setup 启动 CLI 与 watch；CLI 负责查询缓存，包括共享模板目录的发现结果。
+公开接口只包括 setup、下文列出的 vimoi.api 操作及 vimoi.blink 集成。
+其他模块、session 表及调试数据属于内部实现，不承诺稳定。diff、diff_files 和 preview
+始终返回 nil，不返回 session；模板渲染异步完成。交互写回操作在等待渲染或选择时也会
+返回 nil，不能据此判断最终成功与否；目前不提供完成回调或 promise。
+
+Ex 命令由 API 模块在 setup 时注册一次；仅加载模块不会注册命令，也不会加载 diff
+和路径跳转的实现。
+
+`require("vimoi.gotmpl.source_map")` 统一负责模板解析、哨兵渲染及源码与输出的位置映射，
+包括增量语法缓存、渲染结果复用及字面槽位和动态输出的区域映射。
+语法缓存保存由兄弟分隔符节点界定的完整标签范围；控制块节点还包含正文，不能直接
+当作标签。字面文本由相邻标签推导并应用空白 trim，空的插入槽位也会保留。
+
+`vimoi.gotmpl` 内的 `native_diff` 负责将映射后的差异块接入 Neovim 的 diffexpr
+及原生 diff 窗口和折叠同步。`buffer_edits` 负责局部字节写入、EOF 和 undo，供合并及预览刷新
+共用。模板转义仍由 `merge_plan` 负责；共享会话注册表由 `gotmpl/session.lua` 管理。
+
+坐标区分模板源码、渲染结果和目标文本。差异块使用 `rendered_start_line`、
+`target_start_line` 及对应的 `*_line_count`，遵循 vim.text.diff 的约定：行号从 1
+开始，空范围使用前一行的行号（可能为 0）。合并修改使用源码的 `start_byte`、
+`end_byte` 和渲染结果的 `rendered_start_byte`、`rendered_end_byte`，字节范围从 0
+开始，左闭右开。
+
+`merge_plan.plan(trace, target_text, hunks)` 返回 edits、choices 和 skipped，复用 trace
+中的完整控制标签范围（包括跨行标签）。`merge_plan.prepare_candidate()` 只构造转义后的
+源码修改，不调用 UI 或外部进程。`source_map.rebuild_after_edits()` 推算完整 trace，
+包括新增的常量花括号标签。`merge` 统一负责选择位置、快照检查及 put/template re-add 的
+显式写入。source map 的注解区分准备阶段和完整 trace，
+完整 trace 保证同时具备输出及渲染后的哨兵骨架。
+
+`init.lua` 负责解析路径、打开窗口及操作分派。`session.lua` 统一管理唯一的
+`by_window` 会话表（按两侧窗口 ID 索引）、刷新、事件监听、临时按键和关闭清理。
+WinEnter/WinLeave 为当前窗口安装和恢复映射，加载/错误提示也按窗口显示。首次渲染负责重试、严格
+校验和完成处理。会话保存打开时的路径快照，避免迟到的结果重新启用已更名或被替换
+的 buffer。`session.is_valid()` 统一检查注册关系及原始 buffer/window/path 绑定，供首次
+渲染、延迟刷新和显式合并使用；文本与渲染上下文检查保留各操作的重试或取消策略。
+API 在 put/template re-add 时直接加载 `merge.lua`，打开 diff/preview 不会加载合并规划。
+`cli.counterpart_path()` 统一管理双向路径缓存，toggle 直接复用；
+`cli.resolve_paths()` 将同一映射整理为 source/target 文件对，供 diff 和 re-add 使用。
+`merge.lua` 负责 put 和 template re-add 的位置选择、映射推算、
+写入及刷新流程；`merge_plan.lua` 保留字节定位和花括号转义。
+
+                                              *vimoi.api.setup()*
+require("vimoi.api").setup({opts})
+    把 `{opts}` 与 |vimoi-setup| 中的默认配置合并。
+
+                                    *vimoi.api.invalidate_cache()*
+require("vimoi.api").invalidate_cache({scope})
+    清空指定范围的缓存并重新扫描文件监听目录。scope 可选：
+      "all"       清空路径/data/模板结果（默认）。
+      "paths"     只清空 source/target 路径对应关系。
+      "data"      清空 data 及依赖它的模板结果/source map。
+      "templates" 清空所有模板结果/source map，保留路径/data。
+    自动刷新漏掉修改或新增目录时可调用。source root 和 init 模板/config 对应关系保持为 setup 时的值。
+    已打开的视图会延迟刷新；其他查询按需重新加载。
+
+                                             *vimoi.api.toggle()*
+require("vimoi.api").toggle({path})
+    不开 diff，打开可选 source/target 路径的另一侧；默认使用当前 buffer。
+    预览结果返回 source。遵循原生编辑行为，保留或保护未保存 buffer，
+    不渲染或自动保存。成功返回打开的路径，解析失败返回 nil。
+
+                                               *vimoi.api.diff()*
+require("vimoi.api").diff({opts})
+    打开当前文件的 Diff。可选字段为 `source`、`target` 和 `validate`。
+    始终返回 nil；模板渲染完成前即返回，等待状态见 |vimoi-template-diff|。
+
+                                         *vimoi.api.diff_files()*
+require("vimoi.api").diff_files({source}, {target}, {opts})
+    打开明确指定的 source/target 文件对。`{opts}` 支持 `validate`。
+    始终返回 nil；模板渲染及可选校验异步完成。
+
+                                            *vimoi.api.preview()*
+require("vimoi.api").preview({opts})
+    在 source 旁预览只读渲染结果。可选的 `source` 指定 source 路径；默认使用当前
+    buffer，包含未保存的内容。始终返回 nil。参见 |vimoi-preview|。
+
+                                           *vimoi.api.put_hunk()*
+require("vimoi.api").put_hunk()
+    把当前投影 hunk 合并到模板 source。立即成功返回 true，立即取消选择返回 false；
+    失败或正在等待异步渲染/位置选择时返回 nil。
+
+                                         *vimoi.api.apply_hunk()*
+require("vimoi.api").apply_hunk()
+    在模板 diff session 中把当前 hunk 的渲染结果写入 target。立即成功返回 true，
+    失败或等待渲染时返回 nil。source 不变，target 不自动保存。
+
+                                         *vimoi.api.readd()*
+require("vimoi.api").readd({path})
+    将 target 修改写回模板，必要时自动打开 diff。可选 path 为 source 或 target，
+    省略时使用当前 buffer；已有 session 复用，只读预览切换到真实 diff。动态修改
+    留待手动处理，位置有歧义时交互选择。返回包含
+    `merged`、`skipped` 和 `reasons` 的表；失败或等待渲染/选择时返回 nil。
+    merged/skipped 分别计数含已应用/跳过修改的原始 hunk；部分合并的 hunk 可同时计入
+    两者。reasons 是逐项跳过修改的数组，各项的 reason 为原因字符串（可缺省）；
+    同一 hunk 可有多项。其他内部字段不属于公开契约。source buffer 不会自动写入文件。
+
+                                               *vimoi.api.fold()*
+require("vimoi.api").fold({command})
+    在活动 Diff session 两侧应用并同步 `zo`、`zc`、`za`、`zO`、`zC`、`zA`、`zR`
+    或 `zM`。
+
+                                          *vimoi.api.goto_file()*
+require("vimoi.api").goto_file({opts})
+    解析并打开光标下的 chezmoi 路径。参见 |vimoi-navigation|。把 `{opts}.line` 设为
+    true 后会识别末尾的 `:line` 或 `:line:column`，对应增强版 `gF`。
+
+                                       *vimoi.api.cancel_command()*
+require("vimoi.api").cancel_command()
+    只有一个命令时直接取消；多个命令时打开 picker 选择。返回 nil。
+    :VimoiCancel 参见 |vimoi-commands|。
+
+集成用途的函数直接从所属模块调用：
+`vimoi.blink` 提供 blink.cmp source 及候选生成，目前仅集成 blink.cmp。
+`require("vimoi.goto").resolve(buf, row, col, line)` 只解析路径，
+不打开文件。调试时可读取 `require("vimoi.gotmpl.session").last_profile` 查看最近一次
+模板视图的打开耗时（`mode` 为 "diff" 或 "preview"）。这些不属于上面的用户操作 API。
+
+==============================================================================
+已知限制                                                *vimoi-limitations*
+
+哨兵渲染目前不支持：
+
+- 自定义 Go template delimiters。
+- 依赖空白/注释组成的空 `define`/`block` 的特殊覆盖语义；哨兵会使其变为非空。
+- 结果依赖 `.chezmoi.sourceFile`、`.chezmoi.targetFile`、`.chezmoi.command` 或
+  `.chezmoi.args` 的模板。
+- 结果间接依赖上述字段的 `includeTemplate` 调用。
+- 自动合并动态、重复、有歧义或跨模板边界的 hunk。
+- 保证不完整模板片段的宿主语言 injection 始终合法；参见 |vimoi-highlighting|。
+
+哨兵前缀在模块加载时随机生成，完整标记为 `prefix .. ID .. prefix`。当前实现保守地
+拒绝任何包含该前缀的源码。静态文本实际上会在渲染前被替换，还原时不再扫描，因此
+其中的标记不会引发误解码；只是当前源码检查尚未区分静态文本和模板标签。
+表达式、data 或 include 等产生的动态输出不能包含当前完整标记：未知 ID 会报错，
+有效 ID 可能被误替换，造成输出或位置映射错误。动态输出仅含前缀不会触发替换。
+随机前缀只能降低偶然碰撞的可能性，不能保证任意动态输出都不会冲突。
+
+`.chezmoi.toml.tmpl`、`.chezmoi.yaml.tmpl`、`.chezmoi.yml.tmpl`、`.chezmoi.json.tmpl` 和
+`.chezmoi.jsonc.tmpl` 属于特例。它们会映射到 `.chezmoi.configFile`，并使用
+`execute-template --init` 渲染，因此可以使用 `prompt*Once` 等 init-only functions。
+
+缓存失效采用 best-effort 策略：监听配置目录、source root，以及 setup 或手动刷新时
+发现的 data/模板目录和相关父目录，包含 `.chezmoitemplates` 的子目录；不持续跟踪整个
+source 树。新建或移动目录、文件系统
+不支持监听、静默丢事件或环境变量变化时，外部修改可能需要手动调用
+`require("vimoi.api").invalidate_cache()`。部分远程文件系统启动监听成功也不能保证
+有事件，此时可强制开启 buffer 保存兜底。
+扫描不进入符号链接目录，也不会重新计算 setup 时固定的 source root 和 init 映射。
+结构哨兵缓存也由上述失效机制清除；未发现的 data、其他 include、环境或时变函数变化可能
+继续使用旧动态结果。静态文本在本地恢复，普通空 if/range 与 trim 不受空定义限制。
+
+==============================================================================
+故障排查                                            *vimoi-troubleshooting*
+
+路径跳转等待查询或 picker 期间，若发起窗口关闭/替换、焦点切换或原 buffer 文本变化，
+会丢弃延迟结果。
+
+执行 `:checkhealth vimoi` 检查 Neovim 版本、配置的可执行文件、setup 已发现的 source/config
+路径、gotmpl parser 和 highlights/injections 查询。打开模板后还会读取其已配置的宿主语言，检查可选 parser；
+缺少时回退到 Vim syntax，不影响 source map。
+
+健康检查不调用 setup、不启动 chezmoi、不渲染模板、不读取 data/密码助手、不修改文件。
+CLI setup 未成功时说明路径尚未发现。config 只检查存在性和可读性，不执行或验证内容；
+未显式指定的默认配置可以不存在。setup 失败时还需检查原始启动错误；报告使用最近一次
+成功配置或默认值。保存 target 不会自动 re-add，请使用手动命令；复杂动态输出修改需要
+手动编辑 source，不计划自动反向合并。
+
+`gotmpl Tree-sitter parser is required`
+    安装并启用注册为 `gotmpl` 语言的 Tree-sitter parser，然后重新打开 buffer。
+
+`sentinel rendering differs from chezmoi cat`
+    严格校验发现了依赖执行环境的模板。只有明确理解差异后才应关闭 `diff.validate`，
+    否则应当对该模板使用普通 chezmoi 工作流。
+
+两个视图滚动不正确
+    确认两个窗口属于同一个活动 Diff session。插件会自动禁用 Snacks scrolling，但其他
+    在 `CursorMoved` 或 `WinScrolled` 时修改 view 的插件仍可能产生干扰。
+
+宿主语言高亮不完整
+    检查目标 filetype 是否有可用 parser。如果 parser 已存在，模板可能把一条不完整语句
+    分割到了多个动态区域；这是 |vimoi-highlighting| 中描述的预期限制。
+
+Neovim 原生通过 'helplang' 选择 help 语言： >vim
+
+    set helplang=cn
+<
+也可以用 `:help vimoi.nvim@en` 或 `:help vimoi.nvim@cn` 明确选择语言。
+
+vim:tw=78:ts=8:noet:ft=help:norl:

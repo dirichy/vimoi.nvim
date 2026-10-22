@@ -1,0 +1,42 @@
+# generated configuration
+version = 1
+enabled = true
+
+{{ if eq .chezmoi.os "linux" }}
+platform = linux
+package_manager = system
+shell = /bin/sh
+{{ else }}
+platform = other
+package_manager = unknown
+shell = sh
+{{ end }}
+
+# repeated services
+{{ range $index := until 8 }}
+[service.{{ $index }}]
+name = "service-{{ $index }}"
+enabled = true
+timeout = 30
+
+{{ end }}
+# global defaults
+retry = 3
+backoff = 5
+log_level = "info"
+color = true
+cache = true
+telemetry = false
+network = "auto"
+editor = "nvim"
+pager = "less"
+locale = "en_US.UTF-8"
+feature_a = true
+feature_b = false
+feature_c = true
+feature_d = false
+feature_e = true
+feature_f = false
+feature_g = true
+feature_h = false
+# end

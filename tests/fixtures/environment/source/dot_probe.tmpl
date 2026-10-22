@@ -1,0 +1,12 @@
+{{ dict
+  "args" .chezmoi.args
+  "configFile" .chezmoi.configFile
+  "destDir" .chezmoi.destDir
+  "include" (include "payload.txt")
+  "includeTemplate" (includeTemplate "snippet" .)
+  "sourceDir" .chezmoi.sourceDir
+  "sourceFile" .chezmoi.sourceFile
+  "stdinIsATTY" stdinIsATTY
+  "targetFile" .chezmoi.targetFile
+  "workingTree" .chezmoi.workingTree
+  | toJson }}

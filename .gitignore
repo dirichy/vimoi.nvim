@@ -1,0 +1,9 @@
+doc/tags
+doc/tags-cn
+.luarc.json
+nvim.log
+*.boltdb
+__pycache__/
+*.swp
+*.swo
+*~
