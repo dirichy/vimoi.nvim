@@ -515,11 +515,43 @@ edit, the source position is selected interactively.
 Several independent inline additions, deletions, and replacements in one
 hunk are located separately and committed together.
 
+OPEN FROM CHEZMOI MERGE                                 *vimoi-chezmoi-merge*
+
+Complete plugin setup at Neovim startup. When editing
+`~/.config/chezmoi/chezmoi.toml` directly, use: >toml
+
+    [merge]
+    command = "nvim"
+    args = [
+        "-c",
+        "lua require('vimoi.api').diff_files(vim.fn.argv(0), vim.fn.argv(1))",
+        "--",
+        "{{ .Source }}",
+        "{{ .Destination }}",
+    ]
+<
+For `.chezmoi.toml.tmpl` in the source directory, use: >gotmpl
+
+    [merge]
+    command = "nvim"
+    args = [
+        "-c",
+        "lua require('vimoi.api').diff_files(vim.fn.argv(0), vim.fn.argv(1))",
+        "--",
+        "{{ "{{ .Source }}" }}",
+        "{{ "{{ .Destination }}" }}",
+    ]
+<
+The .tmpl version preserves literal placeholders for expansion when merge runs;
+do not put it directly in .toml. Run `chezmoi merge ~/.bashrc` to compare source
+and target. Write the buffers you want to keep, then quit with :qa. If the CLI
+uses --config, set the plugin's chezmoi_config_path to the same file.
+
 ==============================================================================
 SYNTAX HIGHLIGHTING                                    *vimoi-highlighting*
 
-Template sources use the `gotmpl` filetype. Static `text` nodes are injected
-into the Tree-sitter language inferred from the target filename, so a file
+Template sources use the `gotmpl` filetype. By default, static `text` nodes are
+injected into the Tree-sitter language inferred from the target filename, so a file
 such as `init.lua.tmpl` receives both Go-template and Lua highlighting.
 For ordinary templates inside the source directory, cached chezmoi path queries
 resolve the real target name: `dot_zshrc.tmpl` uses zsh even if the target does

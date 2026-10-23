@@ -1,6 +1,6 @@
 # vimoi.nvim
 
-在 Neovim 中安全、顺手地编辑由 [chezmoi](https://www.chezmoi.io/) 管理的文件。
+在 Neovim 中编辑由 [chezmoi](https://www.chezmoi.io/) 管理的文件。
 
 [English](README.md) · [English help](doc/vimoi.txt) · [中文帮助](doc/vimoi.cnx)
 
@@ -8,24 +8,19 @@
 
 ## 演示
 
-编辑未保存的模板，右侧只读预览同步更新；修改条件分支和 undo 同样生效：
+实时预览：编辑静态文本、切换条件分支并撤销。
 
 ![实时模板预览：静态文本编辑、条件分支切换和撤销](https://github.com/dirichy/vimoi.nvim/releases/download/demos/preview.gif)
 
-在模板与循环展开后的输出间同步滚动，用 `do` / `dp` 传递单个 hunk，
-并选择新增文本在模板中的插入位置：
+模板 diff：同步滚动、用 `do` / `dp` 传递 hunk、选择插入位置。
 
 ![模板 diff：同步滚动、hunk 传递和插入位置选择](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diff.gif)
 
-模板 diff 与手动 re-add：把 target 的静态修改写回 source，保留模板表达式；动态修改留待手动处理：
+Re-add：把 target 的静态修改写回 source；动态表达式保留，动态输出的修改留待手动处理。
 
 ![模板 diff 与 re-add：静态修改写回，动态表达式保留](https://github.com/dirichy/vimoi.nvim/releases/download/demos/readd.gif)
 
 [预览 MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/preview.mp4) · [diff MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diff.mp4) · [re-add MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/readd.mp4) · [重录说明](docs/demos/README.md)
-
-演示由 [GitHub Actions](.github/workflows/demos.yml) 录制，保存在
-[demos Release 附件](https://github.com/dirichy/vimoi.nvim/releases/tag/demos) 中。
-生成的 GIF/MP4 不进入 Git；维护者可手动重跑 **Record demos**。
 
 ## 功能
 
@@ -156,8 +151,10 @@ source 和 target 必须是两个不同的已加载 buffer。
 
 ### 从 `chezmoi merge` 打开
 
-确保插件在 Neovim 启动时已加载并完成 setup，例如使用上面的 `lazy = false` 配置。
-在 `~/.config/chezmoi/chezmoi.toml` 中加入：
+先确保 vimoi 在 Neovim 启动时加载并完成 setup，例如安装配置中的 `lazy = false`。
+根据配置文件的类型选择下面一个版本。
+
+**直接编辑 `~/.config/chezmoi/chezmoi.toml`：**
 
 ```toml
 [merge]
@@ -171,31 +168,35 @@ args = [
 ]
 ```
 
-然后运行：
+**在 source 目录的 `.chezmoi.toml.tmpl` 中生成配置：**
+
+```gotmpl
+[merge]
+command = "nvim"
+args = [
+    "-c",
+    "lua require('vimoi.api').diff_files(vim.fn.argv(0), vim.fn.argv(1))",
+    "--",
+    "{{ "{{ .Source }}" }}",
+    "{{ "{{ .Destination }}" }}",
+]
+```
+
+`.tmpl` 版本用字符串 action 保留字面量 `{{ .Source }}` 和 `{{ .Destination }}`，
+让 chezmoi 在执行 merge 时再展开路径；不要把这个版本直接写进 `.toml`。
 
 ```sh
 chezmoi merge ~/.bashrc
 ```
 
-chezmoi 将 source 和实际文件的路径交给插件，插件自行渲染模板，因此不传入 `.Target`。
-这是插件的双窗口模板比较界面，不是原生三文件 merge 布局。
-模板 source 的 filetype 为 `gotmpl`，通过目标语言注入提供宿主高亮；实际文件保留自身的 filetype。
-使用 `do` / `dp` 逐块操作，或执行 `:VimoiReAdd` 批量写回可确定的静态修改。
-检查结果后，在需要保留修改的窗口用 `:write` 保存，再用 `:qa` 退出。
-插件不自动保存或 apply，也不替代 chezmoi 的文件属性和加密操作。
-参数含义见 [chezmoi merge 文档](https://www.chezmoi.io/reference/commands/merge/)。
+这会打开 source 与实际 target 的双窗口比较。模板由插件渲染，所以不传 `.Target`。
+模板 source 使用 `gotmpl` filetype，宿主语言按插件的高亮模式处理；target 保留自身 filetype。
+使用 `do` / `dp` 逐块操作，或用 `:VimoiReAdd` 批量写回静态修改。
+完成后在需要保留修改的窗口执行 `:write`，再用 `:qa` 退出。
 
-若通过 `chezmoi --config /path/to/chezmoi.toml` 使用其他配置文件，Neovim 中也需设置
-`chezmoi_config_path` 为同一路径，确保使用相同的 source 和模板数据。
-
-若以上内容写在生成配置的 `.tmpl` 中，需将两个路径参数改为：
-
-```gotmpl
-    {{ printf "%q" "{{ .Source }}" }},
-    {{ printf "%q" "{{ .Destination }}" }},
-```
-
-这样生成的 TOML 才会保留供 merge 时展开的占位符。
+若通过 `chezmoi --config /path/to/chezmoi.toml` 使用其他配置，Neovim 的
+`chezmoi_config_path` 也应设置为同一路径。
+路径参数的含义见 [chezmoi merge 文档](https://www.chezmoi.io/reference/commands/merge/)。
 
 ### `chezmoi diff` 的限制
 
@@ -291,22 +292,22 @@ nvim-lint 只运行支持 stdin 的检查器，其他检查插件暂不接入。
 模板宿主语言会按 target 名称和 shebang 识别，例如 `dot_zshrc.tmpl` 使用 zsh 高亮。
 模板拼接不完整语句时，宿主语言高亮可能不准确。
 
-可以试用基于完整渲染结果的高亮，替代宿主 injection：
+若模板把宿主语句拆在多个 action 之间，可改为解析完整渲染结果：
 
 ```lua
 require("vimoi").setup({ highlight = { mode = "rendered" } })
 ```
 
-这个实验模式沿用宿主的 Tree-sitter query、颜色和优先级，只把可见静态文本映射回
-模板；模板 action 保留 gotmpl 高亮。它共享异步渲染缓存，关闭 diagnostics 后也能
-使用。编辑期间保留上一份颜色，并随文本移动；渲染成功后替换，临时模板错误也保留
-最后一次成功的高亮。当前渲染未执行的静态文本
-使用配色方案的 `Comment` 高亮，模板 action 保留 gotmpl 高亮；循环内重复文本采用
-第一次执行的高亮。暂不映射 LSP semantic tokens、整行 conceal
-和拼写导航。默认仍用 injection；设置 `highlight.mode = "injection"` 可切回。
-缺少宿主 parser 时仍回退到 Vim syntax。
-设置 `highlight.mode = "disabled"` 可关闭宿主高亮，包括 Vim syntax 回退。
-模板 action 仍保留 gotmpl 高亮和背景；不影响 diagnostics 和 source map。
+| `highlight.mode` | 宿主高亮 |
+| --- | --- |
+| `"injection"`（默认） | 用 Tree-sitter injection 解析模板中的宿主文本。 |
+| `"rendered"`（实验） | 解析渲染结果，把颜色映射到模板静态文本；未执行的文本使用 `Comment`。 |
+| `"disabled"` | 关闭宿主高亮，包括 Vim syntax 回退。 |
+
+三种模式均保留 gotmpl action 高亮。Rendered 模式不依赖 diagnostics 开关，编辑期间
+或遇到临时模板错误时保留已有颜色。循环内重复文本采用第一次执行的结果。暂不映射
+LSP semantic tokens、整行 conceal 和拼写导航。缺少宿主 parser 时，启用宿主高亮的
+模式回退到 Vim syntax。
 
 ## blink.cmp 补全
 

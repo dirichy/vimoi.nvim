@@ -411,10 +411,41 @@ put、apply 或 template re-add 需要渲染时（首次渲染或 source map 过
 槽位都能解释同一次编辑，则提示用户选择 source 位置。
 同一 hunk 内的多处行内增删改会分别定位，再一起提交。
 
+从 CHEZMOI MERGE 打开                                  *vimoi-chezmoi-merge*
+
+确保插件在 Neovim 启动时已完成 setup。直接编辑
+`~/.config/chezmoi/chezmoi.toml` 时使用： >toml
+
+    [merge]
+    command = "nvim"
+    args = [
+        "-c",
+        "lua require('vimoi.api').diff_files(vim.fn.argv(0), vim.fn.argv(1))",
+        "--",
+        "{{ .Source }}",
+        "{{ .Destination }}",
+    ]
+<
+在 source 目录的 `.chezmoi.toml.tmpl` 中生成配置时使用： >gotmpl
+
+    [merge]
+    command = "nvim"
+    args = [
+        "-c",
+        "lua require('vimoi.api').diff_files(vim.fn.argv(0), vim.fn.argv(1))",
+        "--",
+        "{{ "{{ .Source }}" }}",
+        "{{ "{{ .Destination }}" }}",
+    ]
+<
+`.tmpl` 版本保留字面量占位符，供 merge 执行时展开；不要直接写入 `.toml`。
+运行 `chezmoi merge ~/.bashrc` 打开 source/target 比较。保存需要保留的 buffer 后
+用 `:qa` 退出。若命令使用自定义 --config，插件的 chezmoi_config_path 也应指向该文件。
+
 ==============================================================================
 语法高亮                                                *vimoi-highlighting*
 
-模板 source 使用 `gotmpl` filetype。插件根据目标文件名推断宿主语言，并把静态 `text`
+模板 source 使用 `gotmpl` filetype。插件默认根据目标文件名推断宿主语言，并把静态 `text`
 节点注入对应 Tree-sitter 语言。因此 `init.lua.tmpl` 可以同时获得 Go template 和 Lua
 语法高亮。
 source 目录内的普通模板通过 chezmoi 的缓存路径查询取得真实 target 名称，因此

@@ -42,6 +42,7 @@
 | 全局取消选择 | `<leader>cx` / `:VimoiCancel`；一项直接取消，多项通过 picker 选择；Unix 下终止同一进程组的子进程 |
 | 用户入口与键位配置 | 已提供的用户命令都有 Lua API；默认键位可覆盖、单项禁用或全部关闭 |
 | 配置与帮助文档 | 支持 executable/config 路径、监听、补全、高亮、diff 校验与键位；提供中英文 `:help vimoi.nvim` |
+| 模板 action 背景 | 默认取主题的 `NormalFloat` 背景；`highlight.template_bg` 支持高亮组名、固定颜色或深浅色配置，保留语法前景色 |
 | 模板 diagnostics | 默认启用，可配置关闭；300ms debounce，复用哨兵骨架、缓存和在途渲染，语法/执行错误映射到原始 source；静态修改复用成功及失败结果 |
 | 宿主 diagnostics | 默认自动复用已启用的 LSP 和 nvim-lint 的 stdin 检查器；对隐藏渲染快照检查，经 source map 映射回模板，保留来源/级别/错误码；动态区域保守定位，旧快照结果隔离 |
 | 渲染结果高亮（实验） | `highlight.mode = "rendered"` 替代宿主 injection；对完整输出使用原生 Tree-sitter query，把可见静态文本的颜色映射回 source；持久 extmark 保留旧颜色并跟随编辑；隐藏 output buffer 增量解析；保留 gotmpl action，关闭诊断仍可使用；未执行静态片段使用 Comment，循环采用第一次执行 |

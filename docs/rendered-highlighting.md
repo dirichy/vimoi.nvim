@@ -1,4 +1,4 @@
-# 渲染结果高亮原型
+# 渲染结果高亮实现
 
 `highlight.mode = "rendered"` 停用 source 上的宿主 injection，保留 gotmpl 自身的
 高亮。默认模式为 "injection"，可在同一会话中通过 setup 切换。
@@ -7,10 +7,8 @@ action 的高亮及背景，不关闭诊断或 source map。
 
 ## 渲染与生命周期
 
-`diagnostic.lua` 已有按 source/context 管理的异步渲染和 300ms debounce，本原型
-复用这一条计算链，不额外启动一套 chezmoi 请求。诊断发布和渲染高亮分别由开关
-控制，关闭 diagnostics 仍能得到高亮。静态文本修改复用骨架渲染结果，重新恢复
-当前原文及映射。
+`diagnostic.lua` 按 source/context 管理异步渲染和 300ms debounce，高亮复用同一计算链。
+诊断发布和渲染高亮分别由开关控制。静态文本修改复用骨架渲染结果，重新恢复当前原文及映射。
 
 成功渲染后，`host_highlight.lua` 保留一个没有 filetype 的隐藏 scratch output buffer，
 不启动 LSP、lint 或屏幕高亮。新旧 output 做 line diff，每个 hunk 再缩小到实际改变的

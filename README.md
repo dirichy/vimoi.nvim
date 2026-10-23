@@ -1,6 +1,6 @@
 # vimoi.nvim
 
-Edit [chezmoi](https://www.chezmoi.io/)-managed files safely and comfortably in Neovim.
+Edit [chezmoi](https://www.chezmoi.io/)-managed files in Neovim.
 
 [简体中文](README.zh-CN.md) · [English help](doc/vimoi.txt) · [中文帮助](doc/vimoi.cnx)
 
@@ -8,26 +8,20 @@ Edit [chezmoi](https://www.chezmoi.io/)-managed files safely and comfortably in 
 
 ## Demos
 
-Edit an unsaved template while its read-only preview updates alongside it, including
-conditional branches and undo:
+Live preview: edit static text, switch branches, and undo.
 
 ![Live template preview: static edits, branch changes, and undo](https://github.com/dirichy/vimoi.nvim/releases/download/demos/preview.gif)
 
-Scroll between a template and its expanded output, transfer individual hunks with
-`do` / `dp`, and choose where an insertion belongs in the template:
+Template diff: synchronized scrolling, `do` / `dp` hunk transfer, and insertion choices.
 
 ![Template diff: synchronized scrolling, hunk transfer, and insertion choices](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diff.gif)
 
-Compare a template with its target and manually re-add static changes to the source,
-preserving template expressions. Changes to dynamic output remain for manual editing:
+Re-add: write static target changes back to the source. Template expressions are preserved;
+changes to dynamic output remain for manual editing.
 
 ![Template diff and re-add: write back static edits and preserve expressions](https://github.com/dirichy/vimoi.nvim/releases/download/demos/readd.gif)
 
 [Preview MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/preview.mp4) · [Diff MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diff.mp4) · [Re-add MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/readd.mp4) · [Recording guide](docs/demos/README.md)
-
-Recordings are built by [GitHub Actions](.github/workflows/demos.yml) and stored as
-[demos release assets](https://github.com/dirichy/vimoi.nvim/releases/tag/demos).
-Generated GIF/MP4 files are excluded from Git; maintainers can rerun **Record demos** manually.
 
 ## Features
 
@@ -173,8 +167,10 @@ template editing.
 
 ### Open from `chezmoi merge`
 
-Make sure the plugin is loaded and setup has completed at Neovim startup, for example
-with the `lazy = false` configuration above. Add this to `~/.config/chezmoi/chezmoi.toml`:
+Load vimoi and complete setup at Neovim startup, for example with `lazy = false`
+as shown in the installation section. Choose the version for your config file.
+
+**For `~/.config/chezmoi/chezmoi.toml`, edited directly:**
 
 ```toml
 [merge]
@@ -188,35 +184,36 @@ args = [
 ]
 ```
 
-Then run:
+**For `.chezmoi.toml.tmpl` in your source directory:**
+
+```gotmpl
+[merge]
+command = "nvim"
+args = [
+    "-c",
+    "lua require('vimoi.api').diff_files(vim.fn.argv(0), vim.fn.argv(1))",
+    "--",
+    "{{ "{{ .Source }}" }}",
+    "{{ "{{ .Destination }}" }}",
+]
+```
+
+The `.tmpl` version emits literal `{{ .Source }}` and `{{ .Destination }}` placeholders
+for chezmoi to expand when merge runs. Do not put this escaped version directly in `.toml`.
 
 ```sh
 chezmoi merge ~/.bashrc
 ```
 
-chezmoi passes the source and actual file paths to the plugin. The plugin renders the
-template itself, so `.Target` is not passed. This opens the plugin's two-window template
-comparison rather than a native three-file merge layout.
-Template source buffers use the `gotmpl` filetype, with the target language injected
-for highlighting; the actual file keeps its own filetype.
-Use `do` / `dp` for individual hunks or `:VimoiReAdd` to write back identifiable static
-changes in bulk. Review the result, run `:write` in each window whose changes you want
-to keep, then exit with `:qa`. The plugin does not save or apply automatically and does
-not replace chezmoi's file attribute or encryption operations.
-See the [chezmoi merge reference](https://www.chezmoi.io/reference/commands/merge/) for the argument definitions.
+This opens a two-window comparison of the source and actual target. For templates, the
+plugin renders the source itself, so `.Target` is omitted. Template sources use `gotmpl`,
+with host colors controlled by the plugin's highlighting mode; the target keeps its filetype.
+Use `do` / `dp` for individual hunks or `:VimoiReAdd` for bulk static changes.
+Run `:write` in each buffer whose changes you want to keep, then exit with `:qa`.
 
-If you use another configuration file via `chezmoi --config /path/to/chezmoi.toml`, also
-set `chezmoi_config_path` to that path in Neovim so both use the same source and template data.
-
-If you put this configuration in a `.tmpl` that generates your config file, replace
-the two path arguments with:
-
-```gotmpl
-    {{ printf "%q" "{{ .Source }}" }},
-    {{ printf "%q" "{{ .Destination }}" }},
-```
-
-This preserves the placeholders in the generated TOML for expansion when merge runs.
+If you use `chezmoi --config /path/to/chezmoi.toml`, also set Neovim's
+`chezmoi_config_path` to that path.
+See the [chezmoi merge reference](https://www.chezmoi.io/reference/commands/merge/) for the path arguments.
 
 ### `chezmoi diff` limitation
 
@@ -325,26 +322,23 @@ The host language is detected from the target name and shebang; for example,
 `dot_zshrc.tmpl` uses zsh highlighting. Highlighting may be inaccurate when templates
 assemble incomplete host language statements.
 
-To try highlighting from the complete rendered output instead of host injections:
+To highlight complete rendered statements instead of parsing host fragments in the template:
 
 ```lua
 require("vimoi").setup({ highlight = { mode = "rendered" } })
 ```
 
-This experimental mode uses the host's Tree-sitter queries, colors, and priorities,
-and maps visible literal text back to the template. Template actions keep gotmpl
-highlighting. It shares the asynchronous render cache and works with diagnostics
-disabled. Existing colors follow edits while rendering is pending, and a successful
-render replaces them. Temporary template errors keep the last successful colors.
-Literal text not executed in the current render uses your colorscheme's `Comment`
-highlight, while template actions keep gotmpl highlighting. Repeated loop text uses
-its first execution.
-LSP semantic tokens, whole-line conceal, and spell navigation are not projected.
-The default remains injection highlighting; set `highlight.mode = "injection"` to return
-to it. A missing host parser still uses the Vim syntax fallback.
-Use `highlight.mode = "disabled"` to turn off host highlighting, including the Vim
-syntax fallback. Template actions retain their gotmpl highlighting and background;
-diagnostics and source mapping are unaffected.
+| `highlight.mode` | Host highlighting |
+| --- | --- |
+| `"injection"` (default) | Parse host text inside the template with Tree-sitter injections. |
+| `"rendered"` (experimental) | Parse rendered output and map colors back to literal template text. Unexecuted text uses `Comment`. |
+| `"disabled"` | Disable host highlighting, including the Vim syntax fallback. |
+
+Template actions keep gotmpl highlighting in all three modes. Rendered mode works with
+diagnostics disabled and retains existing colors during edits or temporary template errors.
+Repeated loop text uses its first execution. LSP semantic tokens, whole-line conceal,
+and spell navigation are not projected. If the host parser is missing, the enabled modes
+fall back to Vim syntax.
 
 ## blink.cmp completion
 

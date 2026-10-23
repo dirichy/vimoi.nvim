@@ -55,6 +55,14 @@ jobs:
       - uses: charmbracelet/vhs-action@v2
         with:
           version: v0.12.1
+      - name: Expose and check recording fonts
+        run: |
+          # VHS Action installs fonts here even when XDG_DATA_HOME is overridden.
+          mkdir -p "$XDG_DATA_HOME"
+          ln -s "$HOME/.local/share/fonts" "$XDG_DATA_HOME/fonts"
+          fc-cache -f
+          fc-match -f 'Family: %{family}\nStyle: %{style}\nFile: %{file}\n' 'JetBrains Mono'
+          test "$(fc-match -f '%{family}' 'JetBrains Mono')" = 'JetBrains Mono'
       - name: Install chezmoi and Tree-sitter CLI
         env:
           GH_TOKEN: ${{ github.token }}
