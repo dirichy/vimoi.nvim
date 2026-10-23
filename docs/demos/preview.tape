@@ -1,5 +1,5 @@
-Output docs/demos/preview.gif
-Output docs/demos/preview.mp4
+Output docs/demos/output/preview.gif
+Output docs/demos/output/preview.mp4
 
 Require nvim
 Require chezmoi
@@ -12,6 +12,7 @@ Set Padding 20
 Set Framerate 15
 Set Theme "TokyoNightStorm"
 Set TypingSpeed 90ms
+Env NVIM_LOG_FILE "/tmp/vimoi-demo-preview.log"
 
 Hide
 Type "nvim -n -i NONE -u docs/demos/init.lua"

@@ -1,0 +1,117 @@
+name: Record demos
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/demos.yml
+      - docs/demos/**
+      - lua/**
+      - queries/**
+      - ftdetect/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demos-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      XDG_CONFIG_HOME: ${{ github.workspace }}/.demo-deps/config
+      XDG_DATA_HOME: ${{ github.workspace }}/.demo-deps/data
+      XDG_STATE_HOME: ${{ github.workspace }}/.demo-deps/state
+      XDG_CACHE_HOME: ${{ github.workspace }}/.demo-deps/cache
+      VIMOI_DEMO_TREESITTER: ${{ github.workspace }}/.demo-deps/nvim-treesitter
+      VIMOI_DEMO_TOKYONIGHT: ${{ github.workspace }}/.demo-deps/tokyonight.nvim
+      VIMOI_DEMO_SCREENKEY: ${{ github.workspace }}/.demo-deps/screenkey.nvim
+      NVIM_LOG_FILE: ${{ github.workspace }}/.demo-deps/nvim.log
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: nvim-treesitter/nvim-treesitter
+          ref: 41416e81a6c7f4af4984395bfe0cd8d174e70976
+          path: .demo-deps/nvim-treesitter
+      - uses: actions/checkout@v4
+        with:
+          repository: folke/tokyonight.nvim
+          ref: cdc07ac78467a233fd62c493de29a17e0cf2b2b6
+          path: .demo-deps/tokyonight.nvim
+      - uses: actions/checkout@v4
+        with:
+          repository: NStefan002/screenkey.nvim
+          ref: 740e238d1f143cb5f3a9d932f9c5142d3581b986
+          path: .demo-deps/screenkey.nvim
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: v0.12.6
+      - uses: charmbracelet/vhs-action@v2
+        with:
+          version: v0.12.1
+      - name: Install chezmoi and Tree-sitter CLI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/demo-bin" "$RUNNER_TEMP/demo-downloads"
+          gh release download v2.73.3 --repo twpayne/chezmoi \
+            --pattern 'chezmoi_*_linux_amd64.tar.gz' --dir "$RUNNER_TEMP/demo-downloads"
+          tar -xzf "$RUNNER_TEMP"/demo-downloads/chezmoi_*.tar.gz \
+            -C "$RUNNER_TEMP/demo-bin" chezmoi
+          gh release download v0.26.9 --repo tree-sitter/tree-sitter \
+            --pattern tree-sitter-linux-x64.gz --dir "$RUNNER_TEMP/demo-downloads"
+          gzip -dc "$RUNNER_TEMP/demo-downloads/tree-sitter-linux-x64.gz" > "$RUNNER_TEMP/demo-bin/tree-sitter"
+          chmod +x "$RUNNER_TEMP/demo-bin/chezmoi" "$RUNNER_TEMP/demo-bin/tree-sitter"
+          echo "$RUNNER_TEMP/demo-bin" >> "$GITHUB_PATH"
+      - name: Install and check parsers
+        run: nvim --headless -n -i NONE -u NONE -l docs/demos/install-parsers.lua
+      - name: Record
+        run: |
+          mkdir -p docs/demos/output
+          for demo in preview diff readd; do
+            vhs "docs/demos/$demo.tape"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demos
+          path: |
+            docs/demos/output/*.gif
+            docs/demos/output/*.mp4
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: record
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: demos
+          path: demos
+      - name: Replace demo release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > "$RUNNER_TEMP/demo-notes.md" <<EOF
+          Automatically recorded demos for commit $GITHUB_SHA.
+
+          Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+          These assets are replaced on each successful recording. This is not a plugin release.
+          EOF
+          if ! gh release view demos --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create demos --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title 'Demo recordings' --prerelease --latest=false \
+              --notes-file "$RUNNER_TEMP/demo-notes.md"
+          fi
+          gh release upload demos demos/*.gif demos/*.mp4 --clobber --repo "$GITHUB_REPOSITORY"
+          gh release edit demos --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/demo-notes.md"

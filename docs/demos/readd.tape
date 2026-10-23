@@ -1,5 +1,5 @@
-Output docs/demos/readd.gif
-Output docs/demos/readd.mp4
+Output docs/demos/output/readd.gif
+Output docs/demos/output/readd.mp4
 
 Require nvim
 Require chezmoi
@@ -12,6 +12,7 @@ Set Padding 20
 Set Framerate 15
 Set Theme "TokyoNightStorm"
 Set TypingSpeed 90ms
+Env NVIM_LOG_FILE "/tmp/vimoi-demo-readd.log"
 
 Hide
 Type "VIMOI_DEMO=readd nvim -n -i NONE -u docs/demos/init.lua"

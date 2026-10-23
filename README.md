@@ -11,14 +11,23 @@ Edit [chezmoi](https://www.chezmoi.io/)-managed files safely and comfortably in 
 Edit an unsaved template while its read-only preview updates alongside it, including
 conditional branches and undo:
 
-![Live template preview: static edits, branch changes, and undo](docs/demos/preview.gif)
+![Live template preview: static edits, branch changes, and undo](https://github.com/dirichy/vimoi.nvim/releases/download/demos/preview.gif)
+
+Scroll between a template and its expanded output, transfer individual hunks with
+`do` / `dp`, and choose where an insertion belongs in the template:
+
+![Template diff: synchronized scrolling, hunk transfer, and insertion choices](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diff.gif)
 
 Compare a template with its target and manually re-add static changes to the source,
 preserving template expressions. Changes to dynamic output remain for manual editing:
 
-![Template diff and re-add: write back static edits and preserve expressions](docs/demos/readd.gif)
+![Template diff and re-add: write back static edits and preserve expressions](https://github.com/dirichy/vimoi.nvim/releases/download/demos/readd.gif)
 
-[Preview MP4](docs/demos/preview.mp4) · [Re-add MP4](docs/demos/readd.mp4) · [Recording guide](docs/demos/README.md)
+[Preview MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/preview.mp4) · [Diff MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diff.mp4) · [Re-add MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/readd.mp4) · [Recording guide](docs/demos/README.md)
+
+Recordings are built by [GitHub Actions](.github/workflows/demos.yml) and stored as
+[demos release assets](https://github.com/dirichy/vimoi.nvim/releases/tag/demos).
+Generated GIF/MP4 files are excluded from Git; maintainers can rerun **Record demos** manually.
 
 ## Features
 

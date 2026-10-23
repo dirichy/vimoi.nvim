@@ -1,0 +1,52 @@
+# Application settings
+name: {{ .name | quote }}
+theme: light
+
+features:
+  sync: true
+{{- if true }}
+{{- end }}
+  notifications: true
+
+# One source block expands into 24 servers.
+servers:
+{{ range .servers }}
+  - name: {{ . | quote }}
+    url: https://{{ . }}.example.test
+{{ end }}
+
+# Cursor and viewport follow source-map positions.
+logging:
+  level: info
+  format: json
+  output: stderr
+
+cache:
+  enabled: true
+  max_entries: 1024
+  ttl_seconds: 300
+
+network:
+  listen: 127.0.0.1
+  port: 8080
+  timeout_seconds: 30
+
+retry:
+  attempts: 3
+  delay_seconds: 2
+  backoff: true
+
+health:
+  path: /health
+  interval_seconds: 10
+  timeout_seconds: 2
+
+metrics:
+  enabled: true
+  path: /metrics
+  namespace: app
+
+storage:
+  directory: /var/lib/app
+  format: sqlite
+  compression: true

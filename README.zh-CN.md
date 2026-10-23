@@ -10,13 +10,22 @@
 
 编辑未保存的模板，右侧只读预览同步更新；修改条件分支和 undo 同样生效：
 
-![实时模板预览：静态文本编辑、条件分支切换和撤销](docs/demos/preview.gif)
+![实时模板预览：静态文本编辑、条件分支切换和撤销](https://github.com/dirichy/vimoi.nvim/releases/download/demos/preview.gif)
+
+在模板与循环展开后的输出间同步滚动，用 `do` / `dp` 传递单个 hunk，
+并选择新增文本在模板中的插入位置：
+
+![模板 diff：同步滚动、hunk 传递和插入位置选择](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diff.gif)
 
 模板 diff 与手动 re-add：把 target 的静态修改写回 source，保留模板表达式；动态修改留待手动处理：
 
-![模板 diff 与 re-add：静态修改写回，动态表达式保留](docs/demos/readd.gif)
+![模板 diff 与 re-add：静态修改写回，动态表达式保留](https://github.com/dirichy/vimoi.nvim/releases/download/demos/readd.gif)
 
-[预览 MP4](docs/demos/preview.mp4) · [re-add MP4](docs/demos/readd.mp4) · [重录说明](docs/demos/README.md)
+[预览 MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/preview.mp4) · [diff MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diff.mp4) · [re-add MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/readd.mp4) · [重录说明](docs/demos/README.md)
+
+演示由 [GitHub Actions](.github/workflows/demos.yml) 录制，保存在
+[demos Release 附件](https://github.com/dirichy/vimoi.nvim/releases/tag/demos) 中。
+生成的 GIF/MP4 不进入 Git；维护者可手动重跑 **Record demos**。
 
 ## 功能
 
