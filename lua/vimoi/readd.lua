@@ -70,22 +70,14 @@ function M.readd(path)
   end
   require("vimoi.gotmpl").open({ source = source, target = target })
   local source_text, target_text = util.buffer_text(source_buf), util.buffer_text(target_buf)
-  local hunks = vim.text.diff(source_text, target_text, { result_type = "indices" })
-  assert(type(hunks) == "table")
-  local edits = {}
-  local source_lines, target_lines = util.line_starts(source_text), util.line_starts(target_text)
-  for _, hunk in ipairs(hunks) do
-    local first, last = util.line_range(source_text, source_lines, hunk[1], hunk[2])
-    local target_first, target_last = util.line_range(target_text, target_lines, hunk[3], hunk[4])
-    edits[#edits + 1] =
-      { start_byte = first, end_byte = last, replacement = target_text:sub(target_first + 1, target_last) }
-  end
+  local buffer_edits = require("vimoi.gotmpl.buffer_edits")
+  local edits = buffer_edits.diff(source_text, target_text)
   if #edits > 0 then
-    require("vimoi.gotmpl.buffer_edits").apply(source_buf, source_text, target_text, edits)
+    buffer_edits.apply(source_buf, source_text, target_text, edits)
     vim.cmd("diffupdate")
   end
-  util.notify(("re-added %d hunks to source buffer; write the source to save"):format(#hunks), "re-add")
-  return { merged = #hunks, skipped = 0, reasons = {} }
+  util.notify(("re-added %d hunks to source buffer; write the source to save"):format(#edits), "re-add")
+  return { merged = #edits, skipped = 0, reasons = {} }
 end
 
 return M

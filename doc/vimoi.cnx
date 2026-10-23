@@ -446,7 +446,8 @@ ignore/remove 文件借用 `gitignore` 高亮，但 chezmoi 的模式匹配语�
 <
 它对完整渲染结果使用原生宿主 query、高亮组和优先级，把可见静态文本映射回 source，
 模板 action 保留 gotmpl 高亮。与 diagnostics 和视图共享异步渲染缓存，关闭
-diagnostics.enabled 后仍能使用。编辑后等待 debounce 和渲染成功再恢复宿主颜色。
+diagnostics.enabled 后仍能使用。编辑期间保留旧高亮，并由 extmark 随文本移动；
+渲染成功后替换。临时模板错误会保留最后一次成功的颜色。
 当前渲染未执行的静态文本使用 Comment 高亮，模板 action 保留 gotmpl 高亮；循环体
 采用第一次执行的结果。暂不映射 LSP semantic tokens、
 conceal_lines 和拼写导航。没有宿主 parser 时保留 Vim syntax 回退。

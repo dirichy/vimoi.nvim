@@ -4,6 +4,25 @@ local util = require("vimoi.util")
 ---@class VimoiBufferEdit: VimoiByteRange
 ---@field replacement string
 
+---Find separate line changes, then trim unchanged bytes inside each hunk.
+---@param before string
+---@param after string
+---@return VimoiBufferEdit[]
+function M.diff(before, after)
+  local before_starts, after_starts = util.line_starts(before), util.line_starts(after)
+  local hunks = assert(vim.text.diff(before, after, { result_type = "indices" }))
+  ---@cast hunks integer[][]
+  local edits = {}
+  for _, hunk in ipairs(hunks) do
+    local first, last = util.line_range(before, before_starts, hunk[1], hunk[2])
+    local new_first, new_last = util.line_range(after, after_starts, hunk[3], hunk[4])
+    local offset, finish, replacement =
+      util.changed_bytes(before:sub(first + 1, last), after:sub(new_first + 1, new_last))
+    edits[#edits + 1] = { start_byte = first + offset, end_byte = first + finish, replacement = replacement }
+  end
+  return edits
+end
+
 ---Apply byte edits without replacing untouched buffer text; join them into one undo step.
 ---The caller provides matching original/result snapshots and handles any template escaping.
 ---@param buf integer

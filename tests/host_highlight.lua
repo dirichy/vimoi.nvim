@@ -38,21 +38,13 @@ require("vimoi.highlight").configure_template_buffer(buf, "lua")
 local win = api.nvim_get_current_win()
 
 local function draw(top, bottom)
+  provider.on_win("win", win, buf, top or 0, bottom or api.nvim_buf_line_count(buf))
   local marks = {}
-  if not provider.on_win("win", win, buf, top or 0, bottom or api.nvim_buf_line_count(buf)) then
-    return marks
-  end
-  local original = api.nvim_buf_set_extmark
-  api.nvim_buf_set_extmark = function(buffer, ns, row, col, opts)
-    if ns == namespace then
-      assert(buffer == buf and opts.ephemeral)
-      marks[#marks + 1] = { row = row, col = col, opts = opts }
-      return 0
+  for _, mark in ipairs(api.nvim_buf_get_extmarks(buf, namespace, 0, -1, { details = true })) do
+    if not mark[4].invalid then
+      marks[#marks + 1] = { row = mark[2], col = mark[3], opts = mark[4] }
     end
-    return original(buffer, ns, row, col, opts)
   end
-  provider.on_range("range", win, buf, top or 0, 0, (bottom or api.nvim_buf_line_count(buf)) + 1, 0)
-  api.nvim_buf_set_extmark = original
   return marks
 end
 
@@ -95,6 +87,24 @@ assert(#marks == 1 and marks[1].opts.hl_group == "@string.special.lua", vim.insp
 assert(marks[1].opts.priority == 123)
 vim.treesitter.query.set("lua", "highlights", old_query)
 
+-- Coincident captures retain native query order in a single highlight stack.
+for _, case in ipairs({
+  { "lua", 'local t = { key = "value" }\n', 12, 15, "@property.lua" },
+  { "yaml", 'key: "value"\n', 0, 3, "@property.yaml" },
+}) do
+  util.set_buffer_text(buf, case[2])
+  require("vimoi.highlight").configure_template_buffer(buf, case[1])
+  highlighter.update(buf, trace(case[2]))
+  local keys = {}
+  for _, mark in ipairs(draw()) do
+    if mark.row == 0 and mark.col == case[3] and mark.opts.end_col == case[4] then
+      keys[#keys + 1] = mark.opts.hl_group
+    end
+  end
+  assert(vim.deep_equal(keys, { case[5] }), vim.inspect(keys))
+end
+require("vimoi.highlight").configure_template_buffer(buf, "lua")
+
 -- Skipped literals receive Comment; a repeated body uses its first execution
 -- once. Template actions keep their gotmpl highlighting.
 source = '{{ if false }}\nignored\n{{ end }}\n{{ range list 1 2 }}\nlocal x = "世界"\n{{ end }}\n'
@@ -115,20 +125,38 @@ for _, mark in ipairs(marks) do
 end
 assert(has_inactive, "inactive branch did not receive Comment highlighting")
 
--- Query only visible source ranges, and stop drawing a snapshot immediately
--- when bytes or chezmoi context change, before debounce finishes.
+-- Query visible ranges; retain already displayed colors at native extmark
+-- positions while source or chezmoi context changes await a new render.
 assert(#draw(3, 3) == 0)
 local inactive_marks = draw(1, 1)
 assert(#inactive_marks == 1 and inactive_marks[1].opts.hl_group == "Comment")
 assert(inactive_marks[1].row == 1 and inactive_marks[1].opts.end_row == 2, "inactive mark escaped the viewport")
-assert(#draw(4, 4) > 0)
+local previous_marks = draw(4, 4)
+assert(#previous_marks > 0)
+local previous_string
+for _, mark in ipairs(previous_marks) do
+  if mark.opts.hl_group == "@string.lua" then
+    previous_string = mark.col
+  end
+end
+assert(previous_string)
 api.nvim_buf_set_text(buf, 4, 0, 4, 0, { "-- " })
-assert(#draw() == 0, "stale source snapshot was drawn after an edit")
+marks = draw()
+assert(#marks == #previous_marks, "pending render removed existing highlights")
+for _, mark in ipairs(marks) do
+  if mark.opts.hl_group == "@string.lua" then
+    assert(mark.col == previous_string + 3, "retained highlight did not follow inserted text")
+  end
+end
+api.nvim_buf_set_text(buf, 0, 0, 0, 0, { "", "" })
+for _, mark in ipairs(draw()) do
+  assert(mark.row == 5, "retained highlight did not follow an inserted line")
+end
 util.set_buffer_text(buf, source)
 highlighter.update(buf, trace(source))
 local cli = require("vimoi.cli")
 cli.context_generation = cli.context_generation + 1
-assert(#draw() == 0, "stale context snapshot was drawn")
+assert(#draw() > 0, "context refresh removed existing highlights")
 
 -- A host string spanning several actions is parsed as a complete construct,
 -- then split into exact literal ranges without coloring those actions.

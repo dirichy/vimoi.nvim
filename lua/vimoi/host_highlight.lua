@@ -9,21 +9,36 @@ local namespace = api.nvim_create_namespace("vimoi-host-highlight")
 ---@class VimoiHostHighlight
 ---@field trace VimoiSourceMapTrace
 ---@field parser? vim.treesitter.LanguageTree
+---@field output_buf? integer Persistent scratch buffer driving native incremental parsing.
+---@field language? string
 ---@field tick integer
 ---@field context_generation integer
 ---@field source_starts integer[]
 ---@field output_starts integer[]
 ---@field regions VimoiRenderedRegion[] Exact literal mappings, ordered by output byte.
 ---@field inactive VimoiByteRange[] Literal source ranges not executed in this snapshot.
----@field windows table<integer, table> Viewport decorations, discarded with the snapshot.
+---@field generation integer
+---@field windows table<integer, table> Persistent decorations owned by each visible window.
 
 ---@type table<integer, VimoiHostHighlight>
 local buffers = {}
 
+---@param buf integer
+---@param cached table
+local function clear_window(buf, cached)
+  for _, mark in ipairs(cached.marks) do
+    api.nvim_buf_del_extmark(buf, namespace, mark.id)
+  end
+end
+
 api.nvim_create_autocmd("WinClosed", {
   group = api.nvim_create_augroup("vimoi-host-highlight", { clear = true }),
   callback = function(args)
-    for _, state in pairs(buffers) do
+    for buf, state in pairs(buffers) do
+      local cached = state.windows[tonumber(args.match)]
+      if cached then
+        clear_window(buf, cached)
+      end
       state.windows[tonumber(args.match)] = nil
     end
   end,
@@ -34,10 +49,11 @@ function M.clear(buf)
   local state = buffers[buf]
   buffers[buf] = nil
   if state then
-    if state.parser then
-      state.parser:destroy()
+    api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
+    if state.output_buf and api.nvim_buf_is_valid(state.output_buf) then
+      api.nvim_buf_delete(state.output_buf, { force = true })
     end
-    vim.cmd.redraw()
+    api.nvim__redraw({ buf = buf, valid = false })
   end
 end
 
@@ -82,7 +98,6 @@ local function decorations(state, top, bottom)
           end_col = end_col,
           hl_group = "Comment",
           priority = vim.hl.priorities.treesitter,
-          ephemeral = true,
         },
       }
     end
@@ -98,10 +113,10 @@ local function decorations(state, top, bottom)
     end
     local included = tree:included_ranges(true)
     for _, rows in ipairs(ranges) do
-      for capture, node, metadata, match in query:iter_captures(tree:root(), trace.output, rows[1], rows[2]) do
+      for capture, node, metadata, match in query:iter_captures(tree:root(), state.output_buf, rows[1], rows[2]) do
         local name = query.captures[capture]
         if name:sub(1, 1) ~= "_" then
-          local range = vim.treesitter.get_range(node, trace.output, metadata[capture])
+          local range = vim.treesitter.get_range(node, state.output_buf, metadata[capture])
           local capture_metadata = metadata[capture] or {}
           local priority = tonumber(metadata.priority or capture_metadata.priority) or vim.hl.priorities.treesitter
           local spell
@@ -114,7 +129,7 @@ local function decorations(state, top, bottom)
           local url = capture_metadata.url
           if type(url) == "number" then
             local nodes = match:captures()[url]
-            url = nodes and vim.treesitter.get_node_text(nodes[1], trace.output, { metadata = metadata[url] })
+            url = nodes and vim.treesitter.get_node_text(nodes[1], state.output_buf, { metadata = metadata[url] })
           end
           for _, included_range in ipairs(included) do
             local first = math.max(range[3], included_range[3])
@@ -151,23 +166,32 @@ local function decorations(state, top, bottom)
                     spell = spell,
                     conceal = metadata.conceal or capture_metadata.conceal,
                     url = url,
-                    ephemeral = true,
                   },
                 }
-                -- A multiline capture can appear in several disjoint query
-                -- ranges. Preserve distinct styles, but draw each result once.
+                -- Equal-priority persistent marks have no query-order tie
+                -- breaker. Stack coincident captures in one mark so later
+                -- captures (e.g. @property over @variable) reliably win.
                 local key = table.concat({
                   a + offset,
                   b + offset,
-                  language,
-                  name,
                   priority,
                   tostring(spell),
                   tostring(mark.opts.conceal),
                   tostring(url),
                 }, "\0")
-                if not seen[key] then
-                  seen[key] = true
+                local previous = seen[key]
+                if previous then
+                  local groups = previous.opts.hl_group
+                  if type(groups) == "string" then
+                    groups = { groups }
+                  end
+                  -- Disjoint query ranges can yield the same capture again.
+                  if not vim.list_contains(groups, mark.opts.hl_group) then
+                    groups[#groups + 1] = mark.opts.hl_group
+                    previous.opts.hl_group = groups
+                  end
+                else
+                  seen[key] = mark
                   marks[#marks + 1] = mark
                 end
               end
@@ -183,48 +207,60 @@ end
 api.nvim_set_decoration_provider(namespace, {
   on_win = function(_, win, buf, top, bottom)
     local state = buffers[buf]
-    if
-      not state
-      or api.nvim_buf_get_changedtick(buf) ~= state.tick
-      or require("vimoi.cli").context_generation ~= state.context_generation
-      or require("vimoi").config.highlight.mode ~= "rendered"
-      or vim.bo[buf].filetype ~= "gotmpl"
-    then
+    if not state or require("vimoi").config.highlight.mode ~= "rendered" or vim.bo[buf].filetype ~= "gotmpl" then
       return false
     end
     -- on_win's bottom is inclusive; cache queries until this viewport changes.
     local cached = state.windows[win]
-    if not cached or cached.top ~= top or cached.bottom ~= bottom then
-      state.windows[win] = { top = top, bottom = bottom, marks = decorations(state, top, bottom + 1) }
-    end
-    return true
-  end,
-  on_range = function(_, win, buf, first_row, first_col, last_row, last_col)
-    local state = buffers[buf]
-    local cached = state and state.windows[win]
-    if not cached then
-      return
-    end
-    for _, mark in ipairs(cached.marks) do
-      local opts = mark.opts
-      if
-        (mark.row < last_row or mark.row == last_row and mark.col < last_col)
-        and (opts.end_row > first_row or opts.end_row == first_row and opts.end_col > first_col)
-      then
-        api.nvim_buf_set_extmark(buf, namespace, mark.row, mark.col, opts)
+    local current = api.nvim_buf_get_changedtick(buf) == state.tick
+      and require("vimoi.cli").context_generation == state.context_generation
+    if
+      current and (not cached or cached.generation ~= state.generation or cached.top ~= top or cached.bottom ~= bottom)
+    then
+      local marks = decorations(state, top, bottom + 1)
+      -- Install the complete new viewport before retiring the previous result.
+      for _, mark in ipairs(marks) do
+        mark.opts.right_gravity = false
+        mark.opts.end_right_gravity = true
+        mark.opts.invalidate = true
+        mark.id = api.nvim_buf_set_extmark(buf, namespace, mark.row, mark.col, mark.opts)
       end
+      if cached then
+        clear_window(buf, cached)
+      end
+      state.windows[win] = { top = top, bottom = bottom, generation = state.generation, marks = marks }
     end
+    -- While rendering is pending, native extmarks keep the last successful
+    -- styles and follow source edits without querying stale source coordinates.
+    return false
   end,
 })
 
 ---@param buf integer
 ---@param trace VimoiSourceMapTrace
 function M.update(buf, trace)
-  M.clear(buf)
   local language = vim.b[buf].vimoi_template_language
-  local parser
-  if language then
-    parser = vim.treesitter.get_string_parser(trace.output, language)
+  ---@type VimoiHostHighlight?
+  local state = buffers[buf]
+  if state and state.language ~= language then
+    M.clear(buf)
+    state = nil
+  end
+  local output = state and state.output_buf
+  local parser = state and state.parser
+  if not state and language then
+    output = api.nvim_create_buf(false, true)
+    vim.bo[output].bufhidden = "hide"
+    vim.bo[output].undolevels = -1
+    vim.b[output].vimoi_highlight_source = buf
+    util.set_buffer_text(output, trace.output)
+    parser = vim.treesitter.get_parser(output, language)
+  elseif state and output and state.trace.output ~= trace.output then
+    local before = state.trace.output
+    local edits = require("vimoi.gotmpl.buffer_edits")
+    edits.apply(output, before, trace.output, edits.diff(before, trace.output))
+  end
+  if parser then
     parser:parse(true)
   end
   local inactive = {}
@@ -248,15 +284,19 @@ function M.update(buf, trace)
   buffers[buf] = {
     trace = trace,
     parser = parser,
+    output_buf = output,
+    language = language,
+    generation = state and state.generation + 1 or 1,
     tick = api.nvim_buf_get_changedtick(buf),
     context_generation = require("vimoi.cli").context_generation,
     source_starts = util.line_starts(trace.source),
     output_starts = util.line_starts(trace.output),
     regions = regions,
     inactive = inactive,
-    windows = {},
+    windows = state and state.windows or {},
   }
-  vim.cmd.redraw()
+  -- Wake visible windows so their persistent decorations adopt this snapshot.
+  api.nvim__redraw({ buf = buf, valid = false })
 end
 
 return M

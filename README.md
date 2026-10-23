@@ -321,7 +321,8 @@ require("vimoi").setup({ highlight = { mode = "rendered" } })
 This experimental mode uses the host's Tree-sitter queries, colors, and priorities,
 and maps visible literal text back to the template. Template actions keep gotmpl
 highlighting. It shares the asynchronous render cache and works with diagnostics
-disabled. After an edit, host colors return when the debounced render succeeds.
+disabled. Existing colors follow edits while rendering is pending, and a successful
+render replaces them. Temporary template errors keep the last successful colors.
 Literal text not executed in the current render uses your colorscheme's `Comment`
 highlight, while template actions keep gotmpl highlighting. Repeated loop text uses
 its first execution.

@@ -288,7 +288,8 @@ require("vimoi").setup({ highlight = { mode = "rendered" } })
 
 这个实验模式沿用宿主的 Tree-sitter query、颜色和优先级，只把可见静态文本映射回
 模板；模板 action 保留 gotmpl 高亮。它共享异步渲染缓存，关闭 diagnostics 后也能
-使用。编辑后，宿主颜色会在 debounce 后渲染成功时恢复。当前渲染未执行的静态文本
+使用。编辑期间保留上一份颜色，并随文本移动；渲染成功后替换，临时模板错误也保留
+最后一次成功的高亮。当前渲染未执行的静态文本
 使用配色方案的 `Comment` 高亮，模板 action 保留 gotmpl 高亮；循环内重复文本采用
 第一次执行的高亮。暂不映射 LSP semantic tokens、整行 conceal
 和拼写导航。默认仍用 injection；设置 `highlight.mode = "injection"` 可切回。

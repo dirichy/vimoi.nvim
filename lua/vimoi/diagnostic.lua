@@ -262,9 +262,6 @@ local function request_check(buf)
     if package.loaded["vimoi.host_diagnostic"] then
       require("vimoi.host_diagnostic").clear(buf)
     end
-    if package.loaded["vimoi.host_highlight"] then
-      require("vimoi.host_highlight").clear(buf)
-    end
     assert(state.check)()
   end
 end
@@ -291,6 +288,11 @@ function M.setup()
   local requested_rendered = require("vimoi").config.highlight.mode == "rendered"
   if enabled == requested and host_enabled == requested_host and rendered_enabled == requested_rendered then
     return
+  end
+  if rendered_enabled and not requested_rendered and package.loaded["vimoi.host_highlight"] then
+    for buf in pairs(buffers) do
+      require("vimoi.host_highlight").clear(buf)
+    end
   end
   enabled = requested
   host_enabled = requested_host
@@ -359,6 +361,9 @@ function M.setup()
     group = group,
     pattern = "VimoiHostFiletypeChanged",
     callback = function(args)
+      if package.loaded["vimoi.host_highlight"] then
+        require("vimoi.host_highlight").clear(args.data.buf)
+      end
       request_check(args.data.buf)
     end,
   })

@@ -555,8 +555,9 @@ Experimental rendered highlighting replaces host injections: >lua
 It uses native host queries, highlight groups and priorities on complete rendered
 output, projecting visible literal ranges onto source. Template actions retain
 gotmpl highlighting. Rendering shares the asynchronous cache with diagnostics and
-views, and still runs when diagnostics.enabled is false. After edits, host colors
-wait for the debounced render to succeed. Literal text not executed in the current
+views, and still runs when diagnostics.enabled is false. Persistent highlights
+follow source edits while rendering is pending; successful results replace them.
+Temporary template errors retain the last successful colors. Literal text not executed in the current
 render uses Comment; template actions retain gotmpl highlighting. Loop bodies use
 their first execution. LSP semantic tokens, conceal_lines and spell
 navigation are not projected. Missing host parsers retain the Vim syntax fallback.
