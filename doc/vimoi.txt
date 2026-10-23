@@ -86,7 +86,7 @@ The available options and their defaults are: >lua
       },
       highlight = {
         mode = "injection",
-        template_bg = { dark = "#343B52", light = "#E4E9F4" },
+        template_bg = "NormalFloat",
       },
       keymaps = {
         diff = "<leader>cd",
@@ -157,9 +157,12 @@ for newly created diff/preview splits, including ordinary file diff. Existing
 window pairs are reused without rearranging them when the option changes.
 
 `highlight.template_bg` colors the entire `{{ ... }}` action without replacing
-its foreground syntax colors. Set it to a single color (for example,
-`"#4A3555"`) or override the dark/light defaults separately. Changes to
-`background` or the colorscheme reapply the selected color.
+its foreground syntax colors. The default `"NormalFloat"` borrows the theme’s
+background for floating windows, keeping template actions separate from diff
+colors. Other highlight group names (such as `"StatusLine"`), single colors
+(such as `"#123456"`) and dark/light tables are supported. Reverse groups use
+their visible background. A group without a background adds no background.
+Changes to `background` or the colorscheme refresh the selected color.
 
 When `diff.validate` is true, opening a template diff also runs `chezmoi cat`.
 The diff is rejected if its output differs from the sentinel rendering. This

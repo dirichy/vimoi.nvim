@@ -210,7 +210,7 @@ require("vimoi").setup({
   diagnostics = { enabled = true, host = true },
   highlight = {
     mode = "injection",
-    template_bg = { dark = "#343B52", light = "#E4E9F4" },
+    template_bg = "NormalFloat",
   },
   keymaps = {
     diff = "<leader>cd",
@@ -251,7 +251,9 @@ require("vimoi").setup({ keymaps = { diff = "<leader>hd", readd = false } })
 
 进程/config 路径、watch 和 keymaps 在首次成功 setup 后固定，修改后需重启 Neovim。
 其余选项可再次 setup 更新；省略的可更新选项恢复默认值。
-`highlight.template_bg` 也可直接设为一个颜色字符串。
+`highlight.template_bg` 默认取主题的 `NormalFloat` 背景，与 diff 配色区分。
+可以改为其他高亮组名（如 `"StatusLine"`）、颜色（如 `"#123456"`），或
+`{ dark = "#123456", light = "#E4E9F4" }`。只借用背景，保留语法前景色，切换主题时自动更新。
 
 ## 模板诊断与高亮
 

@@ -5,8 +5,12 @@ local function background()
 end
 
 vim.o.background = "dark"
+vim.api.nvim_set_hl(0, "NormalFloat", { bg = "#20242c", fg = "#ff0000", bold = true })
 require("vimoi").setup()
-assert(background() == 0x343B52)
+assert(background() == 0x20242c)
+local action = vim.api.nvim_get_hl(0, { name = "VimoiTemplateAction", link = false })
+assert(action.fg == vim.api.nvim_get_hl(0, { name = "Statement", link = false }).fg)
+assert(not action.bold, "borrowing a background also borrowed foreground styling")
 
 local buf = vim.api.nvim_create_buf(true, false)
 vim.api.nvim_set_current_buf(buf)
@@ -22,14 +26,35 @@ vim.o.background = "light"
 vim.api.nvim_exec_autocmds("OptionSet", { pattern = "background" })
 assert(background() == 0x123456)
 
+-- Theme backgrounds are resolved again after colorscheme/background changes.
+vim.api.nvim_set_hl(0, "NormalFloat", { bg = "#eeeeee" })
 require("vimoi").setup()
-assert(background() == 0xE4E9F4)
-vim.api.nvim_set_hl(0, "VimoiTemplateAction", { bg = "#000000" })
+assert(background() == 0xeeeeee)
+vim.api.nvim_set_hl(0, "NormalFloat", { bg = "#dddddd" })
 vim.api.nvim_exec_autocmds("ColorScheme", { pattern = "test-theme" })
-assert(background() == 0xE4E9F4)
+assert(background() == 0xdddddd)
 vim.o.background = "dark"
+vim.api.nvim_set_hl(0, "NormalFloat", { bg = "#20242c" })
 vim.api.nvim_exec_autocmds("OptionSet", { pattern = "background" })
-assert(background() == 0x343B52)
+assert(background() == 0x20242c)
+
+-- Explicit colors and dark/light overrides remain supported.
+require("vimoi").setup({ highlight = { template_bg = { dark = "#123456", light = "#abcdef" } } })
+assert(background() == 0x123456)
+vim.o.background = "light"
+vim.api.nvim_exec_autocmds("OptionSet", { pattern = "background" })
+assert(background() == 0xabcdef)
+
+-- Linked and reversed theme groups contribute their visible background only.
+vim.api.nvim_set_hl(0, "TestTemplateSurface", { fg = "#112233", bg = "#445566", reverse = true, ctermfg = 1 })
+vim.api.nvim_set_hl(0, "TestTemplateLink", { link = "TestTemplateSurface" })
+require("vimoi").setup({ highlight = { template_bg = "TestTemplateLink" } })
+assert(background() == 0x112233)
+assert(vim.api.nvim_get_hl(0, { name = "VimoiTemplateAction", link = false }).ctermbg == 1)
+vim.api.nvim_set_hl(0, "TestTemplateSurface", { fg = "#112233" })
+vim.api.nvim_exec_autocmds("ColorScheme", { pattern = "test-theme" })
+assert(background() == nil, "a theme group without a background gained a fixed color")
+require("vimoi").setup()
 
 -- Unrelated OptionSet events must preserve a user's highlight override.
 vim.api.nvim_set_hl(0, "VimoiTemplateAction", { bg = "#abcdef" })

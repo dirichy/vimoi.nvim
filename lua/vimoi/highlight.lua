@@ -6,8 +6,17 @@ local function apply()
   if type(background) == "table" then
     background = background[vim.o.background]
   end
+  local ctermbg
+  if vim.fn.hlexists(background) == 1 then
+    local group = vim.api.nvim_get_hl(0, { name = background, link = false })
+    if group.reverse then
+      background, ctermbg = group.fg, group.ctermfg
+    else
+      background, ctermbg = group.bg, group.ctermbg
+    end
+  end
   local statement = vim.api.nvim_get_hl(0, { name = "Statement", link = false })
-  vim.api.nvim_set_hl(0, "VimoiTemplateAction", { bg = background, fg = statement.fg })
+  vim.api.nvim_set_hl(0, "VimoiTemplateAction", { bg = background, ctermbg = ctermbg, fg = statement.fg })
 end
 
 local initialize = require("vimoi.util").once(function()

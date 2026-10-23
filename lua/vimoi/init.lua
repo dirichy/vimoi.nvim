@@ -19,7 +19,7 @@ local defaults = {
   },
   highlight = {
     mode = "injection",
-    template_bg = { dark = "#343B52", light = "#E4E9F4" },
+    template_bg = "NormalFloat",
   },
   ---@type VimoiKeymaps
   keymaps = {

@@ -78,7 +78,7 @@ source 类型时，应提前 setup，不只依赖该 filetype 触发。
       },
       highlight = {
         mode = "injection",
-        template_bg = { dark = "#343B52", light = "#E4E9F4" },
+        template_bg = "NormalFloat",
       },
       keymaps = {
         diff = "<leader>cd",
@@ -134,8 +134,9 @@ source root 和 init 模板/config 的对应关系只在 `setup()` 时初始化�
 为上下，普通文件 diff 也适用。修改选项不重新排列已存在并复用的窗口对。
 
 `highlight.template_bg` 为整个 `{{ ... }}` action 设置背景，不替换原有的语法前景色。
-可以设置单个颜色（例如 `"#4A3555"`），也可以分别覆盖深色、浅色默认值。
-切换 `background` 或配色方案时会重新应用对应颜色。
+默认 `"NormalFloat"` 借用主题的浮窗背景，与 diff 配色区分。也可以设置其他高亮组名
+（如 `"StatusLine"`）、单个颜色（如 `"#123456"`），或深浅色 table。反色高亮组取
+实际显示的背景；高亮组没有背景时不额外填充。切换 `background` 或配色方案时重新取色。
 
 启用 `diff.validate` 后，每次打开模板 Diff 还会运行 `chezmoi cat`。如果它的输出与
 哨兵渲染结果不同，插件会拒绝显示 Diff。这可以检测依赖暂不支持的执行上下文的模板，

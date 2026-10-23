@@ -232,7 +232,7 @@ require("vimoi").setup({
   diagnostics = { enabled = true, host = true },
   highlight = {
     mode = "injection",
-    template_bg = { dark = "#343B52", light = "#E4E9F4" },
+    template_bg = "NormalFloat",
   },
   keymaps = {
     diff = "<leader>cd",
@@ -276,7 +276,11 @@ at setup time. `$` is kept literally. Pass environment variables explicitly, for
 Executable/config paths, watch options, and keymaps are fixed after the first successful
 setup; restart Neovim to change them. Other options can be updated by calling setup again;
 omitted updatable options revert to defaults.
-`highlight.template_bg` also accepts a single color string.
+`highlight.template_bg` uses the theme’s `NormalFloat` background by default, keeping template
+actions separate from diff colors. Use another highlight group such as `"StatusLine"`, a color
+such as `"#123456"`, or `{ dark = "#123456", light = "#E4E9F4" }` to customize it.
+Only the background is borrowed; syntax foreground colors are preserved. Switching themes
+refreshes it automatically.
 
 ## Template diagnostics and highlighting
 
