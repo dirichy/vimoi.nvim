@@ -15,7 +15,7 @@ require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" }
 local api = require("vimoi.api")
 assert(type(api.readd) == "function" and rawget(api, "template_readd") == nil)
 assert(require("vimoi").config.keymaps.readd == "<leader>ca")
-for _, command in ipairs({ "Diff", "DiffPut", "DiffApply", "Preview", "Toggle", "ReAdd", "Cancel" }) do
+for _, command in ipairs({ "Diff", "DiffPut", "DiffGet", "Preview", "Toggle", "ReAdd", "Cancel" }) do
   assert(vim.fn.exists(":Vimoi" .. command) == 2)
 end
 assert(vim.fn.exists(":VimoiTmplReAdd") == 0 and vim.fn.exists(":ChezmoiTmplReAdd") == 0)

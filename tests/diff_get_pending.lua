@@ -40,7 +40,8 @@ for _, side in ipairs({ "source", "target" }) do
       end
       vim.api.nvim_set_current_win(session[side .. "_win"])
       vim.api.nvim_win_set_cursor(0, { 3, 0 })
-      assert(api.apply_hunk() == nil and session.pending_merge)
+      local transfer = side == "source" and api.put_hunk or api.get_hunk
+      assert(transfer() == nil and session.pending_merge)
       local request = requests[#requests]
       if change == "cancel" then
         vim.fn.maparg("q", "n", false, true).callback()

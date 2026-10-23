@@ -104,11 +104,16 @@ or hide context. In a template diff, the transfer directions are:
 | Source template | Write the current target hunk back to the template | Write the current hunk's rendered output to the target |
 | Target | Get the template's rendered output for the current hunk | Write the current hunk back to the template |
 
-Alternatively, run `:VimoiDiffPut` to write the current target hunk into the template,
-or `:VimoiDiffApply` to write the current hunk's rendered output into the target.
+Alternatively, run `:VimoiDiffPut` to send the current hunk to the other window,
+or `:VimoiDiffGet` to take the other window's hunk into the current window.
 Changes on both sides support undo/redo and are not saved automatically.
 Changes to dynamic output cannot be inverted into template expressions; edit the source
 manually. Ambiguous static insertion positions prompt you to choose a location.
+
+Breaking change: `VimoiDiffApply` / `apply_hunk()` have been removed. Use
+`VimoiDiffPut` / `put_hunk()` from source, or `VimoiDiffGet` / `get_hunk()` from
+target, to copy rendered output into target. To merge target changes into source,
+use Put from target or Get from source.
 
 These template operations require the plugin mappings or commands. Native `:diffget` /
 `:diffput` or `normal!` copy template source text. Plain files use native two-file diff,
@@ -136,7 +141,7 @@ Encrypted files, symlinks, and script sources are not supported by plain text Re
 
 Review the result and run `:write` in the source window. ReAdd does not invoke the chezmoi
 CLI's re-add, update file attributes, save automatically, or apply changes.
-Likewise, `VimoiDiffApply` only modifies the current target hunk; it is not chezmoi apply.
+Likewise, Diff Put/Get only modify a buffer hunk; they do not run chezmoi apply.
 
 ### Compare two buffers without file paths
 

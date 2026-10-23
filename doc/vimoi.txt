@@ -222,7 +222,7 @@ focus. Calls that need the result suspend in a coroutine behind a focused float;
 Neovim continues processing input. Press q, Esc, Ctrl-C or close the float to
 cancel; leaving a focused float also cancels. Cancellation terminates the process
 (and its process group on Unix) and prevents pending writes. Quick path/config
-identity queries still run directly. Put/apply/re-add share this UI when waiting
+identity queries still run directly. Put/get/re-add share this UI when waiting
 for a render. Cancelling an initial render ends its session, keeping both buffers.
 
                                                     *vimoi-diagnostics*
@@ -338,16 +338,19 @@ COMMANDS                                                       *vimoi-commands*
 
                                                             *:VimoiDiffPut*
 :VimoiDiffPut
-    Copy the hunk under the cursor from the target into a template source.
-    This is equivalent to `dp` in the target window or `do` in the template
-    window during a template diff session.
+    Put the current hunk into the other diff window, equivalent to dp.
+    From source, copy rendered output into target. From target, merge its
+    changes into the source template. Only the destination buffer changes.
 
-                                                          *:VimoiDiffApply*
-:VimoiDiffApply
-    Apply the current hunk from rendered output to the target buffer. Equivalent
-    to dp in the source window or do in the target window; template actions are
-    rendered rather than copied literally. Only this hunk changes; neither file
-    is saved automatically.
+                                                          *:VimoiDiffGet*
+:VimoiDiffGet
+    Get the other window's hunk into the current diff window, equivalent to do.
+    From source, merge target changes into the source template. From target,
+    copy rendered output into target. Neither file is saved automatically.
+
+    Breaking change: VimoiDiffApply and apply_hunk() have been removed.
+    Put/Get commands and Lua APIs now follow the focused window. Existing
+    source-side put_hunk() calls that merged target changes must use get_hunk().
 
                                                             *:VimoiCancel*
 :VimoiCancel
@@ -460,9 +463,8 @@ MERGE                                                            *vimoi-merge*
 
 In a template diff session, place the cursor on a changed hunk and use:
 
-    target window:    dp
-    template window:  do
-    either window:    :VimoiDiffPut
+    target window:    dp or :VimoiDiffPut
+    template window:  do or :VimoiDiffGet
 
 The plugin writes the target hunk into the source template and refreshes the
 remaining diff. Each line hunk is split into independent byte edits, so
@@ -475,8 +477,8 @@ the source; surrounding text stays static. Deletions or adjacent edits that
 join braces are escaped too. Static merges infer output and a new source map
 from the recorded execution order and trim rules, without another render.
 
-For the opposite direction, use dp in the source window, do in the target
-window, or :VimoiDiffApply from either. The selected hunk is copied from
+For the opposite direction, use dp or :VimoiDiffPut in the source window,
+or do or :VimoiDiffGet in the target window. The selected hunk is copied from
 rendered output, including dynamic values and loop expansion, into target;
 source template text is never copied literally. Other target hunks remain
 untouched. Writes are local, support undo/redo, and never save either file.
@@ -484,8 +486,8 @@ untouched. Writes are local, support undo/redo, and never save either file.
 These semantics require the mappings or plugin commands. Native :diffget,
 :diffput, and normal! bypass them and still copy raw template source.
 
-Whenever put, apply, or template re-add needs rendering (initial render or stale source map), it opens a focused waiting window and
-continues asynchronously. Press q, <Esc>, or <C-c>, close the window, or leave it to cancel the merge. Put/apply retain
+Whenever put, get, or template re-add needs rendering (initial render or stale source map), it opens a focused waiting window and
+continues asynchronously. Press q, <Esc>, or <C-c>, close the window, or leave it to cancel the merge. Put/get retain
 the line where they were requested. Changes to either buffer or the render context
 while waiting or choosing a placement also cancel the request. Closing or
 replacing the session invalidates outstanding choices. Rendering does not block
@@ -827,15 +829,17 @@ require("vimoi.api").preview({opts})
 
                                            *vimoi.api.put_hunk()*
 require("vimoi.api").put_hunk()
-    Merge the current projected hunk into the template source. Returns true
+    Put the current hunk into the other diff window, as with dp. Source puts
+    rendered output into target; target puts changes into source. Returns true
     on immediate success, false on immediate choice cancellation, and nil on
     failure or while an asynchronous render/placement choice is pending.
 
-                                         *vimoi.api.apply_hunk()*
-require("vimoi.api").apply_hunk()
-    Apply the current hunk from rendered output to target in a template diff
-    session. Returns true on immediate success, or nil on failure or while
-    rendering is pending. Source is untouched; target is not saved.
+                                         *vimoi.api.get_hunk()*
+require("vimoi.api").get_hunk()
+    Get the other window's hunk into the current diff window, as with do.
+    Source gets target changes; target gets rendered output. Returns true on
+    immediate success, false on immediate choice cancellation, and nil on failure
+    or while rendering/selection is pending. Neither operation saves files.
 
                                          *vimoi.api.readd()*
 require("vimoi.api").readd({path})

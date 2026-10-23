@@ -40,7 +40,7 @@ for _, win in ipairs({ session.source_win, session.target_win }) do
   vim.api.nvim_set_current_win(win)
   assert(vim.fn.maparg("<leader>xa", "n", false, true).desc == "Re-add target changes to chezmoi source")
   assert(vim.fn.maparg("<leader>ca", "n") == "")
-  local expected = win == session.source_win and require("vimoi.api").put_hunk or require("vimoi.api").apply_hunk
+  local expected = require("vimoi.api").get_hunk
   assert(vim.fn.maparg("gD", "n", false, true).callback == expected)
   assert(vim.fn.maparg("do", "n") == "" and vim.fn.maparg("dp", "n") == "")
 end

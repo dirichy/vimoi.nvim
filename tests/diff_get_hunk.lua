@@ -27,8 +27,8 @@ local function check(source_text, target_text, expected, side)
     util.buffer_text(session.target_buf) == expected,
     vim.inspect({ source_text, target_text, expected, util.buffer_text(session.target_buf) })
   )
-  assert(util.buffer_text(session.source_buf) == source_text, "applying to target changed the template")
-  assert(util.read_file(source) == source_text and util.read_file(target) == target_text, "apply saved a file")
+  assert(util.buffer_text(session.source_buf) == source_text, "getting into target changed the template")
+  assert(util.read_file(source) == source_text and util.read_file(target) == target_text, "get saved a file")
   vim.api.nvim_buf_call(session.target_buf, function()
     vim.cmd("silent undo")
     -- Neovim undo restores lines; endofline is a buffer option.
@@ -37,7 +37,7 @@ local function check(source_text, target_text, expected, side)
     assert(util.buffer_text(0) == expected)
   end)
   sessions.close(session)
-  assert(vim.fn.maparg(side == "source" and "dp" or "do", "n") == "", "apply mapping leaked after close")
+  assert(vim.fn.maparg(side == "source" and "dp" or "do", "n") == "", "get mapping leaked after close")
   vim.fn.delete(source)
   vim.fn.delete(target)
 end
@@ -54,7 +54,7 @@ for _, side in ipairs({ "source", "target" }) do
   check('{{ "last\\n" }}', "changed", "last\n", side)
   check('{{ range (list "a" "b") }}item={{ . }}\n{{ end }}', "item=a\nitem=x\n", "item=a\nitem=b\n", side)
   check('head \n{{- " trimmed\\n" -}} \ntail\n', "head changed\ntail\n", "head trimmed\ntail\n", side)
-  -- Applying one hunk must preserve a separate target modification.
+  -- Getting one hunk must preserve a separate target modification.
   check('{{ "alice" }}\nkeep\nkeep\nold\n', "bob\nkeep\nkeep\nnew\n", "alice\nkeep\nkeep\nnew\n", side)
 end
 
@@ -66,10 +66,10 @@ vim.cmd("tabnew")
 api.diff_files(source, target)
 dofile("tests/helpers/diff.lua")()
 local session = assert(view_for_buffer(vim.fn.bufnr(source)))
-local ns = vim.api.nvim_create_namespace("vimoi-apply-extmark")
+local ns = vim.api.nvim_create_namespace("vimoi-get-extmark")
 local mark = vim.api.nvim_buf_set_extmark(session.target_buf, ns, 0, 10, {})
 vim.api.nvim_set_current_win(session.target_win)
-assert(api.apply_hunk())
+assert(api.get_hunk())
 assert(vim.deep_equal(vim.api.nvim_buf_get_extmark_by_id(session.target_buf, ns, mark, {}), { 0, 12 }))
 sessions.close(session)
 vim.fn.delete(source)

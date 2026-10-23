@@ -11,13 +11,14 @@
 
 - `diff`、`diff_files`、`preview` 始终返回 `nil`，内部 session 不再泄漏给调用方。
 - `toggle(path?)` 成功返回打开的路径，遵循原生未保存 buffer 的保护机制。
-- `put_hunk`、`apply_hunk`、`readd` 是交互操作，只有立即完成时才有结果；等待渲染或
+- `put_hunk`、`get_hunk`、`readd` 是交互操作，只有立即完成时才有结果；等待渲染或
   选择时也返回 `nil`。目前没有完成回调或 promise，脚本不能据此判断最终是否成功。
 - `readd` 的公开结果包括 `merged`、`skipped`、`reasons[].reason`；部分合并的原始
   hunk 可同时计入 merged/skipped，一个 hunk 可有多个跳过原因。内部 hunk 对象不承诺稳定。
 - 进程/config 路径、watch、keymaps 首次成功 setup 后固定；其余可更新选项在后续
   setup 省略时恢复默认值。这个行为已在中英文帮助和 README 说明。
-- `ReAdd` 将普通文件内容或模板静态修改写回 source buffer；`DiffApply` 写 target buffer。
+- `ReAdd` 将普通文件内容或模板静态修改写回 source buffer；Diff Put/Get 按当前窗口决定方向，
+  分别送往另一侧或取入当前 buffer。
   二者都不会自动保存，也不是直接执行 chezmoi 的 re-add/apply。
 
 暂时保留 `diff_files(source, target, opts)` 这个显式文件对入口；它和

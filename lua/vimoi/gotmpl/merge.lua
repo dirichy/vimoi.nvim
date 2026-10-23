@@ -133,7 +133,7 @@ local function select_choices(trace, choices, validity, callback)
   select_next(1)
 end
 
----@param mode "put"|"apply"|"readd"
+---@param mode "put"|"get"|"readd"
 local function merge(mode)
   local requested_buf = vim.api.nvim_get_current_buf()
   local requested_line = vim.api.nvim_win_get_cursor(0)[1]
@@ -144,6 +144,9 @@ local function merge(mode)
   if not session or session.closed or session.preview then
     return util.notify("current buffer is not in a vimoi diff session", "diff", vim.log.levels.ERROR)
   end
+  -- Resolve direction before rendering can move focus to a wait window.
+  local to_target = (mode == "put" and requested_buf == session.source_buf)
+    or (mode == "get" and requested_buf == session.target_buf)
   -- Every deferred stage belongs to this exact session, source, target, and
   -- rendering context. A later choice must never operate on newer buffer text.
   local source_text = util.buffer_text(session.source_buf)
@@ -172,9 +175,7 @@ local function merge(mode)
   }
   local function report_error(message)
     return util.notify(
-      "cannot "
-        .. ({ put = "put this hunk: ", apply = "apply this hunk: ", readd = "re-add template: " })[mode]
-        .. message,
+      "cannot " .. ({ put = "put this hunk: ", get = "get this hunk: ", readd = "re-add template: " })[mode] .. message,
       "diff",
       vim.log.levels.ERROR
     )
@@ -193,7 +194,7 @@ local function merge(mode)
       end
       hunks = { hunk }
     end
-    if mode == "apply" then
+    if to_target then
       local hunk = hunks[1]
       local rendered_start, rendered_end = util.line_range(
         trace.output,
@@ -222,16 +223,16 @@ local function merge(mode)
         return report_error("target was updated, but refreshing the diff failed: " .. tostring(target_error))
       end
       result = true
-      util.notify("applied rendered hunk to target", "diff")
+      util.notify("copied rendered hunk into target", "diff")
       return
     end
     local plan = merge_plan.plan(trace, target_text, hunks)
-    if mode == "put" and #plan.skipped > 0 then
+    if mode ~= "readd" and #plan.skipped > 0 then
       return report_error(plan.skipped[1].reason or "unknown mapping")
     end
     local selected, skipped = {}, vim.deepcopy(plan.skipped)
     local infer_and_apply = util.guard(function()
-      if mode == "put" and #skipped > 0 then
+      if mode ~= "readd" and #skipped > 0 then
         result = false
         return util.notify("insertion choice cancelled; source was not changed", "diff", vim.log.levels.WARN)
       end
@@ -245,7 +246,7 @@ local function merge(mode)
       end
       local merged_count, skipped_count = vim.tbl_count(merged_hunks), vim.tbl_count(skipped_hunks)
       if #edits == 0 then
-        if mode == "put" then
+        if mode ~= "readd" then
           return report_error("no byte edits found")
         end
         result = { merged = 0, skipped = skipped_count, reasons = skipped }
@@ -274,9 +275,9 @@ local function merge(mode)
           vim.log.levels.ERROR
         )
       end
-      if mode == "put" then
+      if mode ~= "readd" then
         result = true
-        util.notify("put hunk into source template", "diff")
+        util.notify("merged target hunk into source template", "diff")
       else
         result = { merged = merged_count, skipped = skipped_count, reasons = skipped }
         util.notify(
@@ -316,16 +317,16 @@ local function merge(mode)
   return result
 end
 
----Put the requested hunk; nil means an asynchronous render or choice is pending.
+---Put the current hunk into the peer window; rendering/choices may be asynchronous.
 ---@return boolean?
 function M.put_hunk()
   return merge("put")
 end
 
----Apply one rendered hunk to target; nil means rendering is pending or failed.
+---Get the peer hunk into the current window; rendering/choices may be asynchronous.
 ---@return boolean?
-function M.apply_hunk()
-  return merge("apply")
+function M.get_hunk()
+  return merge("get")
 end
 
 ---Re-add all target hunks in the current template diff.

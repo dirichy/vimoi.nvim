@@ -345,7 +345,7 @@ local function configure_window_keymaps(session)
       session,
       buf,
       keymaps.diff_get,
-      in_source and api.put_hunk or api.apply_hunk,
+      api.get_hunk,
       in_source and "Get chezmoi target hunk into source template" or "Get rendered hunk into chezmoi target"
     )
   end
@@ -354,7 +354,7 @@ local function configure_window_keymaps(session)
       session,
       buf,
       keymaps.diff_put,
-      in_source and api.apply_hunk or api.put_hunk,
+      api.put_hunk,
       in_source and "Put rendered hunk into chezmoi target" or "Put chezmoi target hunk into source template"
     )
   end

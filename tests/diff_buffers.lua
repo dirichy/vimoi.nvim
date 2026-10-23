@@ -70,7 +70,7 @@ assert(vim.wait(5000, function()
 end, 10))
 vim.api.nvim_set_current_win(session.source_win)
 vim.api.nvim_win_set_cursor(session.source_win, { 2, 0 })
-assert(api.apply_hunk())
+assert(api.put_hunk())
 assert(util.buffer_text(target) == "local value = 1\nlocal count = 4\n")
 
 -- Reject invalid identities before retiring a working view.
@@ -127,4 +127,4 @@ assert(util.buffer_text(session.target_buf) == "value=A\n", "preview rendered th
 api.diff_buffers(untyped_source, untyped_target)
 session = ready()
 assert(not session.preview and session.target_buf == untyped_target)
-print("buffer diff: unnamed identities, host type, rendering, re-add, apply, refresh, reuse, and cleanup verified")
+print("buffer diff: unnamed identities, host type, rendering, re-add, put/get, refresh, reuse, and cleanup verified")

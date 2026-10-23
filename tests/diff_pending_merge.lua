@@ -55,14 +55,15 @@ local function assert_no_save(session)
   assert(util.read_file(session.target_path) == changed)
 end
 
--- Put holds focus in a read-only wait window, then resumes at the requested hunk.
+-- A source transfer holds focus in a read-only wait window, then resumes at the requested hunk.
 for _, side in ipairs({ "source", "target" }) do
   local session, request = open()
   local win = session[side .. "_win"]
   vim.api.nvim_set_current_win(win)
   vim.api.nvim_win_set_cursor(win, { 3, 0 })
   local before = synchronous_renders
-  assert(api.put_hunk() == nil and session.pending_merge)
+  local transfer = side == "source" and api.get_hunk or api.put_hunk
+  assert(transfer() == nil and session.pending_merge)
   local waiting_win = vim.api.nvim_get_current_win()
   assert(waiting_win ~= win and vim.api.nvim_win_get_config(waiting_win).relative == "editor")
   assert(not vim.bo[vim.api.nvim_win_get_buf(waiting_win)].modifiable)

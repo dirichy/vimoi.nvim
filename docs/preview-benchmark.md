@@ -95,7 +95,7 @@
 | 功能 | 它的行为 | 我们当前的状态或建议 |
 | --- | --- | --- |
 | 独立 Source/Edit 和 Target 导航 | 不开 diff 即可跳转，显示/打开 target；Edit 参数补全受管理路径 | 已用单一 Toggle 在 source/target 间切换，可接收路径；目前用原生文件参数补全，尚无专用 managed-path 补全 |
-| CLI apply 与保存后可选 apply | 应用当前文件，也可显式应用全部；默认保存后 apply | 显式当前文件 Apply 值得；保存后 apply 另行决定，不等同于 DiffApply，也不同于自动 re-add |
+| CLI apply 与保存后可选 apply | 应用当前文件，也可显式应用全部；默认保存后 apply | 显式当前文件 Apply 值得；保存后 apply 另行决定，不等同于 Diff Put/Get，也不同于自动 re-add |
 | 受管理文件选择与列表 API | source/target 文件对列表，支持多种 picker 和原生回退 | 值得按需要补；先复用 vim.ui.select，不必照搬所有 backend |
 | 非模板 source 的目标文件类型 | `dot_zshrc` 等普通 source 也按 target 识别 | 已加入，复用 CLI 路径缓存与 Neovim 初始化回调 |
 | 共享模板保存后立即刷新预览 | 保存 `.chezmoitemplates/` 中任意文件会重渲染打开的预览 | 已复用失效事件自动延迟刷新打开的 diff/preview，也覆盖已监听的外部变化 |

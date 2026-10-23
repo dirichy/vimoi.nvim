@@ -184,7 +184,7 @@ owner_is_current、compute_item、publish 均由调用方提供）： >lua
 进度浮窗；需要等待结果时，异步进程配合聚焦浮窗暂停调用流程，Neovim 仍正常处理输入。
 在浮窗按 q、Esc、Ctrl-C 或关窗会取消；离开聚焦浮窗也会取消。取消会结束进程（Unix
 下包括同一进程组的子进程），阻止待处理的写回。路径和配置路径查询等快速命令仍直接
-执行。put/apply/re-add 等待渲染复用相同浮窗；取消初次渲染会结束 session，保留 buffer。
+执行。put/get/re-add 等待渲染复用相同浮窗；取消初次渲染会结束 session，保留 buffer。
 
                                                     *vimoi-diagnostics*
 模板诊断默认启用，可通过配置关闭： >lua
@@ -273,13 +273,16 @@ init 模板使用 --init；已有哨兵限制仍适用。
 
                                                             *:VimoiDiffPut*
 :VimoiDiffPut
-    把光标所在 target hunk 写入模板 source。在模板 Diff session 中，这等价于在
-    target 窗口按 `dp`，或者在模板窗口按 `do`。
+    将当前 hunk 送到另一侧，等价于 dp。在 source 执行时将渲染结果写入 target；
+    在 target 执行时将修改写回 source 模板。只修改接收方 buffer。
 
-                                                          *:VimoiDiffApply*
-:VimoiDiffApply
-    把当前 hunk 的渲染结果写入 target buffer，等价于 source 窗口的 dp 或 target 窗口
-    的 do。模板 action 会渲染为结果，不会直接复制源码；只修改当前 hunk，不自动保存。
+                                                          *:VimoiDiffGet*
+:VimoiDiffGet
+    将另一侧的 hunk 取入当前窗口，等价于 do。在 source 执行时将 target 修改写回
+    模板；在 target 执行时取入渲染结果。只修改当前 buffer，不自动保存。
+
+    不兼容变更：移除 VimoiDiffApply 和 apply_hunk()。Put/Get 命令与 Lua API 均按
+    当前窗口决定方向；原先在 source 调用 put_hunk() 写回模板的代码应改为 get_hunk()。
 
                                                             *:VimoiCancel*
 :VimoiCancel
@@ -371,9 +374,8 @@ session 的 `loading` 表示首次渲染状态，
 
 在模板 Diff session 中把光标放到发生变化的 hunk，然后使用：
 
-    target 窗口：    dp
-    模板窗口：       do
-    任一窗口：       :VimoiDiffPut
+    target 窗口：    dp 或 :VimoiDiffPut
+    模板窗口：       do 或 :VimoiDiffGet
 
 插件会把 target hunk 写入 source template，然后刷新剩余 Diff。每个行级 hunk 会拆成
 独立的字节编辑，同一行跨多个静态槽位的修改也能一起应用；整个 hunk 一次提交。
@@ -382,14 +384,14 @@ session 的 `loading` 表示首次渲染状态，
 其他文本仍保持静态。删除或相邻修改拼出的 `{{` 也会转义。静态合并根据已记录的
 执行顺序和 trim 规则直接推算输出及新 source map，不额外渲染。
 
-反方向，在 source 按 dp、target 按 do，或执行 :VimoiDiffApply，会把当前 hunk 的
+反方向，在 source 按 dp 或执行 :VimoiDiffPut，在 target 按 do 或执行 :VimoiDiffGet，会把当前 hunk 的
 渲染结果写入 target，包括动态值和循环展开，不会复制模板源码。其余 target hunk 保留；
 局部写入支持 undo/redo，不自动保存任何文件。`keymaps.diff_get`、`keymaps.diff_put`
 分别配置两侧的 do、dp。上述语义依赖映射或插件命令；原生 :diffget、:diffput 及
 normal! 会绕过它们，仍直接复制模板源码。
 
-put、apply 或 template re-add 需要渲染时（首次渲染或 source map 过期），
-会打开并聚焦等待窗口，异步完成后继续合并。按 q、<Esc>、<C-c>、关闭或离开等待窗口都会取消本次合并。put/apply
+put、get 或 template re-add 需要渲染时（首次渲染或 source map 过期），
+会打开并聚焦等待窗口，异步完成后继续合并。按 q、<Esc>、<C-c>、关闭或离开等待窗口都会取消本次合并。put/get
 保留触发时的光标行；等待或选择位置期间，两侧文本或渲染上下文变化都会取消。
 关闭或替换 session 后，旧的选择回调也不能再写入。渲染进程不会
 阻塞编辑器事件循环；取消后不会因本次合并修改两侧 buffer。
@@ -676,13 +678,15 @@ require("vimoi.api").preview({opts})
 
                                            *vimoi.api.put_hunk()*
 require("vimoi.api").put_hunk()
-    把当前投影 hunk 合并到模板 source。立即成功返回 true，立即取消选择返回 false；
+    将当前 hunk 送到另一侧，等价于 dp：source 送出渲染结果，target 送出修改。
+    立即成功返回 true，立即取消选择返回 false；
     失败或正在等待异步渲染/位置选择时返回 nil。
 
-                                         *vimoi.api.apply_hunk()*
-require("vimoi.api").apply_hunk()
-    在模板 diff session 中把当前 hunk 的渲染结果写入 target。立即成功返回 true，
-    失败或等待渲染时返回 nil。source 不变，target 不自动保存。
+                                         *vimoi.api.get_hunk()*
+require("vimoi.api").get_hunk()
+    将另一侧的 hunk 取入当前窗口，等价于 do：source 取入 target 修改，target 取入
+    渲染结果。立即成功返回 true，立即取消选择返回 false；失败或等待渲染/选择时返回 nil。
+    两个操作都不自动保存文件。
 
                                          *vimoi.api.readd()*
 require("vimoi.api").readd({path})

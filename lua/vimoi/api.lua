@@ -75,16 +75,16 @@ function M.toggle(path)
   return destination
 end
 
----Merge the hunk under the cursor into the source template.
+---Put the current hunk into the other diff window, rendering template output as needed.
 ---@return boolean?
 function M.put_hunk()
   return require("vimoi.gotmpl.merge").put_hunk()
 end
 
----Apply the hunk under the cursor from rendered output to target.
+---Get the other window's hunk into the current diff window, preserving template structure.
 ---@return boolean?
-function M.apply_hunk()
-  return require("vimoi.gotmpl.merge").apply_hunk()
+function M.get_hunk()
+  return require("vimoi.gotmpl.merge").get_hunk()
 end
 
 ---Immediate re-add summary. Internal hunk/trace fields are not part of this contract.
@@ -159,13 +159,13 @@ M.register = require("vimoi.util").once(function()
   vim.api.nvim_create_user_command("VimoiDiffPut", function()
     M.put_hunk()
   end, {
-    desc = "Put the current target hunk into the chezmoi source template",
+    desc = "Put the current hunk into the other chezmoi diff window",
   })
 
-  vim.api.nvim_create_user_command("VimoiDiffApply", function()
-    M.apply_hunk()
+  vim.api.nvim_create_user_command("VimoiDiffGet", function()
+    M.get_hunk()
   end, {
-    desc = "Apply the current rendered hunk to the chezmoi target buffer",
+    desc = "Get the other chezmoi diff window's hunk into the current window",
   })
 
   vim.api.nvim_create_user_command("VimoiReAdd", function(args)

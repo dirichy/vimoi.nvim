@@ -23,9 +23,9 @@
 | 分屏方向 | `split = "vertical"`（默认）或 `"horizontal"`；diff/preview 共用，只影响新建分屏，已有窗口继续复用 |
 | 原生 diff 展示与导航 | 投影 hunks 后复用原生高亮、filler、`[c` / `]c` 和 `foldmethod=diff` |
 | 光标、滚动与折叠同步 | 通过 source map 对齐两个窗口；session 期间协调 Snacks smooth scroll，关闭最后一个共享视图后恢复设置 |
-| 静态修改写回模板 | target 的 dp / source 的 do、`:VimoiDiffPut`；支持行内多个槽位、增删改和字面 `{{` 转义 |
+| 静态修改写回模板 | target 的 dp / `:VimoiDiffPut`，source 的 do / `:VimoiDiffGet`；支持行内多个槽位、增删改和字面 `{{` 转义 |
 | 批量 re-add | `:VimoiReAdd [path]` / `readd(path)`；普通文本文件复制 target buffer 到 source，模板仅写回可推算的静态修改；接收任一侧路径，默认当前 buffer，需要时打开 diff，不自动保存 |
-| 渲染结果写入 target hunk | source 的 dp / target 的 do、`:VimoiDiffApply`；复制渲染结果，支持动态输出和循环，不复制模板源码 |
+| 渲染结果写入 target hunk | source 的 dp / `:VimoiDiffPut`，target 的 do / `:VimoiDiffGet`；复制渲染结果，支持动态输出和循环，不复制模板源码 |
 | 控制边界插入选择 | 对空控制块及相邻静态槽位枚举位置，通过 `vim.ui.select` 选择；不是通用动态模板反向合并 |
 | 局部写入 | 只写变化字节，多处修改可一次 undo/redo；不强制重新收起全部折叠 |
 | 只读预览 | `:VimoiPreview [source]`；使用未保存的 source，结果临时且只读，不写真实 target；失败时保留旧结果并标明过期 |
@@ -86,7 +86,7 @@
 ## 待做：用户操作与模板增强
 
 - [x] `:VimoiToggle`：独立切换 source/target，不必同时进入 diff。
-- [ ] `:VimoiApply`：用户显式应用当前 source 文件到真实 target；现有 DiffApply 仅改当前 hunk 的 buffer，不等同于 chezmoi apply。
+- [ ] `:VimoiApply`：用户显式应用当前 source 文件到真实 target；现有 Diff Put/Get 仅改当前 hunk 的 buffer，不等同于 chezmoi apply。
 - [ ] `:VimoiAdd [file]`：加入管理。
 - [x] 模板错误 diagnostics，保留原始 source 的行列映射。
 - [ ] 当前 hunk 两侧临时强调显示。
@@ -121,7 +121,7 @@ target 及取消时的行为，避免隐式保存或覆盖。其余候选及取�
 | 代表功能与参考项目 | 我们当前的缺口 | 建议与取舍 |
 | --- | --- | --- |
 | 目标文件类型识别：alker0、chezmoi-template | 已补模板与非模板 managed source 的 target 名称识别 | 复用 CLI 路径缓存，不另写属性前缀解析。文件类型正确仍不等于解决 LSP 工作区 |
-| 独立 source 编辑与 apply：xvzc、nvim-chezmoi | 独立 Toggle 已完成；DiffApply 仍只改 target buffer 的 hunk，不执行 CLI apply | 显式当前文件 Apply 留作后续；保存后自动 apply 继续保留为待设计项，不照搬其他插件的默认开启行为 |
+| 独立 source 编辑与 apply：xvzc、nvim-chezmoi | 独立 Toggle 已完成；Diff Put/Get 仍只改接收方 buffer 的 hunk，不执行 CLI apply | 显式当前文件 Apply 留作后续；保存后自动 apply 继续保留为待设计项，不照搬其他插件的默认开启行为 |
 | 受管理文件选择：xvzc、Telescope / Snacks 扩展 | 当前 picker 只选择写回候选、路径匹配或待取消任务，没有 managed-files 浏览入口 | 有实际需要时加入；由 chezmoi 提供列表，优先 `vim.ui.select`，复用用户已有 UI，不先做多 backend 适配 |
 | 块片段与模板块匹配：chezmoi-template | 已加入 blink snippet 和可选 vim-matchup 查询 | 复用现有 snippet 引擎和匹配插件，不增加必需依赖或自行接管 `%` |
 

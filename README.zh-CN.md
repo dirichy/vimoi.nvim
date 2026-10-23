@@ -98,9 +98,13 @@ target 的模板片段。预览不会修改真实 target；渲染失败时保留
 | source 模板 | 将 target 的当前 hunk 写回模板 | 将当前 hunk 的渲染结果写入 target |
 | target | 取入模板当前 hunk 的渲染结果 | 将当前 hunk 写回模板 |
 
-也可执行 `:VimoiDiffPut` 将当前 target hunk 写入模板，或执行 `:VimoiDiffApply`
-将当前 hunk 的渲染结果写入 target。两侧修改都支持 undo/redo，不自动保存。
+也可执行 `:VimoiDiffPut` 将当前 hunk 送到另一侧，或执行 `:VimoiDiffGet`
+将另一侧的 hunk 取入当前窗口。两侧修改都支持 undo/redo，不自动保存。
 模板动态输出的修改不能反向还原表达式，需要手动编辑 source；静态插入位置有歧义时会提示选择。
+
+不兼容变更：移除 `VimoiDiffApply` / `apply_hunk()`。将渲染结果写入 target 时，在
+source 使用 `VimoiDiffPut` / `put_hunk()`，或在 target 使用 `VimoiDiffGet` / `get_hunk()`。
+将 target 修改写回 source 时，在 target 使用 Put，或在 source 使用 Get。
 
 这些模板操作依赖插件映射或命令。直接使用原生 `:diffget` / `:diffput` 或 `normal!`
 会复制模板源码。普通文件使用原生双文件 diff，`do` / `dp` 保持原生含义。
@@ -123,7 +127,7 @@ target 的模板片段。预览不会修改真实 target；渲染失败时保留
 加密文件、symlink 和脚本 source 暂不支持普通文本 ReAdd。
 
 检查结果后，在 source 窗口用 `:write` 保存。ReAdd 不执行 chezmoi CLI 的 re-add，
-不更新文件属性，也不自动保存或 apply。`VimoiDiffApply` 同样只修改当前 target hunk，
+不更新文件属性，也不自动保存或 apply。Diff Put/Get 同样只修改 buffer 中的 hunk，
 不等同于 chezmoi apply。
 
 ### 比较两个没有文件路径的 buffer

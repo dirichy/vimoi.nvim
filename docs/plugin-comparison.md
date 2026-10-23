@@ -34,7 +34,7 @@ Snacks 版本是沿 Telescope 版本的 README 链接补充检查的。精确提
 | 功能 | vimoi.nvim | chezmoi-template.nvim | xvzc/chezmoi.nvim | nvim-chezmoi |
 | --- | --- | --- | --- | --- |
 | 打开对应 source | 通过 diff/re-add，尚无独立入口 | 有 | 有 | 有 |
-| CLI apply | 尚无；DiffApply 仅改 target buffer 的 hunk | 有，默认保存后 apply | 有，可选保存后 apply | 有，可选自动/确认/不 apply |
+| CLI apply | 尚无；Diff Put/Get 仅改接收方 buffer 的 hunk | 有，默认保存后 apply | 有，可选保存后 apply | 有，可选自动/确认/不 apply |
 | 受管理文件选择 | — | 多种 picker 和原生回退 | Telescope / Snacks / mini.pick / fzf-lua | Telescope |
 | 未保存模板预览 | 实时、只读 | 实时、只读 | — | 手动执行一次、只读 |
 | 模板感知的原生 diff、do/dp | 有 | 预览用 extmark 显示差异 | — | — |
@@ -127,7 +127,7 @@ debounce，先处理 Tree-sitter 语法错误，再执行骨架并映射位置�
    普通的 `dot_zshrc` 也没有统一的 managed-source 类型接管。diff 中可以从 target 补回一部分，
    直接打开 source 或 preview 却不一定有这一条件。应复用现有路径缓存，避免另起一套命名规则。
 2. **补独立 Source/Edit，再补显式 Apply。** 这是其他通用插件已经覆盖、我们日常操作仍缺的入口。
-   Apply 必须与 DiffApply 区分，先决定未保存 source/target、覆盖和取消的语义。
+   Apply 必须与 Diff Put/Get 区分，先决定未保存 source/target、覆盖和取消的语义。
 3. **有需要再加受管理文件选择。** 优先一个原生入口并复用 `vim.ui.select`，不必先做多 picker 适配框架。
    列表应该让 chezmoi 解释管理规则，避免手写 `dot_` 替换。
 4. **较小的编辑增强可以随后选。** 块片段、模板块跳转、图标都可以按使用需要加入；不要因为别人有
