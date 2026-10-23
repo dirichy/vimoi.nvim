@@ -124,6 +124,10 @@ trim、增删嵌套块、裸括号节点拆分/合并、临时语法错误、连
 
 ## 纯空白 define/block
 
+以下是历史实现的限制。当前 source map 已将整个 define/block 作为不透明标签，正文
+原样保留在骨架中，不再插入哨兵，因此保留空定义语义。正文修改会改变骨架并重新渲染，
+其输出整体映射到 template 调用处或 block 块，不再提供正文内部的静态反向写回。
+
 不是普通空白或 trim 不能处理，而是 Go 在定义模板时会区分“只有空白/注释的空定义”和“非空定义”。[Go 文档](https://pkg.go.dev/text/template#Template.Parse)说明空定义不会替换已有定义。
 
 ```gotmpl

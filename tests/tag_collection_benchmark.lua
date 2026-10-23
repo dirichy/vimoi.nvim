@@ -41,19 +41,28 @@ local function collect_tags(node, result, range_start_byte, range_end_byte, sour
     -- then filter by the byte interval. Columns matter for long inline files.
     query_options = { start_col = math.max(0, start_col - 3), end_col = end_col + 1 }
   end
-  local captures = 0
+  local captures, seen = 0, {}
   for _, delimiter_node in delimiter_query:iter_captures(node, source, start_row, end_row, query_options) do
     captures = captures + 1
-    local _, _, start_byte, _, _, opening_end_byte = delimiter_node:range(true)
-    if not range_start_byte or overlaps(start_byte, opening_end_byte, range_start_byte, range_end_byte) then
-      local closing = delimiter_node:next_sibling()
-      while delimiter_is_opening[closing:type()] ~= false do
-        closing = closing:next_sibling()
+    local opaque, ancestor = nil, delimiter_node:parent()
+    while ancestor do
+      if ancestor:type() == "define_action" or ancestor:type() == "block_action" then
+        opaque = ancestor
       end
-      local _, _, end_byte = closing:end_()
+      ancestor = ancestor:parent()
+    end
+    local opening = opaque and opaque:child(0) or delimiter_node
+    local _, _, start_byte = opening:start()
+    local closing = opaque and opaque:child(opaque:child_count() - 1) or delimiter_node:next_sibling()
+    while delimiter_is_opening[closing:type()] ~= false do
+      closing = closing:next_sibling()
+    end
+    local _, _, end_byte = closing:end_()
+    if not seen[start_byte] and (not range_start_byte or overlaps(start_byte, end_byte, range_start_byte, range_end_byte)) then
+      seen[start_byte] = true
       result[#result + 1] = {
         start_byte = start_byte, end_byte = end_byte,
-        left_trim = delimiter_node:type() == "{{-", right_trim = closing:type() == "-}}",
+        left_trim = opening:type() == "{{-", right_trim = closing:type() == "-}}",
       }
     end
   end

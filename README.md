@@ -413,8 +413,10 @@ Restart Neovim after changing the source root directory.
 
 - Changes to dynamic or repeated template output usually require manual source edits;
   general reverse merging is not supported.
-- Custom template delimiters and empty define/block overrides that depend solely on
-  whitespace/comments are not supported.
+- `define` and `block` bodies are opaque to source mapping. Each `template` call
+  maps its whole output to the call site; a `block` maps its initial output to the
+  whole block. Edit their bodies manually, including static text.
+- Custom template delimiters are not supported.
 - Templates whose output depends on `.chezmoi.sourceFile`, `.chezmoi.targetFile`,
   `.chezmoi.command`, or `.chezmoi.args` are not supported, including includeTemplate
   calls that read those fields indirectly.

@@ -67,8 +67,8 @@ local function overlaps(start_byte, end_byte, other_start_byte, other_end_byte)
   return start_byte < other_end_byte and end_byte > other_start_byte
 end
 
--- Tags are sibling delimiter pairs, not whole control-action nodes (which include their bodies).
--- Skip expression children once a pair is found; braces inside strings/comments are never inspected.
+-- Definitions and blocks stay opaque so their output belongs to the call site.
+-- Other control nodes are split into sibling delimiter pairs, preserving body slots.
 -- Partial scans start at complete cached tags or new syntax ranges reported by the parser.
 ---@param node TSNode
 ---@param result VimoiTemplateTagRange[] Append complete tags in source order.
@@ -76,6 +76,17 @@ end
 ---@param range_end_byte? integer
 ---@return integer visited_nodes
 local function collect_tags(node, result, range_start_byte, range_end_byte)
+  if node:type() == "define_action" or node:type() == "block_action" then
+    local _, _, start_byte = node:start()
+    local _, _, end_byte = node:end_()
+    result[#result + 1] = {
+      start_byte = start_byte,
+      end_byte = end_byte,
+      left_trim = node:child(0):type() == "{{-",
+      right_trim = node:child(node:child_count() - 1):type() == "-}}",
+    }
+    return 1
+  end
   if node:type() == "text" then
     return 1
   end

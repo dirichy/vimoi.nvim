@@ -14,6 +14,8 @@ vim.fn.writefile({ "external={{ .enabled }}" }, source_root .. "/.chezmoitemplat
 local cli = require("vimoi.cli")
 cli.setup("chezmoi", config)
 local source_map = require("vimoi.gotmpl.source_map")
+local diff_hunks = require("vimoi.gotmpl.diff_hunks")
+local merge_plan = require("vimoi.gotmpl.merge_plan")
 local util = require("vimoi.util")
 local execute = cli.execute_template
 local run = cli.run
@@ -73,6 +75,38 @@ for _, case in ipairs(dofile("tests/fixtures/sentinel_cases.lua")) do
       reused = reused + 1
     end
   end
+end
+
+-- Calls own the whole output of opaque definitions/blocks. No body slot may
+-- appear as repeated static text or become a candidate for source writeback.
+for _, keyword in ipairs({ "define", "block" }) do
+  local argument = keyword == "block" and ' "initial"' or ""
+  local definition = "{{ " .. keyword .. ' "item"' .. argument .. " }}static={{ . }};{{ end }}"
+  local first_call, second_call = '{{ template "item" "first" }}', '{{ template "item" "second" }}'
+  local source = definition .. "\nbefore\n" .. first_call .. "\nmiddle\n" .. second_call .. "\nafter\n"
+  local trace = check(source)
+  assert(#trace.template_tags == 3 and trace.template_tags[1].text == definition)
+  for _, part in ipairs(trace.literal_parts) do
+    assert(#part.output_ranges == 1, "opaque bodies must not export repeated slots")
+  end
+  local output_by_tag = {}
+  for _, region in ipairs(source_map.rendered_regions(trace)) do
+    if region.kind == "dynamic" and region.output_range.start_byte < region.output_range.end_byte then
+      local tag = source:sub(region.source.start_byte + 1, region.source.end_byte)
+      output_by_tag[tag] = trace.output:sub(region.output_range.start_byte + 1, region.output_range.end_byte)
+    end
+  end
+  assert(output_by_tag[first_call] == "static=first;")
+  assert(output_by_tag[second_call] == "static=second;")
+  assert(output_by_tag[definition] == (keyword == "block" and "static=initial;" or nil))
+  local modified = trace.output:gsub("static=first;", "edited=first;")
+  local plan = merge_plan.plan(trace, modified, diff_hunks.compute(modified, trace))
+  assert(#plan.edits == 0 and #plan.choices == 0 and #plan.skipped > 0, "call output must require manual body edits")
+  local edited = source:gsub("static=", "changed=")
+  assert(source_map.rebuild(trace, edited) == nil, "body edits must invalidate the skeleton")
+  local before = executions
+  check(edited)
+  assert(executions == before + 1, "body edits must render the changed definition")
 end
 
 -- Parser-specific text-node splits must not affect a literal slot's mapping.

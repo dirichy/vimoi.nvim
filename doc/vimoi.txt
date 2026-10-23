@@ -277,7 +277,7 @@ unload, filetype changes or disabling diagnostics. Init templates use --init.
 These checks execute user template functions and can invoke password helpers.
 They use the same cancellable background job UI and have no default timeout.
 Cancelling a check produces no diagnostic; editing or invalidation can retry it.
-Existing sentinel limitations, including empty define/block semantics, also apply.
+Existing sentinel limitations also apply.
 The runtime enabled switch clears this namespace and releases pending checks;
 re-enabling attaches templates that are already open. Customize presentation
 with vim.diagnostic.config, using vim.api.nvim_get_namespaces()["vimoi-diagnostics"]
@@ -724,9 +724,13 @@ does not register commands or load the diff and path-navigation implementations.
 source-to-output mappings, including incremental syntax and render reuse.
 It also projects literal occurrences and intervening dynamic output into rendered regions.
 Its syntax cache stores complete tag ranges, located through sibling delimiter
-tokens; control-action nodes also contain their bodies and cannot serve as tags.
+tokens. Entire define/block nodes are opaque tags; other control-action nodes
+are split into individual tags so their bodies retain literal mappings.
 Literal text, including empty insertion slots, is derived from adjacent tags
 after applying whitespace trim.
+Opaque bodies remain unchanged in the skeleton, preserving empty-definition
+semantics. Their edits change the skeleton and require rendering again. Only
+the opening tag's left trim and closing end tag's right trim affect outer slots.
 
 Within `vimoi.gotmpl`, `native_diff` adapts mapped hunks to Neovim's diffexpr
 and manages native diff windows and synchronized folds. `buffer_edits` applies
@@ -879,9 +883,6 @@ LIMITATIONS                                                *vimoi-limitations*
 The sentinel renderer does not currently support:
 
 - Custom Go-template delimiters.
-- Empty/whitespace-only define or block override semantics: inserting nonempty
-  sentinels changes Go's empty-definition rules. Ordinary empty if/range and
-  whitespace trim are supported.
 - Templates whose result depends on `.chezmoi.sourceFile`,
   `.chezmoi.targetFile`, `.chezmoi.command`, or `.chezmoi.args`.
 - `includeTemplate` calls whose result indirectly depends on those fields.
@@ -890,6 +891,12 @@ The sentinel renderer does not currently support:
   Inferable but ambiguous static placements use an interactive choice.
 - Guaranteed valid host-language injections for incomplete template
   fragments; see |vimoi-highlighting|.
+
+Entire define/block bodies are opaque to source mapping. Each template call
+maps its whole output to its call site, and a block's initial output maps to
+the whole block. Body text, including static text, requires manual source edits.
+No sentinels are inserted inside these bodies, preserving Go's whitespace/comment-only
+empty-definition semantics.
 
 The sentinel prefix is generated randomly once when the module loads. A complete
 marker is `prefix .. ID .. prefix`. The current implementation conservatively

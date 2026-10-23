@@ -220,7 +220,7 @@ vim.api.nvim_get_namespaces()["vimoi-diagnostics"] 取得 namespace。
 执行错误的一基行号、零基 byte 列号通过 tag 骨架位置映射回 source，支持多行 tag。
 只有行号的未定义函数/变量错误结合模板语法树定位；无法可靠定位时通知，不随意标在
 第一行。编辑、上下文变化、卸载、切换 filetype 或关闭诊断后，旧结果不会覆盖新状态。
-init 模板使用 --init；空 define/block 等已有哨兵限制仍适用。
+init 模板使用 --init；已有哨兵限制仍适用。
 
 诊断会实际执行模板函数，可能调用密码助手；复用可取消后台任务 UI，没有默认超时。
 取消不会产生模板诊断，后续编辑或失效可以重试。运行时禁用会清除本 namespace 并释放
@@ -592,8 +592,11 @@ byte 映射。
 
 `require("vimoi.gotmpl.source_map")` 统一负责模板解析、哨兵渲染及源码与输出的位置映射，
 包括增量语法缓存、渲染结果复用及字面槽位和动态输出的区域映射。
-语法缓存保存由兄弟分隔符节点界定的完整标签范围；控制块节点还包含正文，不能直接
-当作标签。字面文本由相邻标签推导并应用空白 trim，空的插入槽位也会保留。
+语法缓存保存由兄弟分隔符节点界定的完整标签范围；define/block 节点整体作为不透明
+标签，其他控制块仍拆为独立标签，以保留正文的字面映射。字面文本由相邻标签推导并
+应用空白 trim，空的插入槽位也会保留。
+不透明正文原样保留在骨架中，保留空定义语义；修改正文会改变骨架，需要重新渲染。
+外部槽位只受开头标签的左 trim 和结尾 end 标签的右 trim 影响。
 
 `vimoi.gotmpl` 内的 `native_diff` 负责将映射后的差异块接入 Neovim 的 diffexpr
 及原生 diff 窗口和折叠同步。`buffer_edits` 负责局部字节写入、EOF 和 undo，供合并及预览刷新
@@ -721,13 +724,16 @@ require("vimoi.api").cancel_command()
 哨兵渲染目前不支持：
 
 - 自定义 Go template delimiters。
-- 依赖空白/注释组成的空 `define`/`block` 的特殊覆盖语义；哨兵会使其变为非空。
 - 结果依赖 `.chezmoi.sourceFile`、`.chezmoi.targetFile`、`.chezmoi.command` 或
   `.chezmoi.args` 的模板。
 - 结果间接依赖上述字段的 `includeTemplate` 调用。
 - 动态、重复输出修改或无法推算的跨模板边界修改反向写回 source；这些需要手动编辑。
   可推算的静态位置有歧义时，使用交互选择。
 - 保证不完整模板片段的宿主语言 injection 始终合法；参见 |vimoi-highlighting|。
+
+define/block 正文不建立内部映射。每次 template 调用的完整输出对应调用处，block
+自身的输出对应整个块。正文中的静态文本也需要手动编辑 source。正文内部不插入
+哨兵，因此保留 Go 对纯空白/注释组成的空定义的语义。
 
 哨兵前缀在模块加载时随机生成，完整标记为 `prefix .. ID .. prefix`。当前实现保守地
 拒绝任何包含该前缀的源码。静态文本实际上会在渲染前被替换，还原时不再扫描，因此

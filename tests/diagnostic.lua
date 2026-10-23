@@ -81,6 +81,17 @@ assert(diagnostics[1].message:find('function "notAFunction" not defined', 1, tru
 diagnostics = change('{{ printf "ok" }}\n{{ $missing }}\n')
 assert(#diagnostics == 1 and diagnostics[1].lnum == 1, vim.inspect(diagnostics))
 
+-- Opaque bodies still retain exact internal runtime and parse-error locations.
+for _, keyword in ipairs({ "define", "block" }) do
+  local argument = keyword == "block" and " ." or ""
+  local opening = "{{ " .. keyword .. ' "item"' .. argument .. " }}"
+  local ending = '\n{{ end }}\n{{ template "item" . }}\n'
+  diagnostics = change("header\n" .. opening .. "\n键: {{ index (list 1) 5 }}" .. ending)
+  assert(#diagnostics == 1 and diagnostics[1].lnum == 2 and diagnostics[1].col == #"键: {{ ", vim.inspect(diagnostics))
+  diagnostics = change("header\n" .. opening .. "\n{{ notAFunction . }}" .. ending)
+  assert(#diagnostics == 1 and diagnostics[1].lnum == 2 and diagnostics[1].col == 3, vim.inspect(diagnostics))
+end
+
 -- Recovery clears errors. Repeated/trimmed literal changes reuse successes.
 diagnostics = change("{{ range (list 1 2) -}}\n item={{ . }}\n{{- end }}\n")
 assert(#diagnostics == 0)

@@ -375,7 +375,9 @@ require("vimoi.api").invalidate_cache()
 ## 已知限制
 
 - 模板动态或重复输出的修改通常需要手动编辑 source，不做通用反向合并。
-- 不支持自定义模板分隔符，以及依赖纯空白/注释的空 define/block 覆盖语义。
+- `define` 和 `block` 的正文不建立内部映射。每次 `template` 调用的完整输出对应调用处，
+  `block` 自身的输出对应整个块；正文中的静态文本也需要手动编辑。
+- 不支持自定义模板分隔符。
 - 不支持结果依赖 `.chezmoi.sourceFile`、`.chezmoi.targetFile`、`.chezmoi.command`、
   `.chezmoi.args` 的模板，也包括间接读取这些字段的 includeTemplate。
 - `diff.validate = true` 可额外检查模板渲染与 chezmoi cat 是否一致，不一致时拒绝打开 diff；
