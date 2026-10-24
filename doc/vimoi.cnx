@@ -512,6 +512,9 @@ buffer-local `gf`。相对路径使用与 chezmoi 一致的基准目录：
     .chezmoiremove{,.tmpl} 条目     destination directory
     symlink_* 内容                  生成的 symlink 所在目录
 
+路径同步解析：source root 使用已配置值，destination root 通过无参数的
+`chezmoi target-path` 查询，不读取模板 data。仅多候选 picker 可能延后调用选择回调。
+
 绝对路径、`~` 路径和本地 `file://` URL 也会展开。如果 glob 或 template name 有多个
 匹配，则通过 |vim.ui.select()| 选择。无法识别为 chezmoi 路径或者没有匹配文件时，会
 回退到 Neovim 原生 `gf`。
@@ -565,7 +568,7 @@ action 外提供 if、ifelse、range、with、define、block 和 comment 块 sni
 展开后可编辑占位符。候选使用标准 LSP snippet 格式，交给 blink 配置的 snippet 引擎；
 注释中不提供这些候选。
 
-补全按需异步读取 data，缓存供补全和路径跳转共享，直到被清空。候选说明不会展示 data 值，
+补全按需异步读取并缓存 data，直到被清空。候选说明不会展示 data 值，
 以免敏感配置出现在补全菜单。共享模板目录的发现结果也由补全和跳转共用缓存，文件
 变化或清空缓存时失效。设置 `completion.enabled = false` 可以关闭 source。
 

@@ -1,4 +1,3 @@
-local run_async = dofile("tests/helpers/await.lua")
 local root = vim.fn.getcwd()
 local fixture = root .. "/tests/fixtures/environment"
 local destination = vim.env.VIMOI_TEST_DESTINATION
@@ -24,6 +23,13 @@ assert(vim.wait(2000, function()
 end))
 
 local goto_file = require("vimoi.goto")
+local cli = require("vimoi.cli")
+---@diagnostic disable-next-line: duplicate-set-field -- Navigation must not load template data.
+cli.data = function()
+  error("navigation queried chezmoi data")
+end
+---@diagnostic disable-next-line: duplicate-set-field -- Navigation must not load template data.
+cli.data_async = cli.data
 local buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_win_set_buf(0, buf)
 vim.bo[buf].filetype = "gotmpl"
@@ -32,7 +38,7 @@ vim.treesitter.start(buf, "gotmpl")
 local function resolve(line, needle)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { line })
   local col = assert(line:find(needle, 1, true)) - 1
-  local paths, err = run_async(goto_file.resolve, buf, 0, col)
+  local paths, err = goto_file.resolve(buf, 0, col)
   assert(paths, err or line)
   return paths
 end
@@ -50,7 +56,7 @@ assert(template_action[1] == fixture .. "/source/.chezmoitemplates/snippet", tem
 
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '{{ includeTemplate "snippet" "not-a-path" }}' })
 local data_col = assert(vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]:find("not%-a%-path")) - 1
-assert(run_async(goto_file.resolve, buf, 0, data_col) == nil)
+assert(goto_file.resolve(buf, 0, data_col) == nil)
 
 local globbed = resolve('{{ glob ".plain" }}', ".plain")
 assert(globbed[1] == fixture .. "/source/dot_plain", globbed[1])
@@ -61,7 +67,7 @@ for _, name in ipairs({ ".chezmoiignore", ".chezmoiignore.tmpl", ".chezmoiremove
   vim.api.nvim_buf_set_name(ignore_buf, "/tmp/" .. name)
   vim.api.nvim_buf_set_lines(ignore_buf, 0, -1, false, { ".plain" })
   vim.api.nvim_win_set_cursor(0, { 1, 1 })
-  local ignored = assert(run_async(goto_file.resolve, ignore_buf))
+  local ignored = assert(goto_file.resolve(ignore_buf))
   assert(ignored[1] == fixture .. "/source/dot_plain", ignored[1])
 end
 
@@ -79,12 +85,12 @@ end
 vim.api.nvim_buf_set_name(ignore_buf, "/tmp/ordinary-file")
 vim.api.nvim_buf_set_lines(ignore_buf, 0, -1, false, { "nothing here" })
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
-run_async(goto_file.open)
+goto_file.open()
 vim.notify = original_notify
 assert(notification and notification.level == vim.log.levels.WARN)
 assert(notification.message:find("E447", 1, true), notification.message)
 
-assert(run_async(goto_file.resolve, buf, 0, 0) == nil)
+assert(goto_file.resolve(buf, 0, 0) == nil)
 
 local location_buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_win_set_buf(0, location_buf)

@@ -358,7 +358,7 @@ require("blink.cmp").setup({
 | `symlink_*` 内容 | 生成的 symlink 所在目录 |
 | 绝对路径、`~` 路径和 `file://` URL | 文件系统 |
 
-多个匹配通过 picker 选择；无法解析时回退到原生跳转。对于受管理的 destination 路径，
+路径同步解析，不读取模板 data。多个匹配通过 picker 选择；无法解析时回退到原生跳转。对于受管理的 destination 路径，
 优先打开 source。安装可选的 vim-matchup 并启用其 Tree-sitter 匹配后，可用 `%` 跳转模板控制块。
 
 ## 取消任务和手动刷新

@@ -633,6 +633,10 @@ base directories as chezmoi:
     .chezmoiremove{,.tmpl} entries destination directory
     symlink_* contents              directory containing the target symlink
 
+Path resolution uses the configured source root and `chezmoi target-path`
+without arguments for the destination root; it does not load template data.
+Only a multi-match picker can defer navigation through its selection callback.
+
 Absolute paths, `~` paths, and local `file://` URLs are also expanded. If a
 glob or template name has multiple matches, |vim.ui.select()| chooses the
 destination. When the text is not a recognized chezmoi path, or no matching
@@ -693,8 +697,7 @@ Outside actions, block snippets complete if, ifelse, range, with, define, block,
 and comment into full templates with editable placeholders. Items use standard
 LSP snippet format and blink's configured snippet engine; comments are excluded.
 
-Completion loads data asynchronously on demand; navigation shares the cache
-until invalidation. Values are omitted from item details to avoid exposing secrets in
+Completion loads and caches data asynchronously on demand until invalidation. Values are omitted from item details to avoid exposing secrets in
 the completion menu. Shared-template directory discovery is cached across
 completion and navigation, and cleared by filesystem/cache invalidation.
 Set `completion.enabled` to false to disable this source.

@@ -392,6 +392,7 @@ Use `gf` in templates or symlink sources. `gF` also supports `path:line` / `path
 | `symlink_*` content | Directory containing the generated symlink |
 | Absolute paths, `~` paths, and `file://` URLs | File system |
 
+Path lookup is synchronous and does not load template data.
 Multiple matches open a picker; unresolved paths fall back to native navigation.
 Managed destination paths open their source preferentially. With optional vim-matchup
 and its Tree-sitter matching enabled, `%` jumps between template control blocks.

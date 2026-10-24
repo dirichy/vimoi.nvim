@@ -109,9 +109,7 @@ end
 ---Open the chezmoi-aware path under the cursor.
 ---@param opts? { line?: boolean } Set line to recognize :line[:column].
 function M.goto_file(opts)
-  return require("vimoi.util").async(function()
-    return require("vimoi.goto").open(opts)
-  end)
+  return require("vimoi.goto").open(opts)
 end
 
 ---Cancel the only running command, or pick one when several are running.

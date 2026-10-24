@@ -7,17 +7,6 @@ local function is_absolute(path)
   return path:sub(1, 1) == "/" or path:match("^%a:[/\\]") ~= nil or path:match("^[/\\][/\\]") ~= nil
 end
 
-local function load_path_roots()
-  local data, data_error = cli.data()
-  if not data then
-    return nil, data_error
-  end
-  return {
-    source_dir = util.normalize_path(data.chezmoi.sourceDir),
-    dest_dir = util.normalize_path(data.chezmoi.destDir),
-  }
-end
-
 local function template_string_value(node, buf)
   local text = vim.treesitter.get_node_text(node, buf)
   local quote = text:sub(1, 1)
@@ -167,36 +156,27 @@ function M.resolve(buf, row, col, line_numbers)
   end
   local file_path = vim.api.nvim_buf_get_name(buf)
   local path_kind = filetype.path_kind(file_path)
-  local roots
-  if reference_type or path_kind == "target_patterns" then
-    local roots_error
-    roots, roots_error = load_path_roots()
-    if not roots then
-      return nil, roots_error
-    end
-  end
   if reference_type == "template" or reference_type == "includeTemplate" then
-    local paths = find_template_paths(roots.source_dir, referenced_path)
+    local paths = find_template_paths(cli.source_root, referenced_path)
     return #paths > 0 and paths or nil, nil, location
   elseif reference_type == "include" then
-    local path = resolve_relative_path(roots.source_dir, referenced_path)
+    local path = resolve_relative_path(cli.source_root, referenced_path)
     return vim.uv.fs_stat(path) and { path } or nil, nil, location
-  elseif reference_type == "glob" then
-    local pattern = resolve_relative_path(roots.dest_dir, referenced_path)
-    local paths = vim.fn.glob(pattern, false, true)
-    if #paths == 0 then
-      return nil
-    end
-    local sources, sources_error = prefer_source_paths(paths)
-    return sources, sources_error, location
   end
 
-  local path = path_under_cursor(buf, row, col)
-  if line_numbers then
+  local path = reference_type == "glob" and referenced_path or path_under_cursor(buf, row, col)
+  if line_numbers and reference_type ~= "glob" then
     path, location = split_path_location(path)
   end
-  if path_kind == "target_patterns" then
-    local pattern = resolve_relative_path(roots.dest_dir, path)
+  if reference_type == "glob" or path_kind == "target_patterns" then
+    local destination, err = cli.run({ "target-path" })
+    if not destination then
+      return nil, err
+    end
+    if vim.trim(destination) == "" then
+      return nil, "chezmoi target-path returned an empty path"
+    end
+    local pattern = resolve_relative_path(vim.trim(destination), path)
     local paths = vim.fn.glob(pattern, false, true)
     if #paths == 0 then
       return nil
@@ -234,18 +214,7 @@ end
 ---@param opts? { line?: boolean }
 function M.open(opts)
   opts = opts or {}
-  local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
-  local changedtick = vim.api.nvim_buf_get_changedtick(buf)
-  local function is_valid()
-    return vim.api.nvim_win_is_valid(win)
-      and vim.api.nvim_get_current_win() == win
-      and vim.api.nvim_win_get_buf(win) == buf
-      and vim.api.nvim_buf_get_changedtick(buf) == changedtick
-  end
   local paths, resolve_error, location = M.resolve(nil, nil, nil, opts.line)
-  if not is_valid() then
-    return
-  end
   if not paths then
     if resolve_error then
       util.notify(resolve_error, "gf", vim.log.levels.WARN)
@@ -274,15 +243,19 @@ function M.open(opts)
     open(paths[1])
     return
   end
-  vim.ui.select(
-    paths,
-    { prompt = "Vimoi path:" },
-    util.guard(function(path)
-      if path then
-        open(path)
-      end
-    end, { is_valid = is_valid })
-  )
+  local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
+  local changedtick = vim.api.nvim_buf_get_changedtick(buf)
+  vim.ui.select(paths, { prompt = "Vimoi path:" }, function(path)
+    if
+      path
+      and vim.api.nvim_win_is_valid(win)
+      and vim.api.nvim_get_current_win() == win
+      and vim.api.nvim_win_get_buf(win) == buf
+      and vim.api.nvim_buf_get_changedtick(buf) == changedtick
+    then
+      open(path)
+    end
+  end)
 end
 
 return M
