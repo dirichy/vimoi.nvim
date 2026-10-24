@@ -7,11 +7,14 @@ action 的高亮及背景，不关闭诊断或 source map。
 
 ## 渲染与生命周期
 
-`diagnostic.lua` 按 source/context 管理异步渲染和 300ms debounce，高亮复用同一计算链。
+`gotmpl/session.lua` 按 source/context 管理异步渲染和 120ms debounce，视图、高亮和诊断复用同一计算链。
 诊断发布和渲染高亮分别由开关控制。静态文本修改复用骨架渲染结果，重新恢复当前原文及映射。
 
-成功渲染后，`host_highlight.lua` 保留一个没有 filetype 的隐藏 scratch output buffer，
-不启动 LSP、lint 或屏幕高亮。新旧 output 做 line diff，每个 hunk 再缩小到实际改变的
+每个 source buffer 对应唯一的只读 output buffer，preview 直接展示它，diff 读取它的映射及文本，
+高亮使用它的原生 parser，宿主诊断也在同一个 buffer 上运行 LSP/lint。映射范围、行索引、
+文本长度和版本保存在 output 状态中；高亮不再保留完整 source/output 文本快照。
+单独高亮时不设置
+filetype、不启动 provider；预览和宿主诊断按需设置宿主 filetype。新旧 output 做 line diff，每个 hunk 再缩小到实际改变的
 字节范围，复用 merge 的 `buffer_edits.apply()` 写入。原生 buffer parser 接收编辑事件，
 保留旧语法树并进行增量解析；相同 output 不写 buffer、不重新建树。首次或大范围更新
 仍可能需要较多解析工作；目前 `parse(true)` 是同步调用。
@@ -20,7 +23,8 @@ action 的高亮及背景，不关闭诊断或 source map。
 旧 snapshot 的坐标只在 changedtick 和 context 仍匹配时用于创建新标记，避免把旧坐标
 用到新文本上。等待渲染期间，新滚入且未缓存的区域可能暂时没有宿主颜色；临时模板
 语法/渲染错误保留上一次成功的高亮。成功渲染后才替换颜色。卸载 buffer、切换模式或
-改变宿主语言会清理标记及 output buffer；关闭窗口清理对应视口的标记。
+改变宿主语言会清理标记；关闭窗口只清理对应视口的标记。output 由 source 生命周期统一管理，
+关闭预览或高亮不会删除它，卸载 source 时才清理。
 
 ## 查询与绘制
 

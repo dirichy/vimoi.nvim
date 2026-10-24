@@ -1,703 +1,544 @@
--- Own template-view state, refreshes, and the resources released when a pair closes.
+-- One source session owns rendered state and its attached views.
+-- Windows remain Neovim resources; destroying a view only exits plugin mode.
 local M = {}
+local api = vim.api
+local edits = require("vimoi.gotmpl.buffer_edits")
 local util = require("vimoi.util")
 local cli = require("vimoi.cli")
-local diff_hunks = require("vimoi.gotmpl.diff_hunks")
-local native_diff = require("vimoi.gotmpl.native_diff")
-local buffer_edits = require("vimoi.gotmpl.buffer_edits")
-local source_map = require("vimoi.gotmpl.source_map")
-local sync_scroll = require("vimoi.gotmpl.sync_scroll")
 
----@class VimoiSessionKeymap
----@field buf integer
----@field lhs string
----@field callback function
----@field previous? table Original buffer-local maparg() dictionary, restored via mapset().
+---@class VimoiOutputMap
+---@field tick integer Source buffer version represented by this map.
+---@field context_generation integer Rendering context represented by this map.
+---@field path string Source path represented by this map.
+---@field source_size integer
+---@field output_size integer
+---@field source_eol boolean
+---@field source_starts integer[]
+---@field output_starts integer[]
+---@field template_tags VimoiTemplateTag[]
+---@field literal_parts VimoiLiteralPart[]
+---@field regions VimoiRenderedRegion[]
 
----@class VimoiPendingMerge
----@field complete fun() Resume only while the waiting window is still active.
----@field cancel fun() Release the wait window without writing either buffer.
+---@class VimoiSessionOptions
+---@field once? boolean Unregister after the first result.
+---@field initial? boolean Deliver an already current result; defaults to true.
 
----@class VimoiTemplateSession
----@field source_text string Cached template buffer text.
----@field target_text string Cached target buffer text.
----@field source_tick? integer Buffer version represented by the current mapping.
----@field target_tick? integer Buffer version represented by the current mapping.
----@field cursor_range? { source_line: integer, target_line: integer, trace: VimoiSourceMapTrace, hunks: VimoiDiffHunk[], first: integer, last: integer }
----@field trace? VimoiSourceMapTrace Absent until the initial asynchronous render finishes.
----@field hunks VimoiDiffHunk[] Changes from rendered output to target_text.
----@field projected_hunks? VimoiNativeDiffHunk[] Projected hunks consumed by the global diffexpr.
----@field source_buf integer
----@field target_buf integer
----@field source_win integer
----@field target_win integer
----@field source_path string Opening path snapshot; empty for an unnamed source buffer.
----@field target_path string Opening path snapshot; empty for an unnamed target, or the preview scratch URI.
----@field buffer_pair? boolean Explicit buffer pair with no disk validation.
----@field verify_with_cat boolean Whether the first diff render must match chezmoi cat.
----@field is_init_template boolean
----@field preview boolean True for a read-only rendered-output peer instead of a real target.
----@field preview_error? string The visible output is stale while rendering is invalid.
----@field keymaps VimoiSessionKeymap[] Original buffer mappings replaced for this session.
----@field refresh_later? fun(generation: integer) Debounced refresh owned by util.guard.
----@field refresh_generation? integer Invalidates queued refreshes and stale async renders.
----@field pending_merge? VimoiPendingMerge Explicit merge waiting in a cancellable window.
----@field closed? boolean
----@field syncing? boolean Prevents recursive cursor/scroll events.
----@field loading? boolean Initial rendering is pending.
----@field render_job? VimoiCommand Current render/validation process, cancellable by a blocking transfer.
----@field augroup? integer Per-session autocmd group, removed on close.
+---@class VimoiSourceSession
+---@field buf integer Read-only rendered buffer shared by all consumers.
+---@field views table<VimoiTemplateView, boolean> Attached window views.
+---@field map? VimoiOutputMap Last successful mapping; complete text stays in buffers.
+---@field subscribers table<function, VimoiSessionOptions> Output-change callbacks.
+---@field automatic? fun(cancel_render?: boolean) Combined automatic subscription.
+---@field check? function Shared debounced render computation.
+---@field tick? integer Source version represented by prepared/root.
+---@field root? TSNode Current syntax tree for template diagnostics.
+---@field prepared? VimoiPreparedTrace Temporary input while rendering.
+---@field error_tags? VimoiTemplateTag[] Tag positions in a failed skeleton.
+---@field skeleton? string Current execution cache key, including context prelude.
+---@field prefix? string
+---@field init? boolean
+---@field context_generation? integer Execution cache version, including failures.
+---@field rendered_skeleton? string Cached execution of skeleton.
+---@field reported? boolean Whether the current error was reported.
+---@field error? string Current render failure; map/output retain the last success.
+---@field request? table Identity of the current render request.
+---@field cancelled? boolean Explicit cancellation also blocks a queued render.
+---@field job? VimoiCommand
+---@field source_path? string Source path used for native host root discovery.
 
--- A view belongs to two windows; the same buffers may appear in other views.
----@type table<integer, VimoiTemplateSession>
-M.by_window = {}
+---@type table<integer, VimoiSourceSession>
+local buffers = {}
+local diagnostics_enabled, host_enabled, rendered_enabled
 
----Check that this session still owns its original buffers, windows, and paths.
----Text snapshots and rendering-context versions are checked by each operation.
----@param session VimoiTemplateSession
+---@param source integer
+---@return VimoiSourceSession
+function M.get(source)
+  local state = buffers[source]
+  if state and api.nvim_buf_is_valid(state.buf) and not api.nvim_buf_is_loaded(state.buf) then
+    api.nvim_buf_delete(state.buf, { force = true })
+  end
+  local source_path = api.nvim_buf_get_name(source)
+  if not state or not api.nvim_buf_is_loaded(state.buf) then
+    local buf = api.nvim_create_buf(false, true)
+    vim.bo[buf].bufhidden = "hide"
+    vim.bo[buf].undolevels = -1
+    vim.bo[buf].readonly = true
+    vim.bo[buf].modifiable = false
+    vim.b[buf].vimoi_output_source = source
+    api.nvim_create_autocmd("BufWriteCmd", {
+      buffer = buf,
+      callback = function()
+        util.notify("rendered buffers cannot be saved", "output", vim.log.levels.ERROR)
+      end,
+    })
+    state = state or { subscribers = {}, views = {} }
+    state.buf, state.map, state.source_path = buf, nil, nil
+    buffers[source] = state
+  end
+  if state.source_path ~= source_path then
+    local path = source_path:match("^%a[%w+.-]*://") and "" or source_path
+    local target = path ~= ""
+        and cli.source_root
+        and vim.fs.relpath(cli.source_root, path)
+        and cli.counterpart_path(path)
+      or nil
+    path = target and target ~= "" and target or path:gsub("%.tmpl$", "")
+    local directory = path ~= "" and vim.fs.dirname(path) or vim.fn.getcwd()
+    local basename = path ~= "" and vim.fs.basename(path) or "buffer"
+    api.nvim_buf_set_name(state.buf, directory .. "/.vimoi-" .. source .. "-" .. basename)
+    vim.b[state.buf].vimoi_target_path = target
+    state.source_path = source_path
+  end
+  return state
+end
+
+---@param source integer
+---@param state VimoiSourceSession
 ---@return boolean
-function M.is_valid(session)
-  if session.closed then
-    return false
-  end
-  for _, side in ipairs({ "source", "target" }) do
-    local buf, win = session[side .. "_buf"], session[side .. "_win"]
-    if
-      M.by_window[win] ~= session
-      or not vim.api.nvim_buf_is_valid(buf)
-      or not vim.api.nvim_win_is_valid(win)
-      or vim.api.nvim_win_get_buf(win) ~= buf
-      or vim.api.nvim_buf_get_name(buf) ~= session[side .. "_path"]
-    then
-      return false
-    end
-  end
-  return true
+local function current(source, state)
+  return state.map ~= nil
+    and not state.error
+    and not state.request
+    and state.map.tick == api.nvim_buf_get_changedtick(source)
+    and state.map.source_eol == vim.bo[source].endofline
+    and state.map.path == api.nvim_buf_get_name(source)
+    and state.map.context_generation == cli.context_generation
 end
 
--- Status and cursor-line decorations are ephemeral and scoped to the owning window,
--- so a second view of the same source buffer cannot erase or inherit them.
-local status_namespace = vim.api.nvim_create_namespace("vimoi-view-status")
-vim.api.nvim_set_decoration_provider(status_namespace, {
-  on_win = function(_, win, buf, top, bottom)
-    local session = M.by_window[win]
-    if not session or session.closed then
-      return false
-    end
-    if session.loading and win == session.source_win then
-      vim.api.nvim_buf_set_extmark(buf, status_namespace, 0, 0, {
-        virt_text = { { "  Rendering chezmoi template…", "Comment" } },
-        virt_text_pos = "eol",
-        ephemeral = true,
-      })
-    elseif session.preview_error and win == session.target_win then
-      vim.api.nvim_buf_set_extmark(buf, status_namespace, 0, 0, {
-        virt_lines = { { { "Preview out of date: " .. session.preview_error:gsub("\n", " "), "ErrorMsg" } } },
-        virt_lines_above = true,
-        ephemeral = true,
-      })
-    end
-    local mode = vim.fn.mode(1):sub(1, 1)
-    if
-      win == session.target_win
-      and vim.api.nvim_get_current_win() == session.source_win
-      and session.trace
-      and not session.loading
-      and not session.preview_error
-      and vim.wo[session.source_win].cursorline
-      and vim.wo[session.source_win].cursorlineopt ~= "number"
-      and mode ~= "v"
-      and mode ~= "V"
-      and mode ~= "\22"
-      and session.source_tick == vim.api.nvim_buf_get_changedtick(session.source_buf)
-      and session.target_tick == vim.api.nvim_buf_get_changedtick(session.target_buf)
-    then
-      local line = vim.api.nvim_win_get_cursor(session.source_win)[1]
-      local first, last = sync_scroll.target_range(session, line)
-      if last <= first then
-        return false
+---Whether this exact mapping still represents the current source and output.
+---@param source integer
+---@param map VimoiOutputMap
+---@return boolean
+function M.is_current(source, map)
+  local state = buffers[source]
+  return state ~= nil and state.map == map and current(source, state)
+end
+
+---Materialize text only for a render/merge operation, never retain it in state.
+---@param source integer
+---@return VimoiSourceMapTrace?
+function M.snapshot(source)
+  local state = M.get(source)
+  if not current(source, state) then
+    return
+  end
+  local map = assert(state.map)
+  return {
+    source = util.buffer_text(source),
+    output = util.buffer_text(state.buf),
+    template_tags = map.template_tags,
+    literal_parts = map.literal_parts,
+    skeleton = assert(state.skeleton),
+    prefix = assert(state.prefix),
+    init = state.init == true,
+    context_generation = map.context_generation,
+    rendered_skeleton = assert(state.rendered_skeleton),
+  }
+end
+
+-- Snapshot callbacks so registering/unregistering inside a callback is safe.
+local function publish(state, err)
+  for _, callback in ipairs(vim.tbl_keys(state.subscribers)) do
+    local opts = state.subscribers[callback]
+    if opts then
+      if opts.once then
+        state.subscribers[callback] = nil
       end
-      first = math.max(first, top + 1)
-      last = math.min(last, bottom + 1, vim.api.nvim_buf_line_count(buf))
-      if first <= last then
-        vim.api.nvim_buf_set_extmark(buf, status_namespace, first - 1, 0, {
-          end_row = last,
-          end_col = 0,
-          hl_group = "CursorLine",
-          hl_eol = true,
-          priority = vim.hl.priorities.user,
-          ephemeral = true,
-        })
-      end
-    end
-    return false
-  end,
-})
-
-local function redraw(session)
-  for _, win in ipairs({ session.source_win, session.target_win }) do
-    if vim.api.nvim_win_is_valid(win) then
-      vim.api.nvim__redraw({ win = win, valid = false })
+      callback(not err and state or nil, err or state.error)
     end
   end
 end
 
-local function set_loading(session, loading)
-  session.loading = loading
-  redraw(session)
+---@param state VimoiSourceSession
+local function cancel_request(state)
+  state.request = nil
+  if state.job then
+    state.job.cancel()
+    state.job = nil
+  end
 end
 
--- Failed previews retain the last good output until rendering recovers.
-local function set_preview_error(session, message)
-  session.preview_error = message
-  redraw(session)
-end
-
--- Snacks exposes only a buffer-wide switch. Shared buffers keep it disabled
--- until their last view closes, then recover the original value.
----@type table<integer, { users: integer, value: any }>
-local scroll_settings = {}
-
----@class VimoiOpenProfile
----@field mode "preview"|"diff"
----@field open_ui_ms number
----@field path_lookup_ms number
----@field render_ms number Accumulates initial rendering and retries.
----@field validation_ms number
----@field diff_ms? number
----@field preview_write_ms? number
----@field total_ms? number Present after a successful initial render.
-
----@type VimoiOpenProfile?
-M.last_profile = nil
-
--- Update the cached texts, source map, and native diff as one unit.
-local function update_session(session, source, modified, trace)
-  if session.preview then
-    if modified ~= trace.output then
-      local first, last, replacement = util.changed_bytes(modified, trace.output)
-      vim.bo[session.target_buf].readonly = false
-      vim.bo[session.target_buf].modifiable = true
-      local ok, write_error = pcall(buffer_edits.apply, session.target_buf, modified, trace.output, {
-        { start_byte = first, end_byte = last, replacement = replacement },
-      })
-      vim.bo[session.target_buf].modifiable = false
-      vim.bo[session.target_buf].readonly = true
-      vim.bo[session.target_buf].modified = false
-      if not ok then
-        return nil, write_error
-      end
+---@param source integer
+---@param trace VimoiSourceMapTrace Temporary completed render or merge candidate.
+---@return VimoiSourceSession
+function M.update(source, trace)
+  local state = M.get(source)
+  if current(source, state) then
+    return state
+  end
+  cancel_request(state)
+  local before = util.buffer_text(state.buf)
+  if before ~= trace.output then
+    vim.bo[state.buf].readonly, vim.bo[state.buf].modifiable = false, true
+    local ok, err = pcall(edits.apply, state.buf, before, trace.output, edits.diff(before, trace.output))
+    vim.bo[state.buf].modifiable, vim.bo[state.buf].readonly, vim.bo[state.buf].modified = false, true, false
+    if not ok then
+      error(err)
     end
-    session.source_text, session.target_text, session.trace = source, trace.output, trace
-    session.source_tick = vim.api.nvim_buf_get_changedtick(session.source_buf)
-    session.target_tick = vim.api.nvim_buf_get_changedtick(session.target_buf)
-    session.hunks = {} -- Rendered-output coordinates are the base coordinates used by sync_scroll.sync.
-    set_preview_error(session, nil)
-    sync_scroll.sync(session, vim.api.nvim_get_current_win())
-    return true
   end
-  session.source_text = source
-  session.target_text = modified
-  session.trace = trace
-  session.source_tick = vim.api.nvim_buf_get_changedtick(session.source_buf)
-  session.target_tick = vim.api.nvim_buf_get_changedtick(session.target_buf)
-  session.hunks = diff_hunks.compute(modified, trace)
-  local ok, native_error = pcall(native_diff.update, session)
-  if not ok then
-    return nil, native_error
-  end
-  return true
+  state.map = {
+    tick = api.nvim_buf_get_changedtick(source),
+    path = api.nvim_buf_get_name(source),
+    context_generation = trace.context_generation,
+    source_size = #trace.source,
+    output_size = #trace.output,
+    source_eol = trace.source:sub(-1) == "\n",
+    source_starts = util.line_starts(trace.source),
+    output_starts = util.line_starts(trace.output),
+    template_tags = trace.template_tags,
+    literal_parts = trace.literal_parts,
+    regions = require("vimoi.gotmpl.source_map").rendered_regions(trace),
+  }
+  state.skeleton, state.prefix, state.init = trace.skeleton, trace.prefix, trace.init
+  state.context_generation, state.rendered_skeleton = trace.context_generation, trace.rendered_skeleton
+  state.prepared, state.root, state.error_tags, state.error = nil, nil, nil, nil
+  publish(state)
+  return state
 end
 
----Refresh the view from an already rendered source snapshot; never run a process here.
----@param session VimoiTemplateSession
----@param trace VimoiSourceMapTrace
----@return boolean?
----@return string? error
-function M.refresh(session, trace)
-  if not M.is_valid(session) then
-    M.close(session)
-    return nil, "diff/preview session no longer matches its original buffers and windows"
+---Refresh literal-only edits synchronously from the cached skeleton execution.
+---Structural/context changes return nil and use the shared asynchronous request.
+---@param source integer
+---@return VimoiSourceMapTrace?
+function M.rebuild(source)
+  local state = M.get(source)
+  if current(source, state) then
+    return M.snapshot(source)
   end
-  return update_session(session, util.buffer_text(session.source_buf), util.buffer_text(session.target_buf), trace)
+  if
+    state.error
+    or not state.rendered_skeleton
+    or not state.map
+    or state.map.path ~= api.nvim_buf_get_name(source)
+    or state.context_generation ~= cli.context_generation
+  then
+    return
+  end
+  local renderer = require("vimoi.gotmpl.source_map")
+  local prepared = renderer.prepare(util.buffer_text(source), { buf = source, init = state.init })
+  if not prepared or prepared.skeleton ~= state.skeleton then
+    return
+  end
+  local trace = renderer.restore(prepared, state.rendered_skeleton)
+  if trace then
+    M.update(source, trace)
+  end
+  return trace
 end
 
-local function apply_refresh(session, source, modified, trace)
-  local ok, native_error = update_session(session, source, modified, trace)
-  if not ok then
-    if session.preview then
-      set_preview_error(session, tostring(native_error))
+local function cancel(source, state)
+  state.cancelled = true
+  cancel_request(state)
+  state.prepared = nil
+  vim.schedule(function()
+    if buffers[source] == state then
+      publish(state, "command cancelled")
     end
-    util.notify(
-      "cannot update view: " .. tostring(native_error),
-      session.preview and "preview" or "diff",
-      vim.log.levels.ERROR
-    )
+  end)
+end
+
+---@param buf integer
+---@param state VimoiSourceSession
+---@return { tick: integer, eol: boolean, syntax?: boolean, cached?: boolean }?
+local function check(buf, state)
+  if current(buf, state) then
+    return { tick = assert(state.map).tick, eol = state.map.source_eol, cached = true }
+  end
+  local source_map = require("vimoi.gotmpl.source_map")
+  local source = util.buffer_text(buf)
+  local eol = vim.bo[buf].endofline
+  local ok, parser = pcall(vim.treesitter.get_parser, buf, "gotmpl")
+  if not ok or not parser then
+    cancel_request(state)
+    state.root, state.prepared, state.skeleton = nil, nil, nil
+    state.error = "gotmpl parser is required; run :checkhealth vimoi"
+    return { tick = api.nvim_buf_get_changedtick(buf), eol = eol }
+  end
+  local tree = parser:parse()[1]
+  local root = tree and tree:root()
+  if not root then
+    return
+  end
+  if root:has_error() then
+    cancel_request(state)
+    state.root, state.prepared, state.rendered_skeleton, state.skeleton = root, nil, nil, nil
+    return { tick = vim.api.nvim_buf_get_changedtick(buf), eol = eol, syntax = true }
+  end
+  local filetype = require("vimoi.filetype")
+  local init = filetype.init_template_names[vim.fs.basename(vim.api.nvim_buf_get_name(buf))] == true
+  local prepared, prepare_error = source_map.prepare(source, { buf = buf, init = init })
+  if not prepared then
+    cancel_request(state)
+    state.root, state.prepared, state.error, state.skeleton = root, nil, prepare_error, nil
+    return { tick = api.nvim_buf_get_changedtick(buf), eol = eol }
+  end
+  state.prepared, state.root, state.tick = prepared, root, vim.api.nvim_buf_get_changedtick(buf)
+  if
+    state.skeleton ~= prepared.skeleton
+    or state.init ~= prepared.init
+    or state.context_generation ~= cli.context_generation
+  then
+    cancel_request(state)
+    state.rendered_skeleton, state.error, state.reported = nil, nil, nil
+  end
+  state.skeleton, state.prefix, state.init = prepared.skeleton, prepared.prefix, prepared.init
+  state.context_generation = prepared.context_generation
+  if state.rendered_skeleton ~= nil or state.error then
+    return { tick = state.tick, eol = assert(state.prepared).source:sub(-1) == "\n" }
+  end
+  if state.request then
+    return
+  end
+  local request, context_generation = {}, cli.context_generation
+  state.request = request
+  local rendered_skeleton, err = util.await(function(done)
+    state.job = source_map.trace_async(source, { init = init, buf = buf }, function(trace, err)
+      done(trace and trace.rendered_skeleton, err)
+    end)
+  end)
+  -- Always retire this request before the guard decides whether to publish.
+  -- An old completion must never clear a newer request's state.
+  if buffers[buf] ~= state or state.request ~= request then
+    return
+  end
+  local cancelled = state.job and state.job.cancelled
+  state.job, state.request = nil, nil
+  if cancelled then
+    cancel(buf, state)
+    return
+  end
+  if context_generation ~= cli.context_generation then
+    return
+  end
+  state.error, state.rendered_skeleton = err, rendered_skeleton
+  return { tick = state.tick, eol = assert(state.prepared).source:sub(-1) == "\n" }
+end
+
+-- Source edits share one debounce; cached output needs no new notification.
+local function refresh(source)
+  local state = buffers[source]
+  if state and next(state.subscribers) and not current(source, state) then
+    state.cancelled = nil
+    assert(state.check)()
   end
 end
 
----@class VimoiViewRefresh
----@field context_generation integer
----@field source string
----@field modified string
----@field trace? VimoiSourceMapTrace
----@field error? string
-
----@param session VimoiTemplateSession
-function M.schedule_refresh(session)
-  session.refresh_generation = (session.refresh_generation or 0) + 1
-  if session.render_job then
-    session.render_job.cancel()
-    session.render_job = nil
-  end
-  if not session.refresh_later then
-    session.refresh_later = util.guard(function(generation)
-      ---@type VimoiViewRefresh
-      local result = {
-        context_generation = cli.context_generation,
-        source = util.buffer_text(session.source_buf),
-        modified = util.buffer_text(session.target_buf),
-      }
-      result.trace = session.trace and source_map.rebuild(session.trace, result.source, session.source_buf)
-      if not result.trace then
-        result.trace, result.error = util.await(function(done)
-          session.render_job = source_map.trace_async(result.source, {
-            init = session.is_init_template,
-            buf = session.source_buf,
-          }, done)
-        end)
-        if generation == session.refresh_generation then
-          session.render_job = nil
-        end
-      end
-      return result
+---Register output changes; stop(true) also cancels the shared source render.
+---@param source integer
+---@param callback fun(output: VimoiSourceSession?, error: string?)
+---@param opts? VimoiSessionOptions
+---@return fun(cancel_render?: boolean) stop
+function M.register(source, callback, opts)
+  local state = M.get(source)
+  opts = opts or {}
+  state.subscribers[callback] = opts
+  if not state.check then
+    state.check = util.guard(function()
+      return check(source, state)
     end, {
       delay = 120,
       allow_parallel = true,
-      is_valid = function(generation)
-        return generation == session.refresh_generation and M.is_valid(session)
-      end,
-      on_fail = function()
-        if not M.is_valid(session) then
-          M.close(session)
-        end
+      is_valid = function()
+        return buffers[source] == state
+          and not state.cancelled
+          and next(state.subscribers) ~= nil
+          and api.nvim_buf_is_loaded(source)
       end,
       should_retry = function(result)
-        return result.context_generation ~= cli.context_generation
-          or (
-            result.trace ~= nil
-            and (
-              util.buffer_text(session.source_buf) ~= result.source
-              or util.buffer_text(session.target_buf) ~= result.modified
-            )
-          )
+        return result ~= nil
+          and (result.tick ~= api.nvim_buf_get_changedtick(source) or result.eol ~= vim.bo[source].endofline)
       end,
       on_result = function(result)
-        if result.trace then
-          apply_refresh(session, result.source, result.modified, result.trace)
-        else
-          if session.preview then
-            set_preview_error(session, result.error)
-          end
-          util.notify(
-            "cannot refresh template after buffer change: " .. tostring(result.error),
-            session.preview and "preview" or "diff",
-            vim.log.levels.ERROR
-          )
-        end
-      end,
-    })
-  end
-  session.refresh_later(session.refresh_generation)
-end
-
--- Session mappings temporarily shadow buffer-local user mappings; native mapset restores them.
-local function set_session_keymap(session, buf, lhs, callback, desc)
-  local previous = vim.api.nvim_buf_call(buf, function()
-    return vim.fn.maparg(lhs, "n", false, true)
-  end)
-  session.keymaps[#session.keymaps + 1] = {
-    buf = buf,
-    lhs = lhs,
-    callback = callback,
-    previous = previous.buffer == 1 and previous or nil,
-  }
-  vim.keymap.set("n", lhs, callback, { buffer = buf, desc = desc })
-end
-
-local function configure_fold_mappings(session, buf)
-  local mappings = {
-    fold_open = "zo",
-    fold_close = "zc",
-    fold_toggle = "za",
-    fold_open_recursive = "zO",
-    fold_close_recursive = "zC",
-    fold_toggle_recursive = "zA",
-    fold_open_all = "zR",
-    fold_close_all = "zM",
-  }
-  local config = require("vimoi").config.keymaps
-  for name, command in pairs(mappings) do
-    local keymap = config[name]
-    if keymap and keymap ~= "" then
-      local fold_command = command
-      set_session_keymap(session, buf, keymap, function()
-        require("vimoi.api").fold(fold_command)
-      end, "Synchronize chezmoi diff fold " .. fold_command)
-    end
-  end
-end
-
--- Buffer-local maps must follow focus because Neovim has no window-local maps.
--- Leave other views (including previews) and ordinary windows with their own maps.
----@param session VimoiTemplateSession
-local function restore_keymaps(session)
-  for _, mapping in ipairs(session.keymaps) do
-    if vim.api.nvim_buf_is_valid(mapping.buf) then
-      vim.api.nvim_buf_call(mapping.buf, function()
-        local current = vim.fn.maparg(mapping.lhs, "n", false, true)
-        if current.buffer == 1 and current.callback == mapping.callback then
-          vim.keymap.del("n", mapping.lhs, { buffer = mapping.buf })
-          if mapping.previous then
-            vim.fn.mapset("n", false, mapping.previous)
-          end
-        end
-      end)
-    end
-  end
-  session.keymaps = {}
-end
-
----@param session VimoiTemplateSession
-local function configure_window_keymaps(session)
-  restore_keymaps(session)
-  local win = vim.api.nvim_get_current_win()
-  if session.closed or session.preview or M.by_window[win] ~= session then
-    return
-  end
-  local buf = vim.api.nvim_win_get_buf(win)
-  configure_fold_mappings(session, buf)
-  local api = require("vimoi.api")
-  local keymaps = require("vimoi").config.keymaps
-  local in_source = win == session.source_win
-  if keymaps.diff_get and keymaps.diff_get ~= "" then
-    set_session_keymap(
-      session,
-      buf,
-      keymaps.diff_get,
-      api.get_hunk,
-      in_source and "Get chezmoi target hunk into source template" or "Get rendered hunk into chezmoi target"
-    )
-  end
-  if keymaps.diff_put and keymaps.diff_put ~= "" then
-    set_session_keymap(
-      session,
-      buf,
-      keymaps.diff_put,
-      api.put_hunk,
-      in_source and "Put rendered hunk into chezmoi target" or "Put chezmoi target hunk into source template"
-    )
-  end
-end
-
----@param session VimoiTemplateSession
-function M.close(session)
-  if session.closed then
-    return
-  end
-  session.closed = true
-  if session.render_job then
-    session.render_job.cancel()
-  end
-  local pending_merge = session.pending_merge
-  session.pending_merge = nil
-  if pending_merge then
-    pending_merge.cancel()
-  end
-  set_loading(session, false)
-  session.refresh_generation = (session.refresh_generation or 0) + 1
-  for _, win in ipairs({ session.source_win, session.target_win }) do
-    if M.by_window[win] == session then
-      M.by_window[win] = nil
-    end
-  end
-  if session.augroup then
-    pcall(vim.api.nvim_del_augroup_by_id, session.augroup)
-  end
-  restore_keymaps(session)
-  for _, buf in ipairs({ session.source_buf, session.target_buf }) do
-    local setting = scroll_settings[buf]
-    setting.users = setting.users - 1
-    if setting.users == 0 then
-      if vim.api.nvim_buf_is_valid(buf) then
-        if setting.value == vim.NIL then
-          vim.b[buf].snacks_scroll = nil
-        else
-          vim.b[buf].snacks_scroll = setting.value
-        end
-      end
-      scroll_settings[buf] = nil
-    end
-  end
-  for _, win in ipairs({ session.source_win, session.target_win }) do
-    local expected_buf = win == session.source_win and session.source_buf or session.target_buf
-    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == expected_buf and vim.wo[win].diff then
-      vim.api.nvim_win_call(win, function()
-        vim.cmd("diffoff")
-      end)
-    end
-  end
-  native_diff.restore_diffexpr_if_unused(M.by_window)
-end
-
----Register the opened pair and own everything that close must undo.
----@param session VimoiTemplateSession
-function M.attach(session)
-  local source_buf, target_buf = session.source_buf, session.target_buf
-  local source_win, target_win = session.source_win, session.target_win
-  local preview = session.preview
-  -- Reopening either window replaces that pair without retiring other views.
-  for _, win in ipairs({ source_win, target_win }) do
-    if M.by_window[win] then
-      M.close(M.by_window[win])
-    end
-  end
-  -- A split inherits window options, including an older native diff. Do not
-  -- expose ordinary template-vs-target highlights while the new map is pending.
-  for _, win in ipairs({ source_win, target_win }) do
-    if vim.wo[win].diff then
-      vim.api.nvim_win_call(win, function()
-        vim.cmd("diffoff")
-      end)
-    end
-  end
-  M.by_window[source_win] = session
-  M.by_window[target_win] = session
-  set_loading(session, true)
-  for _, buf in ipairs({ source_buf, target_buf }) do
-    local setting = scroll_settings[buf]
-    if not setting then
-      setting = { users = 0, value = vim.b[buf].snacks_scroll }
-      if setting.value == nil then
-        setting.value = vim.NIL
-      end
-      scroll_settings[buf] = setting
-    end
-    setting.users = setting.users + 1
-    vim.b[buf].snacks_scroll = false
-  end
-  local refresh_group = vim.api.nvim_create_augroup("vimoi-view-" .. source_win .. "-" .. target_win, { clear = true })
-  session.augroup = refresh_group
-  vim.api.nvim_create_autocmd("OptionSet", {
-    group = refresh_group,
-    pattern = { "cursorline", "cursorlineopt" },
-    callback = function()
-      redraw(session)
-    end,
-  })
-  vim.api.nvim_create_autocmd("ModeChanged", {
-    group = refresh_group,
-    callback = function()
-      redraw(session)
-    end,
-  })
-  vim.api.nvim_create_autocmd("User", {
-    group = refresh_group,
-    pattern = "VimoiCacheInvalidated",
-    callback = function()
-      -- The initial-render guard already retries context changes. Afterwards,
-      -- refresh through the same debounce/validity checks as source edits.
-      if not session.loading then
-        M.schedule_refresh(session)
-      end
-    end,
-  })
-  for _, buf in ipairs({ source_buf, target_buf }) do
-    vim.api.nvim_create_autocmd("BufWinLeave", {
-      group = refresh_group,
-      buffer = buf,
-      callback = function()
-        local win = vim.api.nvim_get_current_win()
-        if win == source_win or win == target_win then
-          M.close(session)
-        end
-      end,
-    })
-    if not preview or buf == source_buf then
-      vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
-        group = refresh_group,
-        buffer = buf,
-        callback = function()
-          if not session.closed and (session.trace or (preview and not session.loading)) then
-            M.schedule_refresh(session)
-          end
-        end,
-      })
-    end
-    vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
-      group = refresh_group,
-      buffer = buf,
-      callback = function()
-        if session.syncing then
+        if not result then
           return
         end
-        local active_win = vim.api.nvim_get_current_win()
-        vim.schedule(function()
-          sync_scroll.sync(session, active_win)
-        end)
+        if result.syntax then
+          state.error = "template contains Tree-sitter parse errors"
+        elseif result.cached then
+          publish(state)
+        elseif not state.error then
+          local trace, err = require("vimoi.gotmpl.source_map").restore(assert(state.prepared), state.rendered_skeleton)
+          state.error = err
+          if trace then
+            M.update(source, trace)
+          end
+        end
+        if state.error then
+          state.error_tags = state.prepared and state.prepared.template_tags
+          state.prepared = nil
+          publish(state)
+        end
+      end,
+    })
+    api.nvim_buf_attach(source, false, {
+      on_lines = function()
+        refresh(source)
+      end,
+      on_reload = function()
+        refresh(source)
       end,
     })
   end
-  vim.api.nvim_create_autocmd("WinScrolled", {
-    group = refresh_group,
-    callback = function()
-      if session.syncing then
+  if opts.initial ~= false and current(source, state) then
+    vim.schedule(function()
+      if buffers[source] ~= state or not state.subscribers[callback] then
         return
       end
-      local active_win = vim.api.nvim_get_current_win()
-      if active_win == session.source_win or active_win == session.target_win then
-        vim.schedule(function()
-          sync_scroll.sync(session, active_win)
-        end)
+      if current(source, state) then
+        if opts.once then
+          state.subscribers[callback] = nil
+        end
+        callback(state)
+      else
+        refresh(source)
       end
-    end,
-  })
-  vim.api.nvim_create_autocmd("WinClosed", {
-    group = refresh_group,
-    callback = function(args)
-      local closed_win = tonumber(args.match)
-      if closed_win == session.source_win or closed_win == session.target_win then
-        M.close(session)
-      end
-    end,
-  })
-  vim.api.nvim_create_autocmd("WinEnter", {
-    group = refresh_group,
-    callback = function()
-      if M.by_window[vim.api.nvim_get_current_win()] == session then
-        configure_window_keymaps(session)
-        redraw(session)
-      end
-    end,
-  })
-  vim.api.nvim_create_autocmd("WinLeave", {
-    group = refresh_group,
-    callback = function()
-      if M.by_window[vim.api.nvim_get_current_win()] == session then
-        restore_keymaps(session)
-        redraw(session)
-      end
-    end,
-  })
-  configure_window_keymaps(session)
+    end)
+  else
+    refresh(source)
+  end
+  return function(cancel_render)
+    if not state.subscribers[callback] then
+      return
+    end
+    state.subscribers[callback] = nil
+    if cancel_render then
+      cancel(source, state)
+    elseif not next(state.subscribers) then
+      -- A synchronous view replacement can register the same source again.
+      vim.schedule(function()
+        if buffers[source] == state and not next(state.subscribers) then
+          cancel_request(state)
+          state.prepared = nil
+        end
+      end)
+    end
+  end
 end
 
----@class VimoiInitialRender
----@field source string
----@field context_generation integer
----@field trace? VimoiSourceMapTrace
----@field error? string
-
----Start the first asynchronous render after the pair is visible; retries keep the same timing profile.
----@param session VimoiTemplateSession
----@param profile VimoiOpenProfile
----@param opened_at integer Opening start time from vim.uv.hrtime().
-function M.start_initial_render(session, profile, opened_at)
-  M.last_profile = nil
-  local source_buf, target_buf = session.source_buf, session.target_buf
-  local preview = session.preview
-  -- Target edits remain valid: read their latest text only when updating the view.
-  ---@param result VimoiInitialRender
-  local function should_retry(result)
-    return util.buffer_text(source_buf) ~= result.source or cli.context_generation ~= result.context_generation
+-- Automatic features share one subscription; explicit views keep their own users.
+local function detach_automatic(source, state)
+  if state.automatic then
+    state.automatic()
+    state.automatic = nil
+    require("vimoi.diagnostic").clear(source, true)
+    if package.loaded["vimoi.host_highlight"] then
+      require("vimoi.host_highlight").clear(source)
+    end
   end
-  util.guard(function()
-    ---@type VimoiInitialRender
-    local result = { source = util.buffer_text(source_buf), context_generation = cli.context_generation }
-    local before_render = vim.uv.hrtime()
-    result.trace, result.error = util.await(function(done)
-      session.render_job = source_map.trace_async(result.source, {
-        init = session.is_init_template,
-        buf = source_buf,
-      }, done)
-    end)
-    session.render_job = nil
-    profile.render_ms = profile.render_ms + (vim.uv.hrtime() - before_render) / 1e6
+end
 
-    -- Do not start an extra process for an obsolete render. The guard retries
-    -- changed source/context, and closes a session whose windows no longer match.
-    if
-      result.trace
-      and session.verify_with_cat
-      and not session.is_init_template
-      and M.is_valid(session)
-      and not should_retry(result)
-    then
-      local before_validation = vim.uv.hrtime()
-      local real_base, base_error = util.await(function(done)
-        session.render_job = cli.run({ "cat", session.target_path }, {
-          text = false,
-          callback = function(output, err)
-            done(output, err)
-          end,
-        })
-      end)
-      session.render_job = nil
-      profile.validation_ms = profile.validation_ms + (vim.uv.hrtime() - before_validation) / 1e6
-      if not real_base then
-        result.trace, result.error = nil, base_error
-      elseif result.trace.output ~= real_base then
-        result.trace = nil
-        result.error = "sentinel rendering differs from `chezmoi cat`; this template uses an unsupported render context"
+local function update_automatic(source)
+  if (diagnostics_enabled or rendered_enabled) and vim.bo[source].filetype == "gotmpl" then
+    local state = M.get(source)
+    if state.automatic then
+      state.automatic()
+    end
+    state.automatic = M.register(source, function(rendered)
+      if not rendered then
+        return
+      end
+      if diagnostics_enabled then
+        require("vimoi.diagnostic").update(source)
+      end
+      if rendered_enabled and not rendered.error and rendered.map then
+        require("vimoi.host_highlight").update(source, rendered.map)
+      end
+    end)
+  elseif buffers[source] then
+    detach_automatic(source, buffers[source])
+  end
+end
+
+---Apply automatic consumers without changing explicit view subscriptions.
+function M.setup()
+  local config = require("vimoi").config
+  local diagnostics = config.diagnostics.enabled
+  local host = diagnostics and config.diagnostics.host
+  local rendered = config.highlight.mode == "rendered"
+  if diagnostics_enabled == diagnostics and host_enabled == host and rendered_enabled == rendered then
+    return
+  end
+  for source in pairs(buffers) do
+    if diagnostics_enabled and not diagnostics then
+      require("vimoi.diagnostic").clear(source, true)
+    elseif host_enabled and not host and package.loaded["vimoi.host_diagnostic"] then
+      require("vimoi.host_diagnostic").clear(source, true)
+    end
+    if rendered_enabled and not rendered and package.loaded["vimoi.host_highlight"] then
+      require("vimoi.host_highlight").clear(source)
+    end
+  end
+  diagnostics_enabled, host_enabled, rendered_enabled = diagnostics, host, rendered
+  if rendered then
+    require("vimoi.host_highlight")
+  end
+  for _, source in ipairs(api.nvim_list_bufs()) do
+    if api.nvim_buf_is_loaded(source) then
+      update_automatic(source)
+    end
+  end
+end
+
+local group = api.nvim_create_augroup("vimoi-rendered-output", { clear = true })
+api.nvim_create_autocmd("FileType", {
+  group = group,
+  callback = function(args)
+    update_automatic(args.buf)
+  end,
+})
+api.nvim_create_autocmd("User", {
+  group = group,
+  pattern = "VimoiHostFiletypeChanged",
+  callback = function(args)
+    if package.loaded["vimoi.host_highlight"] then
+      require("vimoi.host_highlight").clear(args.data.buf)
+    end
+    local state = buffers[args.data.buf]
+    if state and current(args.data.buf, state) then
+      publish(state)
+    else
+      refresh(args.data.buf)
+    end
+  end,
+})
+api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
+  group = group,
+  callback = function(args)
+    refresh(args.buf)
+  end,
+})
+api.nvim_create_autocmd("OptionSet", {
+  group = group,
+  pattern = "endofline",
+  callback = function(args)
+    refresh(args.buf)
+  end,
+})
+api.nvim_create_autocmd("User", {
+  group = group,
+  pattern = "VimoiCacheInvalidated",
+  callback = function()
+    for source in pairs(buffers) do
+      refresh(source)
+    end
+  end,
+})
+api.nvim_create_autocmd("BufUnload", {
+  group = group,
+  callback = function(args)
+    local state = buffers[args.buf]
+    if state then
+      for view in pairs(state.views) do
+        require("vimoi.gotmpl.view").close(view)
+      end
+      detach_automatic(args.buf, state)
+      buffers[args.buf] = nil
+      cancel_request(state)
+      if api.nvim_buf_is_valid(state.buf) then
+        api.nvim_buf_delete(state.buf, { force = true })
       end
     end
-    return result
-  end, {
-    -- Schedule even cache hits so both windows appear before parsing/rendering.
-    delay = 0,
-    is_valid = function()
-      return M.is_valid(session)
-    end,
-    on_fail = function()
-      M.close(session)
-    end,
-    should_retry = should_retry,
-    on_result = function(result)
-      if not result.trace then
-        if preview then
-          set_loading(session, false)
-          set_preview_error(session, result.error)
-        else
-          M.close(session)
-        end
-        util.notify(result.error, preview and "preview" or "diff", vim.log.levels.ERROR)
-        return
-      end
-      local before_view_update = vim.uv.hrtime()
-      local updated, update_error = update_session(session, result.source, util.buffer_text(target_buf), result.trace)
-      profile[preview and "preview_write_ms" or "diff_ms"] = (vim.uv.hrtime() - before_view_update) / 1e6
-      set_loading(session, false)
-      if not updated then
-        M.close(session)
-        util.notify(
-          "cannot initialize view: " .. tostring(update_error),
-          preview and "preview" or "diff",
-          vim.log.levels.ERROR
-        )
-        return
-      end
-      profile.total_ms = (vim.uv.hrtime() - opened_at) / 1e6
-      M.last_profile = profile
-      if not preview and #session.hunks == 0 then
-        util.notify("target matches rendered template", "diff")
-      end
-      local pending_merge = session.pending_merge
-      session.pending_merge = nil
-      if pending_merge then
-        pending_merge.complete()
-      end
-    end,
-  })()
-end
+  end,
+})
 
 return M

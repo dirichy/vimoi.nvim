@@ -6,7 +6,7 @@ require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" }
 local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
 vim.fn.writefile({}, root .. "/host-marker")
-local opened, closed, attached = {}, {}, {}
+local opened, closed, attached, changed = {}, {}, {}, {}
 local dispatch
 vim.lsp.config("vimoi_test_host", {
   filetypes = { "lua" },
@@ -59,6 +59,8 @@ vim.lsp.config("vimoi_test_host", {
             end
             row = row + 1
           end
+        elseif method == "textDocument/didChange" then
+          changed[#changed + 1] = params.textDocument
         elseif method == "textDocument/didClose" then
           closed[#closed + 1] = params.textDocument.uri
         end
@@ -91,7 +93,7 @@ end)
 assert(#opened == 1 and #attached == 1)
 assert(attached[1].client.root_dir == root, "native root discovery did not use the target directory")
 assert(vim.bo[attached[1].buf].filetype == "lua")
-assert(vim.b[attached[1].buf].vimoi_diagnostic_source == buf)
+assert(vim.b[attached[1].buf].vimoi_output_source == buf)
 assert(vim.bo[buf].filetype == "gotmpl" and #vim.api.nvim_list_wins() == 1)
 local diagnostic = vim.diagnostic.get(buf, { namespace = namespace })[1]
 assert(diagnostic.lnum == 4 and diagnostic.col == #'print("中文", ', vim.inspect(diagnostic))
@@ -103,25 +105,37 @@ assert(diagnostic.message == "[host:lua] Unknown symbol")
 local first_uri = opened[1].uri
 util.set_buffer_text(buf, "local n = 1\n")
 vim.api.nvim_exec_autocmds("TextChangedI", { buffer = buf })
-assert(#vim.diagnostic.get(buf, { namespace = namespace }) == 0)
+assert(#vim.diagnostic.get(buf, { namespace = namespace }) == 1, "pending rendering cleared visible diagnostics")
 wait_for(function()
-  return #opened == 2 and #closed >= 1
+  return #changed >= 1
 end)
-assert(opened[2].uri ~= first_uri and closed[1] == first_uri)
+assert(#opened == 1 and #attached == 1 and #closed == 0, "editing replaced the output's LSP attachment")
+assert(changed[#changed].uri == first_uri)
+assert(util.buffer_text(attached[1].buf) == "local n = 1\n")
+-- Like a normal file, subsequent provider results use the current mapping.
 dispatch.notification("textDocument/publishDiagnostics", {
   uri = first_uri,
-  version = 0,
+  version = changed[#changed].version,
   diagnostics = {
-    { range = { start = { line = 0, character = 0 }, ["end"] = { line = 0, character = 1 } }, message = "stale" },
+    { range = { start = { line = 0, character = 0 }, ["end"] = { line = 0, character = 5 } }, message = "current" },
   },
 })
-assert(#vim.diagnostic.get(buf, { namespace = namespace }) == 0, "late LSP results crossed snapshot identities")
+assert(vim.diagnostic.get(buf, { namespace = namespace })[1].message == "[host:lua] current")
+-- A failed render clears projected host errors but keeps the native client
+-- attached to the last output. Disabling host checks must still detach it.
+util.set_buffer_text(buf, "{{ if")
+vim.api.nvim_exec_autocmds("TextChangedI", { buffer = buf })
+wait_for(function()
+  return #vim.diagnostic.get(buf, { namespace = vim.api.nvim_create_namespace("vimoi-diagnostics") }) > 0
+end)
+assert(#vim.lsp.get_clients({ bufnr = attached[1].buf }) == 1)
 require("vimoi").setup({ diagnostics = { host = false } })
-assert(not vim.api.nvim_buf_is_valid(attached[2].buf))
+assert(vim.api.nvim_buf_is_valid(attached[1].buf))
+assert(#vim.lsp.get_clients({ bufnr = attached[1].buf }) == 0)
 vim.lsp.enable("vimoi_test_host", false)
 for _, client in ipairs(vim.lsp.get_clients({ name = "vimoi_test_host" })) do
   client:stop(true)
 end
 print(
-  "native host LSP: automatic FileType activation, root discovery, on_attach, UTF-16 projection, and late-result isolation verified"
+  "native host LSP: automatic FileType activation, root discovery, on_attach, UTF-16 projection, and persistent didChange updates verified"
 )

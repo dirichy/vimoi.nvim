@@ -5,11 +5,15 @@ local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({
+  chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
+  diagnostics = { enabled = false },
+  highlight = { mode = "disabled" },
+})
 
 local diff = require("vimoi.gotmpl")
 local diff_hunks = require("vimoi.gotmpl.diff_hunks")
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local source_map = require("vimoi.gotmpl.source_map")
 local cli = require("vimoi.cli")
 local util = require("vimoi.util")
@@ -57,7 +61,7 @@ local function open(label, validate)
   vim.fn.writefile({ 'value={{ "A" }}' }, source_path)
   vim.fn.writefile({ "value=B" }, target_path)
   local before = #requests
-  diff.open({ source = source_path, target = target_path, validate = validate })
+  diff.open({ source = source_path, target = target_path, validate = validate == true })
   local source_buf, source_win = vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win()
   local target_buf = vim.fn.bufnr(target_path)
   assert(#vim.api.nvim_tabpage_list_wins(0) == 2, "windows must open before the renderer starts")
@@ -144,7 +148,7 @@ deliver(pair.request)
 assert(computed[#computed].modified == "value=latest\n")
 assert(not (view_for_buffer(pair.source_buf) or {}).loading)
 
--- An obsolete render must retry before launching expensive cat validation.
+-- An obsolete render retries before starting cat validation.
 pair = open("edit-before-validation", true)
 util.set_buffer_text(pair.source_buf, 'value={{ "E" }}\n')
 local validations_before = #validations
@@ -165,7 +169,9 @@ deliver(pair.request)
 local validation_job = validation_jobs[#validation_jobs]
 assert(assert(view_for_buffer(pair.source_buf)).render_job == validation_job)
 vim.api.nvim_win_close(pair.source_win, true)
-assert(validation_job.cancelled)
+assert(vim.wait(1000, function()
+  return validation_job.cancelled
+end))
 before = #computed
 validations[#validations]("value=A\n")
 assert(#computed == before and not view_for_buffer(pair.target_buf))
@@ -206,44 +212,76 @@ before = #computed
 deliver(pair.request)
 assert(#computed == before and not (view_for_buffer(pair.target_buf) or {}).loading)
 
--- A pending render belongs to its opening paths as well as its buffer IDs;
--- renaming either side must discard the old result.
+-- Renaming keeps the view; a source rename refreshes the source-owned cache.
 for _, field in ipairs({ "source_buf", "target_buf" }) do
   pair = open("renamed-" .. field)
+  local view = assert(view_for_buffer(pair.source_buf))
   vim.api.nvim_buf_set_name(pair[field], root .. "/renamed-" .. field .. "-new")
-  before = #computed
   deliver(pair.request)
-  assert(#computed == before, "a renamed buffer accepted an old render")
-  assert(not (view_for_buffer(pair.source_buf) or {}).loading)
-  assert(not (view_for_buffer(pair.target_buf) or {}).loading)
-  assert(not vim.wo[pair.source_win].diff and not vim.wo[pair.target_win].diff)
+  assert(vim.wait(1000, function()
+    return not view.loading
+  end))
+  assert(not view.loading and sessions.is_valid(view))
+  assert(vim.wo[pair.source_win].diff and vim.wo[pair.target_win].diff)
 end
 
--- A new open sharing buffers supersedes the old pending session.
+-- Replacing a view borrows the same in-flight source render. Its old view
+-- callback cannot rebind the new session or clear its loading state.
 pair = open("reopened")
+local request_count = #requests
 diff.open({ source = pair.source_path, target = pair.target_path })
-assert(vim.wait(1000, function()
-  return requests[#requests] ~= pair.request
-end))
-local current_request = requests[#requests]
-before = #computed
 deliver(pair.request)
-assert(#computed == before and (view_for_buffer(pair.source_buf) or {}).loading)
-deliver(current_request)
-assert(not (view_for_buffer(pair.source_buf) or {}).loading)
+assert(vim.wait(1000, function()
+  return not (view_for_buffer(pair.source_buf) or {}).loading
+end))
+assert(#requests == request_count, "reopening duplicated the shared render")
 
--- Reopening from an already active target diff must not leave an inherited
--- ordinary diff on the newly split source window while its map is pending.
+-- A cached reopen from target still suppresses inherited native diff until
+-- the asynchronous initialization callback adopts the existing source map.
 vim.api.nvim_set_current_win(vim.fn.bufwinid(pair.target_buf))
 diff.open({ source = pair.source_path, target = pair.target_path })
 local reopened_source_win = vim.api.nvim_get_current_win()
-assert(not vim.wo[reopened_source_win].diff)
-assert((view_for_buffer(pair.source_buf) or {}).loading)
+assert(not vim.wo[reopened_source_win].diff and (view_for_buffer(pair.source_buf) or {}).loading)
 assert(vim.wait(1000, function()
-  return requests[#requests] ~= current_request
+  return not (view_for_buffer(pair.source_buf) or {}).loading
 end))
-deliver(requests[#requests])
-assert(vim.wo[reopened_source_win].diff)
+assert(vim.wo[reopened_source_win].diff and #requests == request_count)
+
+-- Merge owns its wait while the view only reports readiness/closure.
+for _, outcome in ipairs({ "success", "cancel", "close", "failure" }) do
+  pair = open("merge-during-validation-" .. outcome, true)
+  deliver(pair.request)
+  local view = assert(view_for_buffer(pair.source_buf))
+  local validation = validation_jobs[#validation_jobs]
+  local waiting = dofile("tests/helpers/waiting.lua")
+  assert(require("vimoi.api").put_hunk() == nil and waiting())
+  assert(util.buffer_text(pair.target_buf) == "value=B\n", "merge skipped initial cat validation")
+  if outcome == "cancel" then
+    vim.fn.maparg("q", "n", false, true).callback()
+  elseif outcome == "close" then
+    sessions.close(view)
+    assert(vim.wait(1000, function()
+      return validation.cancelled
+    end))
+  end
+  if outcome == "failure" then
+    validations[#validations](nil, "validation failed while merging")
+  else
+    validations[#validations]("value=A\n")
+  end
+  assert(vim.wait(1000, function()
+    return not waiting()
+  end))
+  assert(util.buffer_text(pair.target_buf) == (outcome == "success" and "value=A\n" or "value=B\n"))
+  if outcome == "cancel" or outcome == "close" then
+    assert(
+      vim.wait(1000, function()
+        return validation.cancelled
+      end),
+      "abandoned merge retained its validation process"
+    )
+  end
+end
 
 -- Strict cat validation is asynchronous too, including edits while it waits.
 pair = open("validation", true)
@@ -272,10 +310,16 @@ assert(messages[#messages].message:find("test rendering failure", 1, true))
 pair = open("validation-error", true)
 deliver(pair.request)
 validations[#validations](nil, "test validation failure")
+assert(vim.wait(1000, function()
+  return not (view_for_buffer(pair.source_buf) or {}).loading
+end))
 assert(not (view_for_buffer(pair.source_buf) or {}).loading and not vim.wo[pair.source_win].diff)
 pair = open("validation-mismatch", true)
 deliver(pair.request)
 validations[#validations]("different output")
+assert(vim.wait(1000, function()
+  return not (view_for_buffer(pair.source_buf) or {}).loading
+end))
 assert(not (view_for_buffer(pair.source_buf) or {}).loading and not vim.wo[pair.target_win].diff)
 
 source_map.trace, source_map.trace_async, cli.run, diff_hunks.compute, vim.notify =

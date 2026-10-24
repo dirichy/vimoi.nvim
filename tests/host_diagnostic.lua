@@ -83,6 +83,13 @@ assert(#found == 1 and found[1].lnum == 4 and found[1].col == 6, vim.inspect(fou
 assert(found[1].end_col == 16 and found[1].severity == vim.diagnostic.severity.WARN)
 assert(found[1].source == "test-linter" and found[1].code == "test-code")
 assert(found[1].message == "[host:lua] Unknown symbol")
+-- Source metadata alone does not make an unrelated buffer the owned output.
+local unrelated = vim.api.nvim_create_buf(false, true)
+vim.b[unrelated].vimoi_output_source = buf
+report({ buf = unrelated }, { { lnum = 0, col = 0, message = "unrelated" } })
+assert(vim.deep_equal(diagnostics(), found), "diagnostics from a different output crossed source metadata")
+vim.api.nvim_buf_delete(unrelated, { force = true })
+
 assert(vim.diagnostic.get(request.buf, { namespace = provider_namespace })[1].message == "Unknown symbol")
 
 -- Dynamic diagnostics anchor to the producing template expression.
@@ -93,14 +100,19 @@ assert(found[1].end_col == #'local 键 = {{ "1" }}')
 assert(found[1].message:find("template-generated output", 1, true))
 assert(found[1].message == "[host:lua] dynamic (template-generated output)")
 
--- Editing invalidates provider snapshots immediately, before the debounce.
+-- Pending rendering keeps displayed diagnostics and the old lint job. Late
+-- results cannot be projected through the old source mapping.
 change("-- header\n" .. source)
-assert(#diagnostics() == 0 and request.cancelled and not vim.api.nvim_buf_is_valid(request.buf))
+assert(#diagnostics() == 1 and not request.cancelled and vim.api.nvim_buf_is_valid(request.buf))
+local retained = diagnostics()[1].message
+report(request, { { lnum = 0, col = 0, message = "late pending result" } })
+assert(diagnostics()[1].message == retained, "pending output projected through a stale map")
 wait_for(function()
   return #requests == 2
 end)
 assert(runs == 1, "literal edits must reuse the rendered skeleton")
-assert(requests[2].buf ~= request.buf, "snapshots must not share provider URIs")
+assert(request.cancelled, "the replacement check retained the old lint job")
+assert(requests[2].buf == request.buf, "host checks replaced the shared output")
 report(requests[2], { { lnum = 3, col = 6, end_col = 16, message = "shifted" } })
 assert(diagnostics()[1].lnum == 5)
 
@@ -152,7 +164,7 @@ end)
 assert(vim.fs.dirname(vim.api.nvim_buf_get_name(requests[7].buf)) == vim.fn.getcwd())
 vim.bo[buf].filetype = "text"
 assert(requests[7].cancelled)
-assert(not vim.api.nvim_buf_is_valid(requests[7].buf))
+assert(vim.api.nvim_buf_is_valid(requests[7].buf))
 assert(#diagnostics() == 0)
 cli.run = original_run
 print(

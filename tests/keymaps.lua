@@ -34,7 +34,7 @@ vim.fn.writefile({ "old" }, source)
 vim.fn.writefile({ "new" }, target)
 require("vimoi.api").diff_files(source, target)
 dofile("tests/helpers/diff.lua")()
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local session = assert(view_for_buffer(vim.fn.bufnr(source)))
 for _, win in ipairs({ session.source_win, session.target_win }) do
   vim.api.nvim_set_current_win(win)

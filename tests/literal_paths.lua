@@ -7,7 +7,7 @@ local api = require("vimoi.api")
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh", diagnostics = { enabled = false } })
 local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 for _, name in ipairs({ "file[1]", "file?", "file$VIMOI_TEST_DESTINATION", "file | spaced", "file[" }) do
   vim.cmd("tabnew")
   local source, target = root .. "/" .. name .. ".lua.tmpl", root .. "/" .. name .. ".lua"
@@ -27,7 +27,7 @@ for _, name in ipairs({ "file[1]", "file?", "file$VIMOI_TEST_DESTINATION", "file
   assert(sessions.is_valid(session), name .. " aliased a different buffer")
   assert(vim.api.nvim_buf_get_name(session.source_buf) == source)
   assert(vim.api.nvim_buf_get_name(session.target_buf) == target)
-  assert(session.trace.output == "return 42\n")
+  assert(assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == "return 42\n")
   assert(session.source_buf ~= unrelated_source and session.target_buf ~= unrelated_target)
   assert(vim.api.nvim_buf_get_lines(unrelated_source, 0, -1, false)[1] == "unrelated source edits")
   assert(vim.api.nvim_buf_get_lines(unrelated_target, 0, -1, false)[1] == "unrelated target edits")

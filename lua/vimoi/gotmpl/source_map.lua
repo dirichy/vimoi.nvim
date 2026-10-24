@@ -37,7 +37,7 @@ local cli = require("vimoi.cli")
 ---@field output? string Absent before rendering; present on a reused complete trace.
 ---@field rendered_skeleton? string
 
----Complete source snapshot and rendered mapping; repeated executions share a literal part.
+---Temporary complete render/merge input; repeated executions share a literal part.
 ---@class VimoiSourceMapTrace: VimoiPreparedTrace
 ---@field output string
 ---@field rendered_skeleton string
@@ -49,7 +49,8 @@ local cli = require("vimoi.cli")
 
 ---@class VimoiSyntaxCache
 ---@field parser vim.treesitter.LanguageTree
----@field source? string
+---@field tick? integer
+---@field eol? boolean
 ---@field template_tags? VimoiTemplateTagRange[]
 ---@field dirty_ranges VimoiByteRange[] Current buffer coordinates.
 ---@field pending_edits VimoiSyntaxEdit[] Coordinates at the time of each edit.
@@ -203,12 +204,16 @@ local function parse_tags(source, buf)
   if not root or root:has_error() then
     -- Partial syntax cannot safely delimit tags; recovery must rebuild from a valid tree.
     if syntax_cache then
-      syntax_cache.template_tags, syntax_cache.source = nil, nil
+      syntax_cache.template_tags, syntax_cache.tick = nil, nil
       syntax_cache.dirty_ranges, syntax_cache.pending_edits = {}, {}
     end
     return nil, "template contains Tree-sitter parse errors"
   end
-  if syntax_cache and syntax_cache.source == source then
+  if
+    syntax_cache
+    and syntax_cache.tick == vim.api.nvim_buf_get_changedtick(buf)
+    and syntax_cache.eol == vim.bo[buf].endofline
+  then
     syntax_cache.dirty_ranges, syntax_cache.pending_edits = {}, {}
     return syntax_cache.template_tags, nil, 0
   end
@@ -337,7 +342,8 @@ local function parse_tags(source, buf)
     template_tags = merged_tags
   end
   if syntax_cache then
-    syntax_cache.template_tags, syntax_cache.source = template_tags, source
+    syntax_cache.template_tags, syntax_cache.tick, syntax_cache.eol =
+      template_tags, vim.api.nvim_buf_get_changedtick(buf), vim.bo[buf].endofline
     syntax_cache.dirty_ranges, syntax_cache.pending_edits = {}, {}
   end
   return template_tags, nil, visited_nodes
@@ -396,11 +402,6 @@ end
 
 -- One sentinel prefix per renderer keeps skeleton keys stable across literal edits.
 local sentinel_prefix = ("__VIMOI_%x_%x__"):format(vim.uv.hrtime(), math.random(0, 0x7fffffff))
--- CLI owns rendered skeletons and their context version. Keep only the last
--- fully reconstructed trace here; the syntax cache above remains buffer-local.
----@type VimoiSourceMapTrace?
-local last_trace
-
 -- Only managed files have a target context. Keep raw strings, source-only files,
 -- and init templates in execute-template's native context.
 ---@param buf? integer
@@ -439,7 +440,7 @@ end
 ---@field prefix? string Captured context reused by local inference without a live buffer.
 
 -- Replace each literal slot with its stable ID; unchanged tags/slot count reuse the rendered skeleton.
--- The result has no output until restored, except when the last complete trace is reused directly.
+-- Complete text results are temporary; buffer-owned caches live in gotmpl/session.lua.
 ---@param source string
 ---@param opts? VimoiTraceOptions
 ---@return VimoiPreparedTrace?
@@ -448,15 +449,6 @@ function M.prepare(source, opts)
   opts = opts or {}
   local init = opts.init == true
   local prefix = opts.prefix or context_prefix(opts.buf, init)
-  if
-    last_trace
-    and last_trace.context_generation == cli.context_generation
-    and last_trace.source == source
-    and last_trace.init == init
-    and last_trace.prefix == prefix
-  then
-    return last_trace
-  end
   if
     source:find("chezmoi:template:left-delimiter", 1, true)
     or source:find("chezmoi:template:right-delimiter", 1, true)
@@ -537,11 +529,6 @@ function M.restore(prepared_trace, rendered_skeleton, render_error)
   prepared_trace.output = output
   prepared_trace.rendered_skeleton = rendered_skeleton
   ---@cast prepared_trace VimoiSourceMapTrace
-  -- An in-flight render may finish after invalidation. It may be returned to
-  -- its caller, but must not repopulate the cache with the old context.
-  if prepared_trace.context_generation == cli.context_generation then
-    last_trace = prepared_trace
-  end
   return prepared_trace
 end
 
@@ -566,10 +553,6 @@ function M.rebuild(trace, source, buf)
   if not prepared_trace or prepared_trace.skeleton ~= trace.skeleton then
     return nil
   end
-  if prepared_trace.output ~= nil then
-    ---@cast prepared_trace VimoiSourceMapTrace
-    return prepared_trace
-  end
   return M.restore(prepared_trace, trace.rendered_skeleton)
 end
 
@@ -588,10 +571,6 @@ function M.rebuild_after_edits(trace, source, edits)
   local prepared, prepare_error = M.prepare(source, { init = trace.init, prefix = trace.prefix })
   if not prepared then
     return nil, prepare_error
-  end
-  if prepared.output ~= nil then
-    ---@cast prepared VimoiSourceMapTrace
-    return prepared
   end
   local replacements, tag_index, edit_index, byte_delta = {}, 1, 1, 0
   for literal_id = 1, #trace.literal_parts do
@@ -653,10 +632,6 @@ function M.trace(source, opts)
   if not prepared_trace then
     return nil, prepare_error
   end
-  if prepared_trace.output ~= nil then
-    ---@cast prepared_trace VimoiSourceMapTrace
-    return prepared_trace
-  end
   local rendered_skeleton, render_error = cli.execute_template(prepared_trace.skeleton, {
     init = prepared_trace.init,
     timeout = opts.timeout,
@@ -675,15 +650,15 @@ end
 function M.trace_async(source, opts, callback)
   opts = opts or {}
   local prepared_trace, prepare_error = M.prepare(source, opts)
-  if not prepared_trace or prepared_trace.output ~= nil then
-    -- Cache hits have the same scheduled-callback contract as CLI completions.
+  if not prepared_trace then
     vim.schedule(function()
-      if not prepared_trace then
-        callback(nil, prepare_error)
-      else
-        ---@cast prepared_trace VimoiSourceMapTrace
-        callback(prepared_trace)
-      end
+      callback(nil, prepare_error)
+    end)
+    return
+  end
+  if #prepared_trace.template_tags == 0 then
+    vim.schedule(function()
+      callback(M.restore(prepared_trace, prepared_trace.skeleton:sub(#prepared_trace.prefix + 1)))
     end)
     return
   end

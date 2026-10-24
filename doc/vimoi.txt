@@ -727,10 +727,23 @@ a runtime directive does not enable Neovim's combined-query full scan.
 Top-level setup starts the CLI
 and watches; CLI methods own query caches, including shared-template directory
 discovery.
-`host_diagnostic` owns immutable hidden render buffers, native LSP activation,
-nvim-lint process cancellation and diagnostic-range projection. The template
-diagnostic coordinator retains rendered skeletons; source_map.restore rebuilds
-full output and byte mappings from them without another execution.
+`gotmpl/session.lua` owns the shared output buffer, source-change debounce,
+render jobs, skeleton success/failure cache and stale-result checks. It caches
+mapping ranges, line indexes, byte lengths and source/context versions together;
+views, highlighting and diagnostics borrow that mapping. Full source/output text
+stays in buffers. Diff/merge operations materialize temporary text snapshots.
+Consumers use session.register(source, callback, opts). The same callback registry
+serves live consumers and once=true waits; initial=false skips cached delivery.
+Callbacks receive output/error results. The returned stop() unregisters one
+consumer; stop(true) also cancels that source's running or queued render.
+Automatic diagnostic/highlight subscriptions and their FileType/unload/config
+transitions also belong to the source session; diagnostic.lua only presents and clears results.
+Host diagnostics resolve source identity through the output buffer's metadata.
+The cache key includes changedtick, endofline, source path and context generation;
+source unload releases output, and the last consumer cancels pending work.
+`host_diagnostic` owns native LSP activation, nvim-lint process cancellation and
+diagnostic-range projection on that buffer. source_map.restore rebuilds full
+output and byte mappings from cached skeletons without another execution.
 Ex commands are registered once during setup by the API module; loading it alone
 does not register commands or load the diff and path-navigation implementations.
 
@@ -750,7 +763,7 @@ Within `vimoi.gotmpl`, `native_diff` adapts mapped hunks to Neovim's diffexpr
 and manages native diff windows and synchronized folds. `buffer_edits` applies
 local byte edits, including EOF
 and undo handling, for both merging and preview refreshes. Template escaping
-remains in `merge_plan`; the shared session registry belongs to `gotmpl/session.lua`.
+remains in `merge_plan`; the window registry belongs to `gotmpl/view.lua`.
 
 Coordinates distinguish template source, rendered output, and target text.
 Hunks use `rendered_start_line`/`target_start_line` and their `*_line_count`
@@ -768,20 +781,10 @@ selection, snapshot checks, and explicit source writes for put/template re-add.
 The source map types distinguish prepared structure from a complete trace,
 which always has both output and rendered skeleton.
 
-`init.lua` resolves paths, opens windows, and dispatches user operations.
-`session.lua` owns the single `by_window` registry (indexed by both window IDs),
-refreshes, event listeners,
-temporary mappings, and cleanup. WinEnter/WinLeave install and restore mappings
-for the focused window, including when its buffer appears in another view.
-Loading/error decorations are window-scoped. Its initial rendering handles retries, strict
-validation, and completion. Opening paths are stored on the session so late
-results cannot revive renamed or replaced buffers. `session.is_valid()` checks
-registry ownership and the original buffer/window/path bindings for initial
-rendering, delayed refreshes, and explicit merges. Text/context checks retain
-the retry or cancellation policy of each operation. `vimoi.readd` resolves the
-source/target pair and handles ordinary text files; templates delegate to
-`gotmpl/merge.lua`. Put loads that merge module directly. Opening diff/preview
-does not load merge planning.
+`init.lua` resolves paths and opens windows. `session.lua` owns one rendered state
+per source; `view.lua` holds window bindings, temporary mappings and cleanup.
+A same-buffer rename retains its view. Source unload releases its views and output.
+`vimoi.readd` resolves paths; templates delegate merging to `gotmpl/merge.lua`.
 `cli.counterpart_path()` owns the bidirectional path cache used directly by
 toggle. `cli.resolve_paths()` orders the same paths as source/target for diff and re-add.
 `merge.lua` coordinates put and template re-add: resolve placements, infer, write, and refresh;

@@ -24,7 +24,7 @@ vim.fn.writefile({ "old" }, source)
 vim.fn.writefile({ "new" }, target)
 api.diff_files(source, target)
 dofile("tests/helpers/diff.lua")()
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local session = assert(view_for_buffer(vim.fn.bufnr(source)))
 assert(#session.keymaps == 0, "keymaps=false installed session mappings")
 for _, buf in ipairs({ session.source_buf, session.target_buf }) do

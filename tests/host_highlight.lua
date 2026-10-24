@@ -19,7 +19,7 @@ local buf = api.nvim_create_buf(true, false)
 api.nvim_set_current_buf(buf)
 local util = require("vimoi.util")
 local source_map = require("vimoi.gotmpl.source_map")
-local highlighter = require("vimoi.host_highlight")
+require("vimoi.host_highlight")
 local function trace(text)
   local result, done, err
   source_map.trace_async(text, { buf = buf }, function(value, message)
@@ -82,7 +82,7 @@ vim.treesitter.query.set(
     (#set! @string.special priority 123))
 ]]
 )
-highlighter.update(buf, trace(source))
+require("vimoi.host_highlight").update(buf, assert(require("vimoi.gotmpl.session").get(buf).map))
 marks = draw()
 assert(#marks == 1 and marks[1].opts.hl_group == "@string.special.lua", vim.inspect(marks))
 assert(marks[1].opts.priority == 123)
@@ -95,7 +95,7 @@ for _, case in ipairs({
 }) do
   util.set_buffer_text(buf, case[2])
   require("vimoi.highlight").configure_template_buffer(buf, case[1])
-  highlighter.update(buf, trace(case[2]))
+  require("vimoi.gotmpl.session").update(buf, trace(case[2]))
   local keys = {}
   for _, mark in ipairs(draw()) do
     if mark.row == 0 and mark.col == case[3] and mark.opts.end_col == case[4] then
@@ -110,7 +110,7 @@ require("vimoi.highlight").configure_template_buffer(buf, "lua")
 -- once. Template actions keep their gotmpl highlighting.
 source = '{{ if false }}\nignored\n{{ end }}\n{{ range list 1 2 }}\nlocal x = "世界"\n{{ end }}\n'
 util.set_buffer_text(buf, source)
-highlighter.update(buf, trace(source))
+require("vimoi.gotmpl.session").update(buf, trace(source))
 marks = draw()
 assert(#marks > 0)
 local keys = {}
@@ -154,7 +154,7 @@ for _, mark in ipairs(draw()) do
   assert(mark.row == 5, "retained highlight did not follow an inserted line")
 end
 util.set_buffer_text(buf, source)
-highlighter.update(buf, trace(source))
+require("vimoi.gotmpl.session").update(buf, trace(source))
 local cli = require("vimoi.cli")
 cli.context_generation = cli.context_generation + 1
 assert(#draw() > 0, "context refresh removed existing highlights")
@@ -165,7 +165,7 @@ source = 'message: "{{ "A" }}\n  世界\n  {{ "B" }}"\nnext: true\n'
 util.set_buffer_text(buf, source)
 require("vimoi.highlight").configure_template_buffer(buf, "yaml")
 local yaml_trace = trace(source)
-highlighter.update(buf, yaml_trace)
+require("vimoi.gotmpl.session").update(buf, yaml_trace)
 marks = draw()
 local has_string = false
 for _, mark in ipairs(marks) do
@@ -184,7 +184,7 @@ source = "{{ if true -}}\nactive{{ if false }}nested{{ else }}chosen{{ end }}\n{
   .. "{{ range list }}empty{{ end }}\n"
 util.set_buffer_text(buf, source)
 local branch_trace = trace(source)
-highlighter.update(buf, branch_trace)
+require("vimoi.gotmpl.session").update(buf, branch_trace)
 local comments = {}
 local starts = util.line_starts(source)
 for _, mark in ipairs(draw()) do
@@ -204,7 +204,7 @@ assert(vim.deep_equal(comments, { "nested", "skipped", "empty" }), vim.inspect(c
 source = source:gsub("if false", "if true")
 util.set_buffer_text(buf, source)
 vim.b[buf].vimoi_template_language = nil
-highlighter.update(buf, trace(source))
+require("vimoi.gotmpl.session").update(buf, trace(source))
 comments = {}
 starts = util.line_starts(source)
 for _, mark in ipairs(draw()) do

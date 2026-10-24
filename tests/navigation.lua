@@ -45,7 +45,7 @@ vim.opt.hidden = true
 
 -- A preview URI resolves through its owning source, never as a real file.
 api.preview({ source = source })
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local session = assert(sessions.by_window[vim.api.nvim_get_current_win()])
 assert(vim.wait(5000, function()
   return not session.loading
@@ -79,6 +79,6 @@ end))
 vim.api.nvim_buf_set_name(source_buf, root .. "/renamed.lua.tmpl")
 before = vim.api.nvim_get_current_buf()
 assert(api.toggle() == nil)
-assert(session.closed and vim.api.nvim_get_current_buf() == before, "navigation reused a renamed session")
+assert(not session.closed and vim.api.nvim_get_current_buf() == before, "failed navigation retired its view")
 vim.notify = notify
 print("navigation: commands, source-only files, preview ownership, unsaved edits and native protections verified")

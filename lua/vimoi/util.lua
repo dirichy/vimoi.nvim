@@ -178,17 +178,12 @@ end
 ---@param buf integer
 ---@param text string
 function M.set_buffer_text(buf, text)
-  local lines = vim.split(text, "\n", { plain = true })
-  local endofline = text:sub(-1) == "\n"
-  if endofline then
-    table.remove(lines)
-  end
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.bo[buf].endofline = endofline
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, M.text_lines(text))
+  vim.bo[buf].endofline = text:sub(-1) == "\n"
 end
 
 ---Convert a zero-based byte offset to a zero-based row and byte column.
----@param text string
+---@param text string? Not needed when line_start_bytes is supplied.
 ---@param byte integer
 ---@param line_start_bytes? integer[] Cached line starts for repeated position lookups.
 ---@return integer row
@@ -206,7 +201,7 @@ function M.byte_to_position(text, byte, line_start_bytes)
     end
     return first - 1, byte - line_start_bytes[first]
   end
-  local text_before_position = text:sub(1, byte)
+  local text_before_position = assert(text):sub(1, byte)
   local _, row = text_before_position:gsub("\n", "\n")
   local last_newline = text_before_position:match(".*()\n") or 0
   return row, byte - last_newline

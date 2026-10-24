@@ -1,7 +1,7 @@
 vim.opt.swapfile = false
 require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
 local api, util = vim.api, require("vimoi.util")
-local views, sessions = require("vimoi.api"), require("vimoi.gotmpl.session")
+local views, sessions = require("vimoi.api"), require("vimoi.gotmpl.view")
 local source_map = require("vimoi.gotmpl.source_map")
 local sync = require("vimoi.gotmpl.sync_scroll")
 local await = dofile("tests/helpers/await.lua")

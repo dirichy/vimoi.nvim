@@ -1,10 +1,11 @@
+local waiting = dofile("tests/helpers/waiting.lua")
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
 local api = require("vimoi.api")
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local util = require("vimoi.util")
 
 -- A real pending render is killed when re-add's focused wait is abandoned.
@@ -15,17 +16,17 @@ vim.fn.writefile({ "static=new", "dynamic" }, target)
 api.diff_files(source, target)
 local session = assert(sessions.by_window[vim.api.nvim_get_current_win()])
 assert(vim.wait(2000, function()
-  return session.render_job ~= nil
+  return require("vimoi.gotmpl.session").get(session.source_buf).job ~= nil
 end, 5))
-local job = assert(session.render_job)
+local job = assert(require("vimoi.gotmpl.session").get(session.source_buf).job)
 assert(not job.finished)
 api.readd()
-assert(session.pending_merge and vim.bo.filetype == "vimoi-progress")
+assert(waiting() and vim.bo.filetype == "vimoi-progress")
 vim.fn.maparg("q", "n", false, true).callback()
 assert(vim.wait(2000, function()
   return job.finished
 end, 5))
-assert(job.cancelled and session.closed and not session.pending_merge)
+assert(job.cancelled and session.closed and not waiting())
 assert(util.buffer_text(session.source_buf) == original)
 assert(util.read_file(source) == original)
 assert(util.buffer_text(session.target_buf) == "static=new\ndynamic\n")

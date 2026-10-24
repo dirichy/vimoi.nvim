@@ -141,7 +141,7 @@ function M.setup(opts)
   require("vimoi.highlight").setup()
   require("vimoi.filetype").setup(cli.source_root)
   require("vimoi.lazyload").setup()
-  require("vimoi.diagnostic").setup()
+  require("vimoi.gotmpl.session").setup()
   require("vimoi.api").register()
 end
 

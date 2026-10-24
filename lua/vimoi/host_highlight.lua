@@ -4,17 +4,14 @@
 local M = {}
 local api = vim.api
 local util = require("vimoi.util")
+local sessions = require("vimoi.gotmpl.session")
 local namespace = api.nvim_create_namespace("vimoi-host-highlight")
 
 ---@class VimoiHostHighlight
----@field trace VimoiSourceMapTrace
+---@field map VimoiOutputMap
 ---@field parser? vim.treesitter.LanguageTree
 ---@field output_buf? integer Persistent scratch buffer driving native incremental parsing.
 ---@field language? string
----@field tick integer
----@field context_generation integer
----@field source_starts integer[]
----@field output_starts integer[]
 ---@field regions VimoiRenderedRegion[] Exact literal mappings, ordered by output byte.
 ---@field inactive VimoiByteRange[] Literal source ranges not executed in this snapshot.
 ---@field generation integer
@@ -50,9 +47,6 @@ function M.clear(buf)
   buffers[buf] = nil
   if state then
     api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
-    if state.output_buf and api.nvim_buf_is_valid(state.output_buf) then
-      api.nvim_buf_delete(state.output_buf, { force = true })
-    end
     api.nvim__redraw({ buf = buf, valid = false })
   end
 end
@@ -62,9 +56,9 @@ end
 ---@param bottom integer End-exclusive source row.
 ---@return table[]
 local function decorations(state, top, bottom)
-  local trace = state.trace
-  local source_first = state.source_starts[top + 1] or #trace.source
-  local source_last = state.source_starts[bottom + 1] or #trace.source
+  local map = state.map
+  local source_first = map.source_starts[top + 1] or map.source_size
+  local source_last = map.source_starts[bottom + 1] or map.source_size
   local visible, ranges = {}, {}
   for _, region in ipairs(state.regions) do
     local first = math.max(source_first, region.source.start_byte)
@@ -73,8 +67,8 @@ local function decorations(state, top, bottom)
       local output_first = region.output_range.start_byte + first - region.source.start_byte
       local output_last = region.output_range.start_byte + last - region.source.start_byte
       visible[#visible + 1] = { region = region, first = output_first, last = output_last }
-      local row = util.byte_to_position(trace.output, output_first, state.output_starts)
-      local end_row = util.byte_to_position(trace.output, output_last - 1, state.output_starts) + 1
+      local row = util.byte_to_position(nil, output_first, map.output_starts)
+      local end_row = util.byte_to_position(nil, output_last - 1, map.output_starts) + 1
       local previous = ranges[#ranges]
       if previous and row <= previous[2] then
         previous[2] = math.max(previous[2], end_row)
@@ -88,8 +82,8 @@ local function decorations(state, top, bottom)
     local first = math.max(source_first, range.start_byte)
     local last = math.min(source_last, range.end_byte)
     if first < last then
-      local row, col = util.byte_to_position(trace.source, first, state.source_starts)
-      local end_row, end_col = util.byte_to_position(trace.source, last, state.source_starts)
+      local row, col = util.byte_to_position(nil, first, map.source_starts)
+      local end_row, end_col = util.byte_to_position(nil, last, map.source_starts)
       marks[#marks + 1] = {
         row = row,
         col = col,
@@ -153,8 +147,8 @@ local function decorations(state, top, bottom)
               local a, b = math.max(first, part.first), math.min(last, part.last)
               if a < b then
                 local offset = part.region.source.start_byte - part.region.output_range.start_byte
-                local row, col = util.byte_to_position(trace.source, a + offset, state.source_starts)
-                local end_row, end_col = util.byte_to_position(trace.source, b + offset, state.source_starts)
+                local row, col = util.byte_to_position(nil, a + offset, map.source_starts)
+                local end_row, end_col = util.byte_to_position(nil, b + offset, map.source_starts)
                 local mark = {
                   row = row,
                   col = col,
@@ -212,8 +206,7 @@ api.nvim_set_decoration_provider(namespace, {
     end
     -- on_win's bottom is inclusive; cache queries until this viewport changes.
     local cached = state.windows[win]
-    local current = api.nvim_buf_get_changedtick(buf) == state.tick
-      and require("vimoi.cli").context_generation == state.context_generation
+    local current = sessions.is_current(buf, state.map)
     if
       current and (not cached or cached.generation ~= state.generation or cached.top ~= top or cached.bottom ~= bottom)
     then
@@ -237,8 +230,8 @@ api.nvim_set_decoration_provider(namespace, {
 })
 
 ---@param buf integer
----@param trace VimoiSourceMapTrace
-function M.update(buf, trace)
+---@param map VimoiOutputMap
+function M.update(buf, map)
   local language = vim.b[buf].vimoi_template_language
   ---@type VimoiHostHighlight?
   local state = buffers[buf]
@@ -246,31 +239,19 @@ function M.update(buf, trace)
     M.clear(buf)
     state = nil
   end
-  local output = state and state.output_buf
-  local parser = state and state.parser
-  if not state and language then
-    output = api.nvim_create_buf(false, true)
-    vim.bo[output].bufhidden = "hide"
-    vim.bo[output].undolevels = -1
-    vim.b[output].vimoi_highlight_source = buf
-    util.set_buffer_text(output, trace.output)
-    parser = vim.treesitter.get_parser(output, language)
-  elseif state and output and state.trace.output ~= trace.output then
-    local before = state.trace.output
-    local edits = require("vimoi.gotmpl.buffer_edits")
-    edits.apply(output, before, trace.output, edits.diff(before, trace.output))
-  end
+  local rendered = sessions.get(buf).buf
+  local parser = language and vim.treesitter.get_parser(rendered, language) or nil
   if parser then
     parser:parse(true)
   end
   local inactive = {}
-  for _, part in ipairs(trace.literal_parts) do
+  for _, part in ipairs(map.literal_parts) do
     if #part.output_ranges == 0 and part.source.start_byte < part.source.end_byte then
       inactive[#inactive + 1] = part.source
     end
   end
   local regions, seen = {}, {}
-  for _, region in ipairs(require("vimoi.gotmpl.source_map").rendered_regions(trace)) do
+  for _, region in ipairs(map.regions) do
     if region.kind == "static" or region.kind == "repeated" then
       local key = region.source.start_byte .. ":" .. region.source.end_byte
       -- A loop body can have conflicting colors between executions. Use its
@@ -282,15 +263,11 @@ function M.update(buf, trace)
     end
   end
   buffers[buf] = {
-    trace = trace,
+    map = map,
     parser = parser,
-    output_buf = output,
+    output_buf = rendered,
     language = language,
     generation = state and state.generation + 1 or 1,
-    tick = api.nvim_buf_get_changedtick(buf),
-    context_generation = require("vimoi.cli").context_generation,
-    source_starts = util.line_starts(trace.source),
-    output_starts = util.line_starts(trace.output),
     regions = regions,
     inactive = inactive,
     windows = state and state.windows or {},

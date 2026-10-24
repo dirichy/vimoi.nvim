@@ -140,17 +140,19 @@ cli.run = run
 -- preview; a preview's scratch URI must never become .chezmoi.targetFile.
 local expected = oracle("alpha")
 vim.fn.writefile(util.text_lines(expected), target_root .. "/.alpha")
-local api, sessions = require("vimoi.api"), require("vimoi.gotmpl.session")
+local api, sessions = require("vimoi.api"), require("vimoi.gotmpl.view")
 api.diff_files(managed_root .. "/dot_alpha.tmpl", target_root .. "/.alpha", { validate = true })
 dofile("tests/helpers/diff.lua")()
 local session = assert(sessions.by_window[vim.api.nvim_get_current_win()])
-assert(session.trace.output == expected and session.verify_with_cat)
+assert(
+  assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == expected and session.verify_with_cat
+)
 api.preview()
 session = assert(sessions.by_window[vim.api.nvim_get_current_win()])
 assert(vim.wait(5000, function()
   return not session.loading
 end, 5))
-assert(session.preview and session.trace.output == expected)
+assert(session.preview and assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == expected)
 assert(util.buffer_text(session.target_buf) == expected)
 sessions.close(session)
 vim.api.nvim_buf_delete(first, { force = true })

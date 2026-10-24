@@ -1,3 +1,4 @@
+local waiting = dofile("tests/helpers/waiting.lua")
 local view_for_buffer = dofile("tests/helpers/view.lua")
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 local root = vim.fn.tempname() .. " readd paths"
@@ -9,9 +10,9 @@ vim.env.VIMOI_TEST_SOURCE = source_root
 vim.env.VIMOI_TEST_DESTINATION = destination
 vim.opt.swapfile = false
 local api = require("vimoi.api")
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh", diff = { validate = false } })
 local util = require("vimoi.util")
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local count = 0
 local function files()
   count = count + 1
@@ -22,11 +23,13 @@ local function files()
   vim.cmd("tabnew")
   return source, target
 end
-local function complete(source, target)
+local function complete(source, target, cached)
   local session = assert(view_for_buffer(vim.fn.bufnr(source)))
-  assert(session.pending_merge, "opening re-add must wait cancellably for initial rendering")
+  if not cached then
+    assert(waiting(), "opening re-add must wait cancellably for initial rendering")
+  end
   assert(vim.wait(5000, function()
-    return not session.pending_merge
+    return not waiting()
   end))
   assert(util.buffer_text(session.source_buf) == 'local value = 2\n{{ "-- dynamic" }}\n')
   assert(util.buffer_text(session.target_buf) == "local value = 2\n-- dynamic\n")
@@ -65,7 +68,7 @@ do
   api.readd(source)
   local session = assert(view_for_buffer(source_buf))
   assert(vim.wait(5000, function()
-    return not session.pending_merge
+    return not waiting()
   end))
   assert(util.buffer_text(source_buf) == 'local value = 3\n{{ "-- unsaved" }}\n')
   assert(util.read_file(source) == 'local value = 1\n{{ "-- dynamic" }}\n')
@@ -77,7 +80,7 @@ do
   local source, target = files()
   api.readd(target)
   local session = assert(view_for_buffer(vim.fn.bufnr(source)))
-  assert(session.pending_merge)
+  assert(waiting())
   vim.fn.maparg("q", "n", false, true).callback()
   assert(vim.wait(5000, function()
     return session.closed
@@ -92,11 +95,11 @@ do
   api.preview({ source = source })
   local preview = assert(view_for_buffer(vim.fn.bufnr(source)))
   assert(vim.wait(5000, function()
-    return preview.trace ~= nil
+    return preview.map ~= nil
   end))
   vim.api.nvim_set_current_win(preview.target_win)
   api.readd()
-  local session = complete(source, target)
+  local session = complete(source, target, true)
   assert(preview.closed and not session.preview)
   sessions.close(session)
 end

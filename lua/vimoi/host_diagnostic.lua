@@ -1,62 +1,62 @@
--- Run configured host providers on immutable rendered snapshots, then project
+-- Run configured host providers on the shared rendered buffer, then project
 -- their native diagnostics back onto the editable template.
 local M = {}
 local util = require("vimoi.util")
-local source_map = require("vimoi.gotmpl.source_map")
-local cli = require("vimoi.cli")
+local sessions = require("vimoi.gotmpl.session")
 local namespace = vim.api.nvim_create_namespace("vimoi-host-diagnostics")
 
 ---@class VimoiHostDiagnostic
----@field source_buf integer
----@field shadow integer Hidden normal buffer so native LSP activation can run.
----@field tick integer
----@field context_generation integer
----@field trace VimoiSourceMapTrace
+---@field output_buf integer Shared rendered buffer receiving native diagnostics.
+---@field map VimoiOutputMap
 ---@field filetype string Host filetype of this snapshot.
 ---@field jobs { cancel: fun(self: table) }[] nvim-lint processes owned by this snapshot.
 
 ---@type table<integer, VimoiHostDiagnostic>
 local buffers = {}
----@type table<integer, VimoiHostDiagnostic>
-local shadows = {}
 
 ---@param buf integer
-function M.clear(buf)
+---@param detach? boolean Stop native LSP attachments when disabling host diagnostics.
+function M.clear(buf, detach)
   local state = buffers[buf]
-  buffers[buf] = nil
   vim.diagnostic.reset(namespace, buf)
   if state then
-    shadows[state.shadow] = nil
     for _, job in ipairs(state.jobs) do
       job:cancel()
     end
-    if vim.api.nvim_buf_is_valid(state.shadow) then
-      vim.api.nvim_buf_delete(state.shadow, { force = true })
+    state.jobs = {}
+    if detach then
+      buffers[buf] = nil
+      if vim.api.nvim_buf_is_valid(state.output_buf) then
+        vim.bo[state.output_buf].buftype = "nofile"
+        for _, client in ipairs(vim.lsp.get_clients({ bufnr = state.output_buf })) do
+          vim.lsp.buf_detach_client(state.output_buf, client.id)
+        end
+      end
     end
   end
 end
 
----@param trace VimoiSourceMapTrace
+---@param map VimoiOutputMap
 ---@param diagnostics vim.Diagnostic[]
 ---@param filetype string
 ---@return vim.Diagnostic[]
-local function project(trace, diagnostics, filetype)
+local function project(map, diagnostics, filetype)
   local projected, seen = {}, {}
-  local regions = source_map.rendered_regions(trace)
-  local output_starts = util.line_starts(trace.output)
-  local source_starts = util.line_starts(trace.source)
+  local regions = map.regions
+  local output_starts = map.output_starts
+  local source_starts = map.source_starts
   for _, diagnostic in ipairs(diagnostics) do
     local first_line = output_starts[diagnostic.lnum + 1]
     local last_line = output_starts[(diagnostic.end_lnum or diagnostic.lnum) + 1]
     if first_line and last_line then
-      local first = math.min(first_line + diagnostic.col, #trace.output)
-      local last = math.max(first, math.min(last_line + (diagnostic.end_col or diagnostic.col), #trace.output))
+      local first = math.min(first_line + diagnostic.col, map.output_size)
+      local last = math.max(first, math.min(last_line + (diagnostic.end_col or diagnostic.col), map.output_size))
       local source_first, source_last
       local generated = false
       for _, region in ipairs(regions) do
         local a, b = region.output_range.start_byte, region.output_range.end_byte
         local overlaps = first < b and last > a
-          or (first == last and first >= a and (first < b or first == #trace.output and first == b and a < b))
+          or (first == last and first >= a and (first < b or first == map.output_size and first == b and a < b))
         if overlaps and region.kind ~= "ambiguous" then
           local start_byte, end_byte = region.source.start_byte, region.source.end_byte
           if region.kind == "static" or region.kind == "repeated" then
@@ -70,12 +70,12 @@ local function project(trace, diagnostics, filetype)
         end
       end
       if source_first and source_last then
-        if source_first == #trace.source and trace.source:sub(-1) == "\n" then
+        if source_first == map.source_size and map.source_eol then
           source_first = math.max(source_first - 1, 0)
         end
         local item = vim.deepcopy(diagnostic)
-        item.lnum, item.col = util.byte_to_position(trace.source, source_first, source_starts)
-        item.end_lnum, item.end_col = util.byte_to_position(trace.source, source_last, source_starts)
+        item.lnum, item.col = util.byte_to_position(nil, source_first, source_starts)
+        item.end_lnum, item.end_col = util.byte_to_position(nil, source_last, source_starts)
         item.bufnr, item.namespace = nil, nil
         item.message = ("[host:%s] %s"):format(filetype, item.message)
         if generated then
@@ -102,73 +102,59 @@ end
 vim.api.nvim_create_autocmd("DiagnosticChanged", {
   group = vim.api.nvim_create_augroup("vimoi-host-diagnostics", { clear = true }),
   callback = function(args)
-    local state = shadows[args.buf]
+    local source = vim.b[args.buf].vimoi_output_source
+    local state = source and buffers[source]
     if
       not state
-      or not vim.api.nvim_buf_is_loaded(state.source_buf)
-      or vim.bo[state.source_buf].filetype ~= "gotmpl"
-      or vim.api.nvim_buf_get_changedtick(state.source_buf) ~= state.tick
-      or cli.context_generation ~= state.context_generation
+      or state.output_buf ~= args.buf
+      or not vim.api.nvim_buf_is_loaded(source)
+      or vim.bo[source].filetype ~= "gotmpl"
+      or not sessions.is_current(source, state.map)
     then
       return
     end
-    vim.diagnostic.set(namespace, state.source_buf, project(state.trace, vim.diagnostic.get(args.buf), state.filetype))
+    vim.diagnostic.set(namespace, source, project(state.map, vim.diagnostic.get(args.buf), state.filetype))
   end,
 })
 
 ---@param buf integer
----@param trace VimoiSourceMapTrace
-function M.update(buf, trace)
-  M.clear(buf)
+---@param map VimoiOutputMap
+function M.update(buf, map)
   local filetype = vim.b[buf].vimoi_template_filetype
   if not filetype or filetype == "" or filetype == "gotmpl" or filetype == "template" then
+    M.clear(buf, true)
     return
   end
-  local source_path = vim.api.nvim_buf_get_name(buf)
-  if source_path:match("^%a[%w+.-]*://") then
-    source_path = "" -- Virtual buffers have no filesystem location for root discovery.
+  local rendered = sessions.get(buf).buf
+  local previous = buffers[buf]
+  if previous and previous.map == map and previous.filetype == filetype and previous.output_buf == rendered then
+    return
   end
-  local target_path = source_path ~= "" and cli.counterpart_path(source_path) or nil
-  local path = target_path and target_path ~= "" and target_path or source_path:gsub("%.tmpl$", "")
-  local directory = path ~= "" and vim.fs.dirname(path) or vim.fn.getcwd()
-  local basename = path ~= "" and vim.fs.basename(path) or ("buffer." .. filetype)
-  local shadow = vim.api.nvim_create_buf(false, false)
+  M.clear(buf, vim.bo[rendered].filetype ~= filetype)
   local state = {
-    source_buf = buf,
-    shadow = shadow,
-    tick = vim.api.nvim_buf_get_changedtick(buf),
-    context_generation = cli.context_generation,
-    trace = trace,
+    output_buf = rendered,
+    map = map,
     filetype = filetype,
     jobs = {},
   }
-  buffers[buf], shadows[shadow] = state, state
-  -- A fresh URI per snapshot prevents late provider results from being applied
-  -- against a different render. Keep the real parent for project discovery.
-  vim.bo[shadow].swapfile = false
-  vim.bo[shadow].undofile = false
-  vim.bo[shadow].bufhidden = "hide"
-  vim.api.nvim_buf_set_name(shadow, directory .. "/.vimoi-" .. shadow .. "-" .. basename)
-  vim.b[shadow].vimoi_diagnostic_source = buf
-  vim.b[shadow].vimoi_target_path = target_path
-  util.set_buffer_text(shadow, trace.output)
-  vim.bo[shadow].modified = false
-  vim.bo[shadow].readonly = true
-  vim.bo[shadow].modifiable = false
-  vim.api.nvim_create_autocmd("BufWriteCmd", {
-    buffer = shadow,
-    callback = function()
-      util.notify("rendered diagnostic buffers cannot be saved", "diagnostic", vim.log.levels.ERROR)
-    end,
-  })
-  -- FileType activates already enabled LSP configurations through Neovim's
-  -- native machinery, including the user's root discovery and on_attach hooks.
-  vim.bo[shadow].filetype = filetype
+  buffers[buf] = state
+  -- Native LSP requires a normal buffer. Keep its identity and let didChange
+  -- replace diagnostics as it does for an ordinary edited file.
+  local activate = vim.bo[rendered].buftype ~= ""
+  vim.bo[rendered].buftype = ""
+  if vim.bo[rendered].filetype ~= filetype then
+    vim.bo[rendered].filetype = filetype
+  elseif activate then
+    vim.api.nvim_exec_autocmds("FileType", { buffer = rendered })
+  end
+  -- Source-only changes can move mappings without changing output. LSP then
+  -- sends no didChange/result, so reproject its retained diagnostics now.
+  vim.diagnostic.set(namespace, buf, project(map, vim.diagnostic.get(rendered), filetype))
   local ok, lint = pcall(require, "lint")
   if not ok then
     return
   end
-  vim.api.nvim_buf_call(shadow, function()
+  vim.api.nvim_buf_call(rendered, function()
     local names = lint.linters_by_ft[filetype] or {}
     for _, name in ipairs(names) do
       local started, job = pcall(function()

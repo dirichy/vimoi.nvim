@@ -49,7 +49,7 @@ end
 ---@return string?
 function M.toggle(path)
   local cli = require("vimoi.cli")
-  local views = package.loaded["vimoi.gotmpl.session"]
+  local views = package.loaded["vimoi.gotmpl.view"]
   local session = views and views.by_window[vim.api.nvim_get_current_win()]
   if session and not views.is_valid(session) then
     views.close(session)
@@ -57,7 +57,7 @@ function M.toggle(path)
   end
   local destination, err
   if not path and session and session.preview and vim.api.nvim_get_current_win() == session.target_win then
-    destination = session.source_path -- A rendered scratch buffer switches back to its source.
+    destination = vim.api.nvim_buf_get_name(session.source_buf) -- A rendered scratch buffer switches back to its source.
   else
     path = path or vim.api.nvim_buf_get_name(0)
     if path ~= "" then

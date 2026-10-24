@@ -126,7 +126,7 @@ check_mappings = function(index)
   util.set_buffer_text(buf, case[2])
   require("vimoi.highlight").configure_template_buffer(buf, case[1])
   local trace = assert(await(source_map.trace, case[2], { buf = buf }))
-  require("vimoi.host_highlight").update(buf, trace)
+  require("vimoi.gotmpl.session").update(buf, trace)
   local first = assert(case[2]:find("marker", 1, true)) - 1
   local output_byte
   for _, part in ipairs(trace.literal_parts) do

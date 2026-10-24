@@ -27,7 +27,7 @@ for lhs, name in pairs({
 end
 
 local util = require("vimoi.util")
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local source, target = vim.fn.tempname() .. ".tmpl", vim.fn.tempname()
 vim.fn.writefile({ "value=old" }, source)
 vim.fn.writefile({ "value=new" }, target)

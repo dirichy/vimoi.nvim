@@ -1,25 +1,25 @@
 local M = {}
 local util = require("vimoi.util")
 local cli = require("vimoi.cli")
-local sessions = require("vimoi.gotmpl.session")
+local views = require("vimoi.gotmpl.view")
 local native_diff = require("vimoi.gotmpl.native_diff")
 
 -- Native diffexpr dispatches using the lifecycle owner's single shared registry.
 function M._diffexpr()
-  return native_diff.diffexpr(sessions.by_window)
+  return native_diff.diffexpr(views.by_window)
 end
 
 ---Apply a fold command in both windows of the current diff session.
 ---@param command string
 function M.fold(command)
-  local session = sessions.by_window[vim.api.nvim_get_current_win()]
-  if session and not sessions.is_valid(session) then
-    sessions.close(session)
+  local session = views.by_window[vim.api.nvim_get_current_win()]
+  if session and not views.is_valid(session) then
+    views.close(session)
   end
   if not session or session.closed or session.preview then
     return util.notify("current buffer is not in a vimoi diff session", "diff", vim.log.levels.ERROR)
   end
-  if not session.trace then
+  if not session.map then
     return util.notify("template is still rendering", "diff", vim.log.levels.WARN)
   end
   return native_diff.fold(session, command)
@@ -45,9 +45,9 @@ local function open_windows(source, target, source_win, target_win)
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     local buf = vim.api.nvim_win_get_buf(win)
     local path = vim.api.nvim_buf_get_name(buf)
-    if not sessions.by_window[win] and (buf == source or path == source) then
+    if not views.by_window[win] and (buf == source or path == source) then
       source_win = source_win or win
-    elseif not sessions.by_window[win] and (buf == target or path == target) then
+    elseif not views.by_window[win] and (buf == target or path == target) then
       target_win = target_win or win
     end
   end
@@ -104,10 +104,10 @@ function M.open(opts)
       return util.notify("source and target must be different buffers", "diff", vim.log.levels.ERROR)
     end
   end
-  ---@type VimoiTemplateSession?
-  local previous = sessions.by_window[vim.api.nvim_get_current_win()]
-  if previous and not sessions.is_valid(previous) then
-    sessions.close(previous)
+  ---@type VimoiTemplateView?
+  local previous = views.by_window[vim.api.nvim_get_current_win()]
+  if previous and not views.is_valid(previous) then
+    views.close(previous)
     previous = nil
   end
   local current_path = vim.api.nvim_buf_get_name(0)
@@ -121,20 +121,22 @@ function M.open(opts)
     source_path = vim.api.nvim_buf_get_name(source_buf)
     target_path = vim.api.nvim_buf_get_name(target_buf)
   elseif preview then
-    source_path = source_path or (previous and previous.source_path) or current_path
+    source_path = source_path or (previous and vim.api.nvim_buf_get_name(previous.source_buf)) or current_path
     if previous and not opts.source then
       source_buf = previous.source_buf
     end
   elseif not source_path or not target_path then
     if previous and not previous.preview and not opts.source and not opts.target then
-      source_path, target_path = previous.source_path, previous.target_path
+      source_path, target_path =
+        vim.api.nvim_buf_get_name(previous.source_buf), vim.api.nvim_buf_get_name(previous.target_buf)
       source_buf, target_buf = previous.source_buf, previous.target_buf
       buffer_pair = previous.buffer_pair == true
     else
       local before_path_lookup = vim.uv.hrtime()
       local resolve_error
-      source_path, target_path, resolve_error =
-        cli.resolve_paths(source_path or target_path or (previous and previous.source_path) or current_path)
+      source_path, target_path, resolve_error = cli.resolve_paths(
+        source_path or target_path or (previous and vim.api.nvim_buf_get_name(previous.source_buf)) or current_path
+      )
       path_lookup_ms = (vim.uv.hrtime() - before_path_lookup) / 1e6
       if not source_path then
         return util.notify(assert(resolve_error), "diff", vim.log.levels.ERROR)
@@ -144,10 +146,10 @@ function M.open(opts)
   ---@cast source_path string
   local requested_buf = source_buf
     or (source_path == "" and vim.api.nvim_get_current_buf() or loaded_buffer(source_path))
-  if preview and previous and previous.preview and previous.source_path == source_path then
+  if preview and previous and previous.preview and vim.api.nvim_buf_get_name(previous.source_buf) == source_path then
     vim.api.nvim_set_current_win(previous.source_win)
     if not previous.loading then
-      sessions.schedule_refresh(previous)
+      views.schedule_refresh(previous)
     end
     return previous
   end
@@ -167,19 +169,15 @@ function M.open(opts)
   local source_win, target_win
   if previous then
     source_win, target_win = previous.source_win, previous.target_win
-    sessions.close(previous)
+    views.close(previous)
   elseif source_path == "" and not source_buf then
     source_win = vim.api.nvim_get_current_win()
   end
   if preview then
-    local output = vim.api.nvim_create_buf(false, true)
-    target_path = "vimoi://preview/" .. output .. "/" .. (vim.fs.basename(source_path) or "template")
-    vim.api.nvim_buf_set_name(output, target_path)
-    vim.bo[output].bufhidden = "wipe"
-    vim.bo[output].undolevels = -1
-    vim.bo[output].readonly = true
-    vim.bo[output].modifiable = false
-    target_buf = output
+    source_buf = source_buf or requested_buf or vim.fn.bufadd(source_path)
+    vim.fn.bufload(source_buf)
+    target_buf = require("vimoi.gotmpl.session").get(source_buf).buf
+    target_path = vim.api.nvim_buf_get_name(target_buf)
   end
   ---@cast target_path string
   source_buf, source_win, target_buf, target_win =
@@ -199,7 +197,6 @@ function M.open(opts)
     end
     return
   end
-  local init = require("vimoi.filetype").init_template_names[vim.fs.basename(source_path)] == true
   if preview then
     target_filetype = require("vimoi.filetype").host_filetype(source_path, source_buf) or ""
     vim.bo[target_buf].filetype = target_filetype
@@ -214,26 +211,21 @@ function M.open(opts)
   if buffer_pair then
     validate = false -- Buffers need not correspond to managed files on disk.
   end
-  local modified = util.buffer_text(target_buf)
 
-  ---@type VimoiTemplateSession
+  ---@type VimoiTemplateView
   local session = {
+    session = require("vimoi.gotmpl.session").get(source_buf),
     preview = preview,
     buffer_pair = buffer_pair,
     keymaps = {},
     hunks = {},
-    source_text = util.buffer_text(source_buf),
-    target_text = modified,
     source_buf = source_buf,
     target_buf = target_buf,
     source_win = source_win,
     target_win = target_win,
-    source_path = source_path,
-    target_path = target_path,
-    is_init_template = init,
     verify_with_cat = validate,
   }
-  sessions.attach(session)
+  views.attach(session)
   ---@type VimoiOpenProfile
   local profile = {
     mode = preview and "preview" or "diff",
@@ -242,7 +234,7 @@ function M.open(opts)
     render_ms = 0,
     validation_ms = 0,
   }
-  sessions.start_initial_render(session, profile, started)
+  views.start_initial_render(session, profile, started)
   return session
 end
 

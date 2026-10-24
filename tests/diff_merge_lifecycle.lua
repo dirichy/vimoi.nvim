@@ -1,10 +1,15 @@
+local waiting = dofile("tests/helpers/waiting.lua")
 local render_trace = dofile("tests/helpers/trace.lua")
 local view_for_buffer = dofile("tests/helpers/view.lua")
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({
+  chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
+  diagnostics = { enabled = false },
+  highlight = { mode = "disabled" },
+})
 
 local renderer = require("vimoi.gotmpl.source_map")
 local requests, hold = {}, false
@@ -22,9 +27,12 @@ package.loaded["vimoi.gotmpl.source_map"] = setmetatable({
 }, { __index = renderer })
 local api = require("vimoi.api")
 local util = require("vimoi.util")
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local cli = require("vimoi.cli")
 local function open(source_text, target_text)
+  for _, session in pairs(sessions.by_window) do
+    sessions.close(session)
+  end
   hold = false
   vim.cmd("tabnew")
   local source, target = vim.fn.tempname() .. ".tmpl", vim.fn.tempname()
@@ -59,7 +67,7 @@ for _, change in ipairs({ "source", "target", "rename", "close", "reopen", "cont
   elseif change == "target" then
     util.set_buffer_text(session.target_buf, "manual\n")
   elseif change == "rename" then
-    vim.api.nvim_buf_set_name(session.source_buf, session.source_path .. ".renamed")
+    vim.api.nvim_buf_set_name(session.source_buf, vim.api.nvim_buf_get_name(session.source_buf) .. ".renamed")
   elseif change == "context" then
     cli.invalidate("templates")
   elseif change == "close" then
@@ -67,7 +75,7 @@ for _, change in ipairs({ "source", "target", "rename", "close", "reopen", "cont
   else
     sessions.close(session)
     vim.api.nvim_set_current_win(session.source_win)
-    api.diff_files(session.source_path, session.target_path)
+    api.diff_files(vim.api.nvim_buf_get_name(session.source_buf), vim.api.nvim_buf_get_name(session.target_buf))
     dofile("tests/helpers/diff.lua")()
   end
   local expected = util.buffer_text(session.source_buf)
@@ -82,7 +90,10 @@ for _, change in ipairs({ "none", "cancel", "source", "target", "context", "clos
   hold = true
   local before = #requests
   api.readd()
-  assert(#requests == before + 1 and session.pending_merge)
+  assert(waiting())
+  assert(vim.wait(1000, function()
+    return #requests == before + 1
+  end))
   local request = requests[#requests]
   local win = vim.api.nvim_get_current_win()
   assert(not vim.bo.modifiable and vim.api.nvim_win_get_config(win).relative == "editor")
@@ -108,7 +119,16 @@ for _, change in ipairs({ "none", "cancel", "source", "target", "context", "clos
   else
     assert(util.buffer_text(session.source_buf) == expected, change .. " allowed a stale write")
   end
-  assert(not session.pending_merge)
+  if waiting() then
+    local before_retry = #requests
+    assert(vim.wait(1000, function()
+      return not waiting() or #requests > before_retry
+    end))
+    if waiting() then
+      deliver(requests[#requests])
+    end
+  end
+  assert(not waiting(), change .. " left a pending merge")
   assert(vim.wait(1000, function()
     return not vim.api.nvim_win_is_valid(win)
   end))
@@ -122,14 +142,17 @@ for _, cancel in ipairs({ false, true }) do
   hold = true
   local before = #requests
   api.readd()
-  assert(#requests == before + 1 and session.pending_merge)
+  assert(waiting())
+  assert(vim.wait(1000, function()
+    return #requests == before + 1
+  end))
   local request = requests[#requests]
   if cancel then
     vim.fn.maparg("q", "n", false, true).callback()
   end
   deliver(request)
   assert(util.buffer_text(session.source_buf) == 'value={{ "C" }}\n', "dynamic content must stay manual")
-  assert(not session.pending_merge)
+  assert(not waiting())
 end
 
 -- A static merge, including brace escaping, never launches another renderer.
@@ -139,8 +162,8 @@ hold = true
 local before = #requests
 local result = api.readd()
 assert(result and result.merged == 1)
-assert(#requests == before and not session.pending_merge, "static merge started a renderer")
-assert(session.trace.output == "A\n{{ literal }}\n")
+assert(#requests == before and not waiting(), "static merge started a renderer")
+assert(assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == "A\n{{ literal }}\n")
 
 -- A genuinely stale dynamic source still renders without blocking the event loop.
 hold = false
@@ -155,11 +178,11 @@ timer:start(
   end)
 )
 api.readd()
-assert(session.pending_merge)
+assert(waiting())
 assert(vim.wait(5000, function()
-  return not session.pending_merge
+  return not waiting()
 end, 10))
 timer:stop()
 timer:close()
 assert(beats > 3, "mapping rendering blocked the event loop")
-assert(session.trace.output == "B\n{{ literal }}\n")
+assert(assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == "B\n{{ literal }}\n")

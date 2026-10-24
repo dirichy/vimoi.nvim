@@ -16,7 +16,7 @@ require("vimoi").setup({
   split = "horizontal",
   diagnostics = { enabled = false },
 })
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local function await()
   local session = assert(sessions.by_window[vim.api.nvim_get_current_win()])
   assert(vim.wait(5000, function()

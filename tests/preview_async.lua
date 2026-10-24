@@ -37,7 +37,7 @@ end
 local function open(name)
   vim.cmd("tabnew")
   local source = root .. "/" .. name .. ".tmpl"
-  vim.fn.writefile({ 'value={{ "A" }}' }, source)
+  vim.fn.writefile({ '{{ $fixture := "' .. name .. '" }}value={{ "A" }}' }, source)
   vim.cmd("edit " .. vim.fn.fnameescape(source))
   requests = {}
   requests_by_buffer[vim.api.nvim_get_current_buf()] = requests
@@ -89,6 +89,18 @@ end)
 deliver(requests[#requests])
 assert(util.buffer_text(pair.output) == "value=A\n")
 
+-- An EOL option change during rendering has the same changedtick, but its
+-- stale input must not become the current output. Reuse the decoded skeleton.
+pair = open("eol-edit")
+local source_tick = vim.api.nvim_buf_get_changedtick(pair.source_buf)
+vim.bo[pair.source_buf].endofline = false
+vim.api.nvim_exec_autocmds("OptionSet", { pattern = "endofline" })
+deliver(pair.request)
+await(function()
+  return not (view_for_buffer(pair.source_buf) or {}).loading and util.buffer_text(pair.output) == "value=A"
+end)
+assert(vim.api.nvim_buf_get_changedtick(pair.source_buf) == source_tick and #requests == 1)
+
 -- Completion while another tab is active must not take focus.
 pair = open("focus")
 vim.cmd("tabnew")
@@ -132,12 +144,12 @@ assert(util.buffer_text(pair.output) == "value=D\n")
 pair = open("source-closed")
 vim.api.nvim_win_close(pair.source_win, true)
 deliver(pair.request)
-assert(vim.api.nvim_buf_is_valid(pair.output) and util.buffer_text(pair.output) ~= "value=A\n")
+assert(vim.api.nvim_buf_is_valid(pair.output) and util.buffer_text(pair.output) == "value=A\n")
 assert(not (view_for_buffer(pair.output) or {}).loading and vim.bo[pair.output].readonly)
 pair = open("output-closed")
 vim.api.nvim_win_close(pair.output_win, true)
 deliver(pair.request)
-assert(not vim.api.nvim_buf_is_valid(pair.output) and not (view_for_buffer(pair.source_buf) or {}).loading)
+assert(vim.api.nvim_buf_is_valid(pair.output) and not (view_for_buffer(pair.source_buf) or {}).loading)
 pair = open("output-replaced")
 local replacement = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_win_set_buf(pair.output_win, replacement)
@@ -158,7 +170,7 @@ await(function()
 end)
 vim.api.nvim_win_close(pair.output_win, true)
 deliver(requests[#requests])
-assert(not vim.api.nvim_buf_is_valid(pair.output))
+assert(vim.api.nvim_buf_is_valid(pair.output))
 
 -- Restore real execution through the facade and verify event-loop responsiveness with a slow process.
 hold_requests = false

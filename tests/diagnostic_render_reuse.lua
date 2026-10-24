@@ -1,3 +1,4 @@
+local waiting = dofile("tests/helpers/waiting.lua")
 ---@diagnostic disable: duplicate-set-field -- Count underlying processes and concurrent consumers.
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
@@ -6,7 +7,7 @@ vim.opt.swapfile = false
 local api = require("vimoi.api")
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 local cli = require("vimoi.cli")
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
 local original_run, original_execute, original_set = cli.run, cli.execute_template, vim.diagnostic.set
 local jobs, requests, publications = {}, 0, 0
@@ -41,7 +42,7 @@ local function open(value, duration)
   api.diff_files(source, target)
   local session = assert(sessions.by_window[vim.api.nvim_get_current_win()])
   wait_for(function()
-    return requests >= before + 2
+    return requests >= before + 1
   end)
   return session
 end
@@ -51,9 +52,9 @@ local session = open("A", "0.8")
 assert(#jobs == 1, "view and diagnostics launched duplicate processes")
 require("vimoi").setup({ diagnostics = { enabled = false } })
 wait_for(function()
-  return session.trace ~= nil
+  return session.map ~= nil
 end)
-assert(not jobs[1].cancelled and session.trace.output == "A\n")
+assert(not jobs[1].cancelled and assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == "A\n")
 sessions.close(session)
 
 -- Closing the view must not cancel a render still needed by diagnostics.
@@ -94,7 +95,7 @@ require("vimoi").setup({ diagnostics = { enabled = true } })
 session = open("D", "30")
 assert(#jobs == 4)
 api.readd()
-assert(session.pending_merge and vim.bo.filetype == "vimoi-progress")
+assert(waiting() and vim.bo.filetype == "vimoi-progress")
 vim.fn.maparg("q", "n", false, true).callback()
 wait_for(function()
   return jobs[4].finished

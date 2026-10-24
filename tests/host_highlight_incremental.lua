@@ -1,7 +1,7 @@
 require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "rendered" } })
 local api = vim.api
 local util = require("vimoi.util")
-local highlighter = require("vimoi.host_highlight")
+require("vimoi.host_highlight")
 local source_map = require("vimoi.gotmpl.source_map")
 local buf = api.nvim_create_buf(true, false)
 api.nvim_set_current_buf(buf)
@@ -16,7 +16,7 @@ local function update(text)
   assert(vim.wait(5000, function()
     return done
   end, 5))
-  highlighter.update(buf, assert(result, err))
+  require("vimoi.gotmpl.session").update(buf, assert(result, err))
 end
 
 local lines = {}
@@ -27,7 +27,7 @@ local original = table.concat(lines, "\n") .. "\n"
 update(original)
 local output
 for _, candidate in ipairs(api.nvim_list_bufs()) do
-  if vim.b[candidate].vimoi_highlight_source == buf then
+  if vim.b[candidate].vimoi_output_source == buf then
     assert(not output, "more than one highlight buffer was created")
     output = candidate
   end
@@ -75,6 +75,8 @@ for _, text in ipairs({
   assert(not parser:parse(true)[1]:root():has_error())
 end
 require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
-assert(not api.nvim_buf_is_valid(output), "disabling rendered mode leaked its output buffer")
+assert(api.nvim_buf_is_valid(output), "disabling highlighting deleted the shared output")
 assert(#api.nvim_buf_get_extmarks(buf, api.nvim_create_namespace("vimoi-host-highlight"), 0, -1, {}) == 0)
 api.nvim_buf_delete(buf, { force = true })
+
+assert(not api.nvim_buf_is_valid(output), "unloading source leaked its shared output")

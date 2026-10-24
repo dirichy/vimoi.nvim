@@ -18,7 +18,7 @@ assert_merge_unloaded()
 api.preview({ source = source })
 local session = assert(view_for_buffer(vim.fn.bufnr(source)))
 assert(vim.wait(5000, function()
-  return session.trace ~= nil
+  return session.map ~= nil
 end))
 assert_merge_unloaded()
 api.diff_files(source, target)

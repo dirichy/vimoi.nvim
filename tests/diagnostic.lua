@@ -3,7 +3,7 @@ local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh", diff = { validate = false } })
 assert(require("vimoi").config.diagnostics.enabled, "diagnostics must default to enabled")
 local cli, util = require("vimoi.cli"), require("vimoi.util")
 local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
@@ -103,7 +103,7 @@ diagnostics = change("header\n{{ index (list 1) 5 }}\n")
 assert(#diagnostics == 1 and diagnostics[1].lnum == 1 and diagnostics[1].col == 3, vim.inspect(diagnostics))
 diagnostics = change("literal only\n")
 assert(#diagnostics == 0)
-assert(assert(source_map.prepare(util.buffer_text(buf), { buf = buf })).output == "literal only\n")
+assert(assert(require("vimoi.gotmpl.session").snapshot(buf)).output == "literal only\n")
 vim.api.nvim_buf_set_name(buf, original_name)
 
 -- Recovery clears errors. Repeated/trimmed literal changes reuse successes.

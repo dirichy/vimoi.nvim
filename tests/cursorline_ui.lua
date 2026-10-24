@@ -38,7 +38,7 @@ later(function()
   util.set_buffer_text(target_buf, "one\ntwo\nthree\ntail\n")
   vim.wo.cursorline = true
   require("vimoi.api").diff_buffers(source_buf, target_buf, { filetype = "text" })
-  local session = assert(require("vimoi.gotmpl.session").by_window[api.nvim_get_current_win()])
+  local session = assert(require("vimoi.gotmpl.view").by_window[api.nvim_get_current_win()])
   local function style(win, row, col)
     local pos = vim.fn.screenpos(win, row, col or 1)
     assert(pos.row > 0, "test row is off screen")
@@ -50,7 +50,7 @@ later(function()
     api.nvim_exec_autocmds("CursorMoved", { buffer = source_buf })
   end
   later(function()
-    assert(session.trace and not session.loading)
+    assert(session.map and not session.loading)
     vim.wo[session.source_win].foldenable = false
     vim.wo[session.target_win].foldenable = false
     move(1)

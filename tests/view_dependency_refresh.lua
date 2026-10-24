@@ -18,7 +18,7 @@ require("vimoi").setup({
   diagnostics = { enabled = false },
   watch = { buffer_write_fallback = true },
 })
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local util = require("vimoi.util")
 api.preview({ source = source })
 local preview = assert(sessions.by_window[vim.api.nvim_get_current_win()])
@@ -36,11 +36,12 @@ util.set_buffer_text(diff.target_buf, "unsaved target edits\n")
 local function await(value)
   assert(
     vim.wait(5000, function()
-      return preview.trace ~= nil
-        and diff.trace ~= nil
-        and preview.trace.output:find(value, 1, true) ~= nil
-        and diff.trace.output:find(value, 1, true) ~= nil
-        and util.buffer_text(preview.target_buf) == preview.trace.output
+      local state = require("vimoi.gotmpl.session").get(preview.source_buf)
+      return state.map ~= nil
+        and not state.error
+        and preview.map == state.map
+        and diff.map == state.map
+        and util.buffer_text(preview.target_buf):find(value, 1, true) ~= nil
     end),
     "open views did not refresh to " .. value
   )
@@ -73,14 +74,16 @@ vim.fn.writefile({ "recovered" }, shared)
 await("recovered")
 assert(preview.preview_error == nil)
 
--- Closing a view removes its invalidation subscription and cancels queued refreshes.
+-- Closing views leaves the source renderer alive for rendered highlighting.
 require("vimoi.cli").invalidate("templates")
 sessions.close(preview)
 sessions.close(diff)
-local output = util.buffer_text(preview.target_buf)
 vim.fn.writefile({ "closed" }, shared)
 vim.wait(300, function()
   return false
 end)
-assert(util.buffer_text(preview.target_buf) == output and preview.closed and diff.closed)
+assert(vim.wait(5000, function()
+  return util.buffer_text(preview.target_buf) == "closed\n\n"
+end))
+assert(preview.closed and diff.closed)
 print("view dependencies: saves, external edits, multiple tabs, stale recovery, target protection and close verified")

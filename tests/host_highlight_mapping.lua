@@ -18,7 +18,7 @@ api.nvim_set_decoration_provider = function(ns, callbacks)
   end
   return original_provider(ns, callbacks)
 end
-local highlighter = require("vimoi.host_highlight")
+require("vimoi.host_highlight")
 api.nvim_set_decoration_provider = original_provider
 require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "rendered" } })
 local source_map = require("vimoi.gotmpl.source_map")
@@ -84,7 +84,7 @@ local function check(label, text, language)
   util.set_buffer_text(buf, text)
   require("vimoi.highlight").configure_template_buffer(buf, language)
   local trace = assert(await(source_map.trace, text, { buf = buf }))
-  highlighter.update(buf, trace)
+  require("vimoi.gotmpl.session").update(buf, trace)
   local previous = -1
   for _, part in ipairs(trace.literal_parts) do
     local occurrence = part.output_ranges[1]

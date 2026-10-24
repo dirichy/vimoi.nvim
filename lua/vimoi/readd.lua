@@ -7,11 +7,13 @@ local filetype = require("vimoi.filetype")
 ---@param path? string Source or target path; defaults to the current buffer/session.
 ---@return VimoiReAddResult?
 function M.readd(path)
-  local sessions = package.loaded["vimoi.gotmpl.session"]
+  local sessions = package.loaded["vimoi.gotmpl.view"]
   local session = sessions and sessions.by_window[vim.api.nvim_get_current_win()]
   if path and session then
     path = util.normalize_path(path)
-    if path ~= session.source_path and path ~= session.target_path then
+    if
+      path ~= vim.api.nvim_buf_get_name(session.source_buf) and path ~= vim.api.nvim_buf_get_name(session.target_buf)
+    then
       session = nil
     end
   end
@@ -23,7 +25,7 @@ function M.readd(path)
     return require("vimoi.gotmpl.merge").readd()
   end
   local source, target, resolve_error =
-    cli.resolve_paths(session and session.source_path or path or vim.api.nvim_buf_get_name(0))
+    cli.resolve_paths(session and vim.api.nvim_buf_get_name(session.source_buf) or path or vim.api.nvim_buf_get_name(0))
   if not source then
     return util.notify(assert(resolve_error), "re-add", vim.log.levels.ERROR)
   end

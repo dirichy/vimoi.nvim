@@ -1,10 +1,15 @@
+local waiting = dofile("tests/helpers/waiting.lua")
 local render_trace = dofile("tests/helpers/trace.lua")
 local view_for_buffer = dofile("tests/helpers/view.lua")
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({
+  chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
+  diagnostics = { enabled = false },
+  highlight = { mode = "disabled" },
+})
 local renderer = require("vimoi.gotmpl.source_map")
 local requests = {}
 package.loaded["vimoi.gotmpl.source_map"] = setmetatable({
@@ -14,14 +19,19 @@ package.loaded["vimoi.gotmpl.source_map"] = setmetatable({
 }, { __index = renderer })
 local api = require("vimoi.api")
 local util = require("vimoi.util")
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local function deliver(request)
   request.callback(render_trace(renderer, request.source, request.opts))
 end
 
 for _, side in ipairs({ "source", "target" }) do
   for _, stage in ipairs({ "initial", "stale" }) do
-    for _, change in ipairs({ "none", "cancel", "source", "target", "context", "rename", "close", "failure" }) do
+    -- Transfer-direction coverage lives in diff_transfer; the same pending
+    -- validity checks need the failure matrix in only one representative side.
+    local changes = side == "target"
+        and { "none", "cancel", "source", "target", "context", "rename", "close", "failure" }
+      or { "none" }
+    for _, change in ipairs(changes) do
       vim.cmd("tabnew")
       local source, target = vim.fn.tempname() .. ".tmpl", vim.fn.tempname()
       local source_text = 'first={{ "old" }}\nkeep\nlast=old\n'
@@ -41,7 +51,13 @@ for _, side in ipairs({ "source", "target" }) do
       vim.api.nvim_set_current_win(session[side .. "_win"])
       vim.api.nvim_win_set_cursor(0, { 3, 0 })
       local transfer = side == "source" and api.put_hunk or api.get_hunk
-      assert(transfer() == nil and session.pending_merge)
+      local before_transfer = #requests
+      assert(transfer() == nil and waiting())
+      if stage == "stale" then
+        assert(vim.wait(1000, function()
+          return #requests > before_transfer
+        end))
+      end
       local request = requests[#requests]
       if change == "cancel" then
         vim.fn.maparg("q", "n", false, true).callback()
@@ -65,17 +81,19 @@ for _, side in ipairs({ "source", "target" }) do
         deliver(request)
         -- Initial renders retry changed source/context before completing; the
         -- waiting operation must still reject its original text/context snapshot.
-        if session.pending_merge then
+        if waiting() then
           assert(
             vim.wait(1000, function()
-              return #requests > previous_requests
+              return not waiting() or #requests > previous_requests
             end),
             "initial rendering did not retry"
           )
-          deliver(requests[#requests])
+          if waiting() then
+            deliver(requests[#requests])
+          end
         end
       end
-      assert(not session.pending_merge)
+      assert(not waiting())
       assert(util.buffer_text(session.source_buf) == expected_source)
       if change == "none" then
         assert(util.buffer_text(session.target_buf) == "first=new\nkeep\nlast=old\n")

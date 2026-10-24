@@ -83,7 +83,7 @@ local function write_diff(path, output)
   vim.fn.writefile(lines, path)
 end
 
----@param sessions table<integer, VimoiTemplateSession> Shared registry owned by gotmpl/session.lua.
+---@param sessions table<integer, VimoiTemplateView> Shared registry owned by gotmpl/session.lua.
 function M.diffexpr(sessions)
   local original_text = util.read_file(vim.v.fname_in) or ""
   local modified_text = util.read_file(vim.v.fname_new) or ""
@@ -94,7 +94,7 @@ function M.diffexpr(sessions)
       visited[session] = true
       if
         not session.preview
-        and session.trace
+        and session.map
         and vim.api.nvim_buf_is_valid(session.source_buf)
         and vim.api.nvim_buf_is_valid(session.target_buf)
       then
@@ -139,7 +139,7 @@ local function install_diffexpr_dispatcher()
   end
 end
 
----@param sessions table<integer, VimoiTemplateSession>
+---@param sessions table<integer, VimoiTemplateView>
 function M.restore_diffexpr_if_unused(sessions)
   for _, session in pairs(sessions) do
     if not session.preview then
@@ -151,9 +151,9 @@ function M.restore_diffexpr_if_unused(sessions)
   end
 end
 
----@param session VimoiTemplateSession
+---@param session VimoiTemplateView
 function M.update(session)
-  session.projected_hunks = projected_hunks(session.source_text, session.hunks)
+  session.projected_hunks = projected_hunks(util.buffer_text(session.source_buf), session.hunks)
   install_diffexpr_dispatcher()
   local ok, error_message = pcall(function()
     vim.api.nvim_win_call(session.source_win, function()
@@ -188,12 +188,12 @@ local function hunk_contains_line(start, count, line)
   return line >= start and line < start + count
 end
 
----@param session VimoiTemplateSession
+---@param session VimoiTemplateView
 ---@param buf integer
 ---@param line integer One-based line at the time the user requested the merge.
 ---@return VimoiDiffHunk?
 function M.hunk_at(session, buf, line)
-  local projected = session.projected_hunks or projected_hunks(session.source_text, session.hunks)
+  local projected = session.projected_hunks or projected_hunks(util.buffer_text(session.source_buf), session.hunks)
   for index, native in ipairs(projected) do
     local start = buf == session.source_buf and native.source_start_line or native.target_start_line
     local count = buf == session.source_buf and native.source_line_count or native.target_line_count
@@ -204,7 +204,7 @@ function M.hunk_at(session, buf, line)
 end
 
 ---Apply a fold command in both mapped diff windows.
----@param session VimoiTemplateSession
+---@param session VimoiTemplateView
 ---@param command string
 function M.fold(session, command)
   local active_win = vim.api.nvim_get_current_win()

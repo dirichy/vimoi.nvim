@@ -1,6 +1,5 @@
 local M = {}
 local util = require("vimoi.util")
-local rendered_regions = require("vimoi.gotmpl.source_map").rendered_regions
 
 -- Translate between target, rendered output, and source line numbers before moving
 -- the peer window. Native scrollbind only understands equal line numbers.
@@ -42,17 +41,17 @@ local function rendered_to_target_line(session, line)
 end
 
 local function rendered_to_source_line(session, rendered_line)
-  local rendered_line_starts = util.line_starts(session.trace.output)
-  local line_start_byte = rendered_line_starts[rendered_line] or #session.trace.output
+  local rendered_line_starts = session.map.output_starts
+  local line_start_byte = rendered_line_starts[rendered_line] or session.map.output_size
   local nearest_source_anchor
-  for _, literal_part in ipairs(session.trace.literal_parts) do
+  for _, literal_part in ipairs(session.map.literal_parts) do
     for _, output_range in ipairs(literal_part.output_ranges) do
       if line_start_byte >= output_range.start_byte and line_start_byte < output_range.end_byte then
         local offset = math.min(
           line_start_byte - output_range.start_byte,
           literal_part.source.end_byte - literal_part.source.start_byte
         )
-        local row = util.byte_to_position(session.source_text, literal_part.source.start_byte + offset)
+        local row = util.byte_to_position(nil, literal_part.source.start_byte + offset, session.map.source_starts)
         return row + 1
       end
       local distance =
@@ -62,17 +61,20 @@ local function rendered_to_source_line(session, rendered_line)
       end
     end
   end
-  for _, region in ipairs(rendered_regions(session.trace)) do
+  for _, region in ipairs(session.map.regions) do
     local output_range = region.output_range
     if line_start_byte >= output_range.start_byte and line_start_byte < output_range.end_byte then
       local offset =
         math.min(line_start_byte - output_range.start_byte, region.source.end_byte - region.source.start_byte)
-      local row = util.byte_to_position(session.source_text, region.source.start_byte + offset)
+      local row = util.byte_to_position(nil, region.source.start_byte + offset, session.map.source_starts)
       return row + 1
     end
   end
-  local row =
-    util.byte_to_position(session.source_text, nearest_source_anchor and nearest_source_anchor.source_byte or 0)
+  local row = util.byte_to_position(
+    nil,
+    nearest_source_anchor and nearest_source_anchor.source_byte or 0,
+    session.map.source_starts
+  )
   return row + 1
 end
 
@@ -84,7 +86,7 @@ local function target_to_source_line(session, line)
       and line < hunk.target_start_line + hunk.target_line_count
     then
       if hunk.rendered_line_count == 0 and #hunk.source_ranges > 0 then
-        local row = util.byte_to_position(session.source_text, hunk.source_ranges[1].start_byte)
+        local row = util.byte_to_position(nil, hunk.source_ranges[1].start_byte, session.map.source_starts)
         return row + 1
       end
       break
@@ -94,13 +96,13 @@ local function target_to_source_line(session, line)
 end
 
 local function source_to_rendered_range(session, source_line)
-  local source_starts = util.line_starts(session.source_text)
-  local line_start_byte = source_starts[source_line] or #session.source_text
-  local line_end_byte = source_starts[source_line + 1] or #session.source_text
+  local source_starts = session.map.source_starts
+  local line_start_byte = source_starts[source_line] or session.map.source_size
+  local line_end_byte = source_starts[source_line + 1] or session.map.source_size
   local current_target_line = vim.api.nvim_win_get_cursor(session.target_win)[1]
   local current_rendered_line = target_to_rendered_line(session, current_target_line)
   local candidates = {}
-  for _, literal_part in ipairs(session.trace.literal_parts) do
+  for _, literal_part in ipairs(session.map.literal_parts) do
     if line_start_byte >= literal_part.source.start_byte and line_start_byte < literal_part.source.end_byte then
       local offset = math.min(
         line_start_byte - literal_part.source.start_byte,
@@ -108,22 +110,22 @@ local function source_to_rendered_range(session, source_line)
       )
       for _, output_range in ipairs(literal_part.output_ranges) do
         local rendered_byte = math.min(output_range.start_byte + offset, output_range.end_byte)
-        local row = util.byte_to_position(session.trace.output, rendered_byte)
+        local row = util.byte_to_position(nil, rendered_byte, session.map.output_starts)
         local end_byte =
           math.min(output_range.end_byte, output_range.start_byte + line_end_byte - literal_part.source.start_byte)
-        local end_row = util.byte_to_position(session.trace.output, math.max(rendered_byte, end_byte - 1))
+        local end_row = util.byte_to_position(nil, math.max(rendered_byte, end_byte - 1), session.map.output_starts)
         candidates[#candidates + 1] = { row + 1, end_row + 1 }
       end
     end
   end
   if #candidates == 0 then
-    for _, region in ipairs(rendered_regions(session.trace)) do
+    for _, region in ipairs(session.map.regions) do
       local source = region.source
       if line_start_byte >= source.start_byte and line_start_byte < source.end_byte then
-        local row = util.byte_to_position(session.trace.output, region.output_range.start_byte)
+        local row = util.byte_to_position(nil, region.output_range.start_byte, session.map.output_starts)
         local last = region.output_range.end_byte
         local end_row = last > region.output_range.start_byte
-            and util.byte_to_position(session.trace.output, last - 1) + 1
+            and util.byte_to_position(nil, last - 1, session.map.output_starts) + 1
           or row
         candidates[1] = { row + 1, end_row }
         break
@@ -140,7 +142,7 @@ local function source_to_rendered_range(session, source_line)
 end
 
 -- Keep the existing occurrence choice, then project that one range to target.
----@param session VimoiTemplateSession
+---@param session VimoiTemplateView
 ---@param source_line integer
 ---@return integer first One-based target row.
 ---@return integer last Less than first when the selected range has no output.
@@ -151,7 +153,7 @@ function M.target_range(session, source_line)
     cached
     and cached.source_line == source_line
     and cached.target_line == target_line
-    and cached.trace == session.trace
+    and cached.map == session.map
     and cached.hunks == session.hunks
   then
     return cached.first, cached.last
@@ -178,7 +180,7 @@ function M.target_range(session, source_line)
   session.cursor_range = {
     source_line = source_line,
     target_line = target_line,
-    trace = session.trace,
+    map = session.map,
     hunks = session.hunks,
     first = first,
     last = last,
@@ -219,7 +221,7 @@ function M.sync(session, active_win)
   if
     session.closed
     or session.preview_error
-    or not session.trace
+    or not session.map
     or session.syncing
     or not vim.api.nvim_win_is_valid(active_win)
   then

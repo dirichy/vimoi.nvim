@@ -3,26 +3,28 @@ local M = {}
 local util = require("vimoi.util")
 local job = require("vimoi.job")
 local cli = require("vimoi.cli")
-local sessions = require("vimoi.gotmpl.session")
+local views = require("vimoi.gotmpl.view")
 local native_diff = require("vimoi.gotmpl.native_diff")
 local buffer_edits = require("vimoi.gotmpl.buffer_edits")
 local merge_plan = require("vimoi.gotmpl.merge_plan")
 local source_map = require("vimoi.gotmpl.source_map")
 
 -- Wait for the view's render using the same modal progress UI as commands.
----@param session VimoiTemplateSession
+---@param session VimoiTemplateView
 ---@param validity VimoiGuardOptions
 ---@param resume function
----@return function complete
+---@return VimoiPendingMerge
 local function wait_for_render(session, validity, resume)
   if session.pending_merge then
-    session.pending_merge.cancel()
+    session.pending_merge.cancel(false)
   end
   resume = util.guard(resume, validity)
-  local active, pending = true, nil
+  local active = true
+  ---@type VimoiPendingMerge
+  local pending
   ---@type VimoiProgress
   local progress
-  local function cancel()
+  local function cancel(cancel_render)
     if not active then
       return
     end
@@ -30,8 +32,12 @@ local function wait_for_render(session, validity, resume)
     if session.pending_merge == pending then
       session.pending_merge = nil
     end
-    session.refresh_generation = (session.refresh_generation or 0) + 1
     progress.cancel()
+    if pending.stop then
+      pending.stop(cancel_render ~= false)
+    elseif cancel_render ~= false and session.stop_updates then
+      session.stop_updates(true)
+    end
     if session.render_job then
       -- Abandoning an explicit modal wait kills the command, including any
       -- automatic diagnostic subscriber; merely closing a view releases its caller.
@@ -43,7 +49,7 @@ local function wait_for_render(session, validity, resume)
     end
     -- A queued first render has no process yet. Retire it before it can start.
     if session.loading then
-      sessions.close(session)
+      views.close(session)
     end
   end
   progress = job.progress("Waiting for template rendering…", "modal", cancel)
@@ -52,6 +58,9 @@ local function wait_for_render(session, validity, resume)
       return
     end
     active = false
+    if pending.stop then
+      pending.stop()
+    end
     if session.pending_merge == pending then
       session.pending_merge = nil
     end
@@ -61,7 +70,7 @@ local function wait_for_render(session, validity, resume)
   end
   pending = { cancel = cancel, complete = complete }
   session.pending_merge = pending
-  return complete
+  return pending
 end
 
 ---@param trace VimoiSourceMapTrace
@@ -137,9 +146,9 @@ end
 local function merge(mode)
   local requested_buf = vim.api.nvim_get_current_buf()
   local requested_line = vim.api.nvim_win_get_cursor(0)[1]
-  local session = sessions.by_window[vim.api.nvim_get_current_win()]
-  if session and not sessions.is_valid(session) then
-    sessions.close(session)
+  local session = views.by_window[vim.api.nvim_get_current_win()]
+  if session and not views.is_valid(session) then
+    views.close(session)
   end
   if not session or session.closed or session.preview then
     return util.notify("current buffer is not in a vimoi diff session", "diff", vim.log.levels.ERROR)
@@ -149,6 +158,8 @@ local function merge(mode)
     or (mode == "get" and requested_buf == session.target_buf)
   -- Every deferred stage belongs to this exact session, source, target, and
   -- rendering context. A later choice must never operate on newer buffer text.
+  local source_path = vim.api.nvim_buf_get_name(session.source_buf)
+  local target_path = vim.api.nvim_buf_get_name(session.target_buf)
   local source_text = util.buffer_text(session.source_buf)
   local target_text = util.buffer_text(session.target_buf)
   local context_generation = cli.context_generation
@@ -157,7 +168,9 @@ local function merge(mode)
   local validity = {
     is_valid = function()
       return not cancelled
-        and sessions.is_valid(session)
+        and views.is_valid(session)
+        and vim.api.nvim_buf_get_name(session.source_buf) == source_path
+        and vim.api.nvim_buf_get_name(session.target_buf) == target_path
         and cli.context_generation == context_generation
         and util.buffer_text(session.source_buf) == source_text
         and util.buffer_text(session.target_buf) == target_text
@@ -167,8 +180,8 @@ local function merge(mode)
         return
       end
       cancelled = true
-      if not sessions.is_valid(session) then
-        sessions.close(session)
+      if not views.is_valid(session) then
+        views.close(session)
       end
       util.notify("session, buffers, or rendering context changed; merge cancelled", "diff", vim.log.levels.WARN)
     end,
@@ -181,8 +194,7 @@ local function merge(mode)
     )
   end
   local transfer_hunks = util.guard(function(trace)
-    session.refresh_generation = (session.refresh_generation or 0) + 1
-    local refreshed, refresh_error = sessions.refresh(session, trace)
+    local refreshed, refresh_error = views.refresh(session, trace)
     if not refreshed then
       return report_error(tostring(refresh_error))
     end
@@ -217,8 +229,7 @@ local function merge(mode)
       }
       local updated = target_text:sub(1, edit.start_byte) .. replacement .. target_text:sub(edit.end_byte + 1)
       buffer_edits.apply(session.target_buf, target_text, updated, { edit })
-      session.refresh_generation = (session.refresh_generation or 0) + 1
-      local refreshed_target, target_error = sessions.refresh(session, trace)
+      local refreshed_target, target_error = views.refresh(session, trace)
       if not refreshed_target then
         return report_error("target was updated, but refreshing the diff failed: " .. tostring(target_error))
       end
@@ -266,8 +277,7 @@ local function merge(mode)
         return report_error("cannot infer static edit: " .. tostring(trace_error))
       end
       buffer_edits.apply(session.source_buf, source_text, candidate.source_text, candidate.source_edits)
-      session.refresh_generation = (session.refresh_generation or 0) + 1
-      local updated, update_error = sessions.refresh(session, candidate_trace)
+      local updated, update_error = views.refresh(session, candidate_trace)
       if not updated then
         return util.notify(
           "source was updated, but refreshing the diff failed: " .. tostring(update_error),
@@ -295,21 +305,22 @@ local function merge(mode)
     end)
   end, validity)
   local refresh_trace = util.guard(function()
-    local trace = source_map.rebuild(session.trace, source_text, session.source_buf)
+    local trace = require("vimoi.gotmpl.session").rebuild(session.source_buf)
     if trace then
       transfer_hunks(trace)
     else
-      local complete = wait_for_render(session, validity, function(rendered, render_error)
+      local pending = wait_for_render(session, validity, function(rendered, render_error)
         if not rendered then
           return report_error(tostring(render_error))
         end
         transfer_hunks(rendered)
       end)
-      session.render_job =
-        source_map.trace_async(source_text, { init = session.is_init_template, buf = session.source_buf }, complete)
+      pending.stop = require("vimoi.gotmpl.session").register(session.source_buf, function(state, err)
+        pending.complete(state and require("vimoi.gotmpl.session").snapshot(session.source_buf), err)
+      end, { once = true })
     end
   end, validity)
-  if session.trace then
+  if session.map then
     refresh_trace()
   else
     wait_for_render(session, validity, refresh_trace)

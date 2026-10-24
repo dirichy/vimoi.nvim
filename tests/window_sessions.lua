@@ -9,7 +9,7 @@ vim.env.VIMOI_TEST_DESTINATION = destination
 vim.opt.swapfile = false
 local api = require("vimoi.api")
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 local util = require("vimoi.util")
 local source, target = source_root .. "/dot_demo.lua.tmpl", destination .. "/.demo.lua"
 vim.fn.writefile({ "local value = 1", '{{ "-- dynamic" }}' }, source)
@@ -100,7 +100,7 @@ assert(not second.closed and not diff.closed)
 -- The target buffer is intentionally shared, so the other view refreshes too.
 vim.api.nvim_exec_autocmds("TextChanged", { buffer = target_buf })
 assert(vim.wait(3000, function()
-  return diff.target_text == util.buffer_text(target_buf)
+  return diff.target_tick == vim.api.nvim_buf_get_changedtick(target_buf)
 end))
 sessions.close(second)
 assert(sessions.is_valid(diff) and vim.b[diff.source_buf].snacks_scroll == false)

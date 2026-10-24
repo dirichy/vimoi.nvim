@@ -8,7 +8,7 @@ vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 local api = require("vimoi.api")
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 local util = require("vimoi.util")
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.gotmpl.view")
 for _, template in ipairs({
   'name: {{ "alice" }}\nkeep: true\ntimeout: 10\n',
   'name: "{{ "alice" }}"\nkeep: true\ntimeout: 10\n',

@@ -43,8 +43,8 @@
 | 用户入口与键位配置 | 已提供的用户命令都有 Lua API；默认键位可覆盖、单项禁用或全部关闭 |
 | 配置与帮助文档 | 支持 executable/config 路径、监听、补全、高亮、diff 校验与键位；提供中英文 `:help vimoi.nvim` |
 | 模板 action 背景 | 默认取主题的 `NormalFloat` 背景；`highlight.template_bg` 支持高亮组名、固定颜色或深浅色配置，保留语法前景色 |
-| 模板 diagnostics | 默认启用，可配置关闭；300ms debounce，复用哨兵骨架、缓存和在途渲染，语法/执行错误映射到原始 source；静态修改复用成功及失败结果 |
-| 宿主 diagnostics | 默认自动复用已启用的 LSP 和 nvim-lint 的 stdin 检查器；对隐藏渲染快照检查，经 source map 映射回模板，保留来源/级别/错误码；动态区域保守定位，旧快照结果隔离 |
+| 模板 diagnostics | 默认启用，可配置关闭；120ms debounce，复用哨兵骨架、缓存和在途渲染，语法/执行错误映射到原始 source；静态修改复用成功及失败结果 |
+| 宿主 diagnostics | 默认自动复用已启用的 LSP 和 nvim-lint 的 stdin 检查器；对共享渲染 output 检查，经 source map 映射回模板，保留来源/级别/错误码；动态区域保守定位，同一 output 通过 didChange 更新，旧宿主诊断按 provider 的更新节奏替换 |
 | 渲染结果高亮（默认） | `highlight.mode = "rendered"` 对完整输出使用原生 Tree-sitter query，把可见静态文本的颜色映射回 source；持久 extmark 保留旧颜色并跟随编辑；隐藏 output buffer 增量解析；保留 gotmpl action，关闭诊断仍可使用；未执行静态片段使用 Comment，循环采用第一次执行；define/block 正文不投色，可显式切换 injection |
 | 关闭宿主高亮 | `highlight.mode = "disabled"` 关闭宿主 injection、渲染高亮和 Vim syntax 回退；保留模板 action 高亮及背景，不影响诊断或 source map |
 | 环境健康检查 | `:checkhealth vimoi` 检查版本要求、可执行文件、已发现路径、gotmpl parser/查询及打开模板的可选宿主 parser；不启动 chezmoi、不渲染或写文件 |
@@ -73,7 +73,7 @@
 | 渲染上下文 | 受管理模板以骨架前缀注入 sourceFile、targetFile、command="cat" 和 cat args；严格校验可与真实 cat 对照 | cat/apply 结果不同的模板不支持；无名、未受管理/source-only 和 init 模板保留 execute-template 上下文；严格校验默认关闭，preview 不适用 |
 | 编辑 source 时保留目标语言体验 | 已有独立 Toggle、目标文件类型、宿主语言高亮、预览和 diff | source 路径上的 LSP 工作区仍未解决 |
 | 模板语法校验 | 已有独立于 diff/preview 的默认 diagnostics，支持语法与执行错误定位 | 没有额外的手动完整原文校验命令；无法定位的错误仍以通知展示，沿用哨兵限制 |
-| 外部 source 变化后刷新 | 配置、data、include 模板依赖失效后自动延迟刷新现有视图，初次渲染由 guard 重试 | 不是全部 source state 的索引与属性自动重扫；未监听的新目录仍需手动 invalidate/rescan |
+| 外部 source 变化后刷新 | 配置、data、include 模板依赖失效后自动延迟刷新现有视图，初次渲染由 source session 调度重试 | 不是全部 source state 的索引与属性自动重扫；未监听的新目录仍需手动 invalidate/rescan |
 | 安静通知与可替换通知 | 普通通知走 `vim.notify`，支持用户替换；后台任务不抢焦点 | 任务进度由 job 自有浮窗显示，尚无替换该 UI 的配置；写回成功仍有通知 |
 | 工程质量配置与测试 | 当前功能的配置、路径/命令/缓存/写回/窗口测试、checkhealth 和中英文 help | 未来新增功能时扩展相应测试，不为已取消的自动同步规划测试 |
 

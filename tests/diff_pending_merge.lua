@@ -1,10 +1,15 @@
+local waiting = dofile("tests/helpers/waiting.lua")
 local render_trace = dofile("tests/helpers/trace.lua")
 local view_for_buffer = dofile("tests/helpers/view.lua")
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({
+  chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
+  diagnostics = { enabled = false },
+  highlight = { mode = "disabled" },
+})
 
 local real_renderer = require("vimoi.gotmpl.source_map")
 local requests, synchronous_renders = {}, 0
@@ -30,6 +35,9 @@ local changed = "first=new\nkeep\nlast=new\n"
 local count = 0
 
 local function open()
+  for _, session in pairs(require("vimoi.gotmpl.view").by_window) do
+    require("vimoi.gotmpl.view").close(session)
+  end
   count = count + 1
   local source_path, target_path = root .. "/" .. count .. ".tmpl", root .. "/" .. count
   vim.fn.writefile(util.text_lines(original), source_path)
@@ -51,8 +59,8 @@ local function deliver(request)
 end
 
 local function assert_no_save(session)
-  assert(util.read_file(session.source_path) == original)
-  assert(util.read_file(session.target_path) == changed)
+  assert(util.read_file(vim.api.nvim_buf_get_name(session.source_buf)) == original)
+  assert(util.read_file(vim.api.nvim_buf_get_name(session.target_buf)) == changed)
 end
 
 -- A source transfer holds focus in a read-only wait window, then resumes at the requested hunk.
@@ -63,17 +71,17 @@ for _, side in ipairs({ "source", "target" }) do
   vim.api.nvim_win_set_cursor(win, { 3, 0 })
   local before = synchronous_renders
   local transfer = side == "source" and api.get_hunk or api.put_hunk
-  assert(transfer() == nil and session.pending_merge)
+  assert(transfer() == nil and waiting())
   local waiting_win = vim.api.nvim_get_current_win()
   assert(waiting_win ~= win and vim.api.nvim_win_get_config(waiting_win).relative == "editor")
   assert(not vim.bo[vim.api.nvim_win_get_buf(waiting_win)].modifiable)
-  assert(synchronous_renders == before and not session.trace)
+  assert(synchronous_renders == before and not session.map)
   assert(util.buffer_text(session.source_buf) == original)
   deliver(request)
   assert(not vim.api.nvim_win_is_valid(waiting_win) and vim.api.nvim_get_current_win() == win)
   assert(util.buffer_text(session.source_buf) == "first=old\nkeep\nlast=new\n")
   assert(util.buffer_text(session.target_buf) == changed)
-  assert(not session.pending_merge and synchronous_renders == before)
+  assert(not waiting() and synchronous_renders == before)
   assert_no_save(session)
 end
 
@@ -83,11 +91,11 @@ do
   local before = synchronous_renders
   api.readd()
   local waiting_win = vim.api.nvim_get_current_win()
-  assert(session.pending_merge and synchronous_renders == before)
+  assert(waiting() and synchronous_renders == before)
   deliver(request)
   assert(util.buffer_text(session.source_buf) == changed)
   assert(not vim.api.nvim_win_is_valid(waiting_win))
-  assert(synchronous_renders == before and not session.pending_merge)
+  assert(synchronous_renders == before and not waiting())
   assert_no_save(session)
 end
 
@@ -113,7 +121,7 @@ for _, change in ipairs({ "q", "escape", "interrupt", "close", "leave", "tab", "
   assert(vim.wait(1000, function()
     return not vim.api.nvim_win_is_valid(waiting_win)
   end))
-  assert(not session.pending_merge)
+  assert(not waiting())
   local active_win = vim.api.nvim_get_current_win()
   deliver(request)
   assert(util.buffer_text(session.source_buf) == original and synchronous_renders == before)
@@ -139,14 +147,16 @@ for _, change in ipairs({ "source", "target", "context" }) do
   if change ~= "target" then
     assert(
       vim.wait(1000, function()
-        return #requests == previous_requests + 1
+        return not waiting() or #requests == previous_requests + 1
       end),
       "initial rendering did not retry"
     )
-    deliver(requests[#requests])
+    if waiting() then
+      deliver(requests[#requests])
+    end
   end
   assert(util.buffer_text(session.source_buf) == expected_source)
-  assert(not session.pending_merge and synchronous_renders == before)
+  assert(not waiting() and synchronous_renders == before)
   assert_no_save(session)
 end
 
@@ -161,10 +171,11 @@ for _, change in ipairs({ "close", "reopen", "replace", "failure" }) do
   elseif change == "reopen" then
     vim.api.nvim_set_current_win(session.source_win)
     local previous_requests = #requests
-    views.open({ source = session.source_path, target = session.target_path })
-    assert(vim.wait(1000, function()
-      return #requests == previous_requests + 1
-    end))
+    views.open({
+      source = vim.api.nvim_buf_get_name(session.source_buf),
+      target = vim.api.nvim_buf_get_name(session.target_buf),
+    })
+    assert(not waiting() and #requests == previous_requests)
   elseif change == "replace" then
     vim.api.nvim_win_set_buf(session.target_win, vim.api.nvim_create_buf(false, true))
   end
@@ -172,11 +183,8 @@ for _, change in ipairs({ "close", "reopen", "replace", "failure" }) do
     request.callback(nil, "test rendering failure")
   else
     deliver(request)
-    if change == "reopen" then
-      deliver(requests[#requests])
-    end
   end
-  assert(session.closed and not session.pending_merge)
+  assert(session.closed and not waiting())
   assert(
     vim.wait(1000, function()
       return not vim.api.nvim_win_is_valid(waiting_win)

@@ -41,7 +41,6 @@ local function check(source, opts)
     trace.output == result.stdout,
     vim.inspect({ source = source, actual = trace.output, expected = result.stdout })
   )
-  assert(rawget(trace, "segments") == nil)
   for _, literal_part in ipairs(trace.literal_parts) do
     assert(source:sub(literal_part.source.start_byte + 1, literal_part.source.end_byte) == literal_part.text)
     for _, occurrence in ipairs(literal_part.output_ranges) do
@@ -124,11 +123,14 @@ end
 
 local cached = check("{{ if true }}cache{{ end }}")
 local before = executions
-assert(run_async(source_map.trace, cached.source) == cached, "unchanged text should return the last complete trace")
+assert(
+  vim.deep_equal(run_async(source_map.trace, cached.source), cached),
+  "cached skeleton produced a different mapping"
+)
 assert(executions == before)
 local done = false
 source_map.trace_async(cached.source, {}, function(trace, err)
-  assert(not err and trace == cached and not vim.in_fast_event())
+  assert(not err and vim.deep_equal(trace, cached) and not vim.in_fast_event())
   done = true
 end)
 assert(not done, "cache-hit callbacks must remain asynchronous")
