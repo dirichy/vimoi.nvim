@@ -242,7 +242,7 @@ require("vimoi").setup({
   completion = { enabled = true },
   diagnostics = { enabled = true, host = true },
   highlight = {
-    mode = "injection",
+    mode = "rendered",
     template_bg = "NormalFloat",
   },
   keymaps = {
@@ -321,27 +321,30 @@ target (or source/current directory when no managed target is available). Projec
 discovery works normally, but rules tied to an exact filename, such as some YAML schema
 associations, may need adjustment. Real target buffers and files are untouched.
 
-Diagnostics and previews execute template functions and may invoke password helpers.
+Diagnostics, previews, and rendered highlighting execute template functions and may invoke password helpers.
 Slow tasks can be canceled and have no default timeout.
 The host language is detected from the target name and shebang; for example,
-`dot_zshrc.tmpl` uses zsh highlighting. Highlighting may be inaccurate when templates
-assemble incomplete host language statements.
+`dot_zshrc.tmpl` uses zsh highlighting. By default, the complete rendered output is
+parsed and its colors are mapped back to literal template text.
 
-To highlight complete rendered statements instead of parsing host fragments in the template:
+To parse host fragments directly in the template instead:
 
 ```lua
-require("vimoi").setup({ highlight = { mode = "rendered" } })
+require("vimoi").setup({ highlight = { mode = "injection" } })
 ```
 
 | `highlight.mode` | Host highlighting |
 | --- | --- |
-| `"injection"` (default) | Parse host text inside the template with Tree-sitter injections. |
-| `"rendered"` (experimental) | Parse rendered output and map colors back to literal template text. Unexecuted text uses `Comment`. |
+| `"rendered"` (default) | Parse rendered output and map colors back to literal template text. Unexecuted text uses `Comment`. |
+| `"injection"` | Parse host text inside the template with Tree-sitter injections; incomplete fragments may highlight inaccurately. |
 | `"disabled"` | Disable host highlighting, including the Vim syntax fallback. |
 
 Template actions keep gotmpl highlighting in all three modes. Rendered mode works with
 diagnostics disabled and retains existing colors during edits or temporary template errors.
-Repeated loop text uses its first execution. LSP semantic tokens, whole-line conceal,
+Repeated loop text uses its first execution, even if later executions have different
+syntax contexts. Opaque `define`/`block` bodies have no host-color projection; use
+injection mode to highlight their contents. Before the first successful render,
+host colors may be absent. LSP semantic tokens, whole-line conceal,
 and spell navigation are not projected. If the host parser is missing, the enabled modes
 fall back to Vim syntax.
 

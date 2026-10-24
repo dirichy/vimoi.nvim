@@ -18,7 +18,7 @@ local defaults = {
     host = true,
   },
   highlight = {
-    mode = "injection",
+    mode = "rendered",
     template_bg = "NormalFloat",
   },
   ---@type VimoiKeymaps

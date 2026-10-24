@@ -40,7 +40,7 @@ assert(vim.api.nvim_buf_get_name(source) == "" and vim.api.nvim_buf_get_name(tar
 assert(vim.bo[source].filetype == "gotmpl" and vim.bo[target].filetype == "lua")
 assert(vim.b[source].vimoi_template_filetype == "lua")
 assert(assert(vim.treesitter.get_parser(source, "gotmpl")):parse(true))
-assert(vim.treesitter.get_parser(source, "gotmpl"):children().lua)
+assert(not vim.treesitter.get_parser(source, "gotmpl"):children().lua, "default rendered mode enabled source injection")
 assert(not session.verify_with_cat, "buffer diff must not validate against a disk path")
 assert(session.trace.output == "local value = 1\nlocal count = 2\n")
 assert(vim.wo[session.source_win].diff and vim.wo[session.target_win].diff)

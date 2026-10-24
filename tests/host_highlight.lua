@@ -13,7 +13,8 @@ require("vimoi.host_highlight")
 api.nvim_set_decoration_provider = original_provider
 assert(provider)
 
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "rendered" } })
+require("vimoi").setup({ diagnostics = { enabled = false } })
+assert(require("vimoi").config.highlight.mode == "rendered", "rendered highlighting must be the default")
 local buf = api.nvim_create_buf(true, false)
 api.nvim_set_current_buf(buf)
 local util = require("vimoi.util")
@@ -223,8 +224,19 @@ assert(not gotmpl:children().lua, "disabled mode enabled host injections")
 assert(#draw() == 0, "disabled mode retained projected host highlighting")
 
 -- Switching back restores native host injection and clears projections.
-require("vimoi").setup({ diagnostics = { enabled = false } })
+require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "injection" } })
 gotmpl:parse(true)
 assert(gotmpl:children().lua, "disabling rendered mode did not restore host injection")
 assert(#draw() == 0)
+-- Omitting runtime settings returns to the rendered default and republishes
+-- colors for existing buffers, including when diagnostics remain disabled.
+require("vimoi").setup({ diagnostics = { enabled = false } })
+gotmpl:parse(true)
+assert(not gotmpl:children().lua, "resetting setup did not restore the rendered default")
+assert(
+  vim.wait(5000, function()
+    return #draw() > 0
+  end, 10),
+  "resetting setup did not restore rendered colors"
+)
 api.nvim_buf_delete(buf, { force = true })

@@ -1,5 +1,5 @@
 local M = {}
-local mode = "injection"
+local mode
 
 local function apply()
   local background = require("vimoi").config.highlight.template_bg

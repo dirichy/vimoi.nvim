@@ -47,6 +47,11 @@ vim.notify = function(message, level)
 end
 
 local function open(label, validate)
+  -- Each fixture owns the mocked request queue. Redraws can otherwise deliver
+  -- a previous tab's debounced refresh while the next fixture waits to open.
+  for _, previous in ipairs(vim.tbl_values(sessions.by_window)) do
+    sessions.close(previous)
+  end
   vim.cmd("tabnew")
   local source_path, target_path = root .. "/" .. label .. ".tmpl", root .. "/" .. label
   vim.fn.writefile({ 'value={{ "A" }}' }, source_path)

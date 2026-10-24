@@ -223,7 +223,7 @@ require("vimoi").setup({
   completion = { enabled = true },
   diagnostics = { enabled = true, host = true },
   highlight = {
-    mode = "injection",
+    mode = "rendered",
     template_bg = "NormalFloat",
   },
   keymaps = {
@@ -292,24 +292,26 @@ nvim-lint 只运行支持 stdin 的检查器，其他检查插件暂不接入。
 目录。项目根目录照常识别，但依赖精确文件名的规则（例如部分 YAML schema 关联）可能
 需要调整。不会修改真实 target buffer 或文件。
 
-诊断和预览会实际执行模板函数，可能调用密码助手；耗时任务可取消，没有默认超时。
+诊断、预览和渲染高亮会实际执行模板函数，可能调用密码助手；耗时任务可取消，没有默认超时。
 模板宿主语言会按 target 名称和 shebang 识别，例如 `dot_zshrc.tmpl` 使用 zsh 高亮。
-模板拼接不完整语句时，宿主语言高亮可能不准确。
+默认解析完整渲染结果，再把颜色映射回模板静态文本。
 
-若模板把宿主语句拆在多个 action 之间，可改为解析完整渲染结果：
+若希望直接解析模板内的宿主文本，可切换为 injection：
 
 ```lua
-require("vimoi").setup({ highlight = { mode = "rendered" } })
+require("vimoi").setup({ highlight = { mode = "injection" } })
 ```
 
 | `highlight.mode` | 宿主高亮 |
 | --- | --- |
-| `"injection"`（默认） | 用 Tree-sitter injection 解析模板中的宿主文本。 |
-| `"rendered"`（实验） | 解析渲染结果，把颜色映射到模板静态文本；未执行的文本使用 `Comment`。 |
+| `"rendered"`（默认） | 解析渲染结果，把颜色映射到模板静态文本；未执行的文本使用 `Comment`。 |
+| `"injection"` | 用 Tree-sitter injection 解析模板中的宿主文本；不完整语句可能高亮不准确。 |
 | `"disabled"` | 关闭宿主高亮，包括 Vim syntax 回退。 |
 
 三种模式均保留 gotmpl action 高亮。Rendered 模式不依赖 diagnostics 开关，编辑期间
-或遇到临时模板错误时保留已有颜色。循环内重复文本采用第一次执行的结果。暂不映射
+或遇到临时模板错误时保留已有颜色。循环内重复文本采用第一次执行的颜色，即使后续执行
+落在不同语法上下文。define/block 正文没有宿主颜色投射，需要高亮正文时可使用 injection。
+第一次成功渲染前可能没有宿主颜色。暂不映射
 LSP semantic tokens、整行 conceal 和拼写导航。缺少宿主 parser 时，启用宿主高亮的
 模式回退到 Vim syntax。
 

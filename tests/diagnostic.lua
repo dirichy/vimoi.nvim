@@ -125,7 +125,7 @@ diagnostics = change('{{ if false }}{{ promptStringOnce . "key" "Question" }}{{ 
 assert(#diagnostics == 0 and last_args[2] == "--init")
 
 -- Disable at runtime clears this namespace and detaches future buffers.
-require("vimoi").setup({ diagnostics = { enabled = false } })
+require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
 assert(#vim.diagnostic.get(buf, { namespace = namespace }) == 0)
 before = runs
 util.set_buffer_text(buf, "{{ invalidAfterDisable . }}")

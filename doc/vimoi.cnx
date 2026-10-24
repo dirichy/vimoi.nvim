@@ -77,7 +77,7 @@ source 类型时，应提前 setup，不只依赖该 filetype 触发。
         host = true,
       },
       highlight = {
-        mode = "injection",
+        mode = "rendered",
         template_bg = "NormalFloat",
       },
       keymaps = {
@@ -447,9 +447,8 @@ put、get 或 template re-add 需要渲染时（首次渲染或 source map 过�
 ==============================================================================
 语法高亮                                                *vimoi-highlighting*
 
-模板 source 使用 `gotmpl` filetype。插件默认根据目标文件名推断宿主语言，并把静态 `text`
-节点注入对应 Tree-sitter 语言。因此 `init.lua.tmpl` 可以同时获得 Go template 和 Lua
-语法高亮。
+模板 source 使用 `gotmpl` filetype。插件默认根据目标文件名推断宿主语言，解析完整
+渲染结果并把颜色映射回静态源码，同时保留 Go template action 高亮。
 source 目录内的普通模板通过 chezmoi 的缓存路径查询取得真实 target 名称，因此
 `dot_zshrc.tmpl` 也能识别为 zsh，无需 target 已存在。查询失败时回退到 source
 文件名和内容；下面列出的特殊 source 文件继续使用自身的宿主语言规则。
@@ -470,22 +469,24 @@ ignore/remove 文件借用 `gitignore` 高亮，但 chezmoi 的模式匹配语�
 使用 `syntax/sh.vim`；模板 action 也保留基本的 syntax 高亮。
 两种高亮路径都会给模板 action 加上同一套可配置的背景色，见 |vimoi-setup|。
 
-宿主语言高亮只能尽力而为。模板 action 可能生成关键 token，不同条件分支可能各自包含
+Injection 模式的宿主语言高亮只能尽力而为。模板 action 可能生成关键 token，不同条件分支可能各自包含
 不完整语句，循环也可能只生成代码片段。Tree-sitter 看不到最终渲染程序，所以注入区域
 可能产生错误节点、缺失高亮或错误高亮。这不会影响模板解析、source map 或 chezmoi
 最终渲染。
 
-实验性的渲染高亮可以替代宿主 injection： >lua
-    require("vimoi").setup({ highlight = { mode = "rendered" } })
+默认启用渲染高亮。若要改用宿主 injection： >lua
+    require("vimoi").setup({ highlight = { mode = "injection" } })
 <
-它对完整渲染结果使用原生宿主 query、高亮组和优先级，把可见静态文本映射回 source，
+渲染模式对完整渲染结果使用原生宿主 query、高亮组和优先级，把可见静态文本映射回 source，
 模板 action 保留 gotmpl 高亮。与 diagnostics 和视图共享异步渲染缓存，关闭
 diagnostics.enabled 后仍能使用。编辑期间保留旧高亮，并由 extmark 随文本移动；
 渲染成功后替换。临时模板错误会保留最后一次成功的颜色。
 当前渲染未执行的静态文本使用 Comment 高亮，模板 action 保留 gotmpl 高亮；循环体
-采用第一次执行的结果。暂不映射 LSP semantic tokens、
+采用第一次执行的颜色，即使后续执行落在不同语法上下文。define/block 正文没有宿主颜色
+投射，需要高亮正文时可使用 injection。第一次成功渲染前可能没有宿主颜色；高亮会
+执行模板函数，也可能调用密码助手。暂不映射 LSP semantic tokens、
 conceal_lines 和拼写导航。没有宿主 parser 时保留 Vim syntax 回退。
-默认模式为 "injection"；设置该模式可恢复宿主 injection。
+设置 highlight.mode = "injection" 可恢复宿主 injection。
 设置 highlight.mode = "disabled" 可关闭宿主高亮，包括 Vim syntax 回退；模板 action
 保留 gotmpl 高亮和背景。此选项不影响 diagnostics 和 source map。
 

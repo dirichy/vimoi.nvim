@@ -118,7 +118,7 @@ end)
 -- chezmoi's diagnostics; unrelated diagnostics remain owned by their provider.
 local other = vim.api.nvim_create_namespace("another-provider")
 vim.diagnostic.set(other, buf, { { lnum = 0, col = 0, message = "other" } })
-require("vimoi").setup({ diagnostics = { enabled = false } })
+require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
 assert(requests[7].job.cancelled)
 deliver(requests[7], "cancelled")
 assert(

@@ -32,7 +32,7 @@
 | 增量更新与缓存 | 编辑 debounce；静态、trim、重复区域等修改复用结构；新 action 结构异步渲染，过期结果不写入新状态 |
 | 窗口绑定 session | 重复打开或切换 diff/preview 复用双窗口；同一 buffer 的其他窗口/tab 可有独立视图 |
 | 文件类型识别与懒加载 | source 根目录内识别模板和特殊文件；普通 managed source 按真实 target 判断类型并保留原生初始化回调。规则统一在 `filetype.lua`，不建立全部 target 的属性索引 |
-| 宿主语言高亮 | 普通模板按真实 target 路径识别宿主语言，复用 CLI 路径缓存；gotmpl injection、模板背景色、脚本 shebang 与无 parser 时的 syntax 回退，特殊文件保留自身规则 |
+| 宿主语言高亮 | 普通模板按真实 target 路径识别宿主语言，复用 CLI 路径缓存；默认渲染高亮、可选 gotmpl injection、模板背景色、脚本 shebang 与无 parser 时的 syntax 回退，特殊文件保留自身规则 |
 | 路径跳转 | 增强 gf / gF，支持 include、includeTemplate、template、glob、ignore/remove、symlink 等；多匹配使用 picker |
 | blink.cmp 补全 | 常用模板函数、data 字段、局部变量和 chezmoi 路径；action 外有 if/ifelse/range/with/define/block/comment snippet。目前只集成 blink |
 | 模板块匹配 | 为可选 vim-matchup 提供 Tree-sitter 查询，支持 trim、嵌套和 else 链；不自行覆盖 `%` |
@@ -45,7 +45,7 @@
 | 模板 action 背景 | 默认取主题的 `NormalFloat` 背景；`highlight.template_bg` 支持高亮组名、固定颜色或深浅色配置，保留语法前景色 |
 | 模板 diagnostics | 默认启用，可配置关闭；300ms debounce，复用哨兵骨架、缓存和在途渲染，语法/执行错误映射到原始 source；静态修改复用成功及失败结果 |
 | 宿主 diagnostics | 默认自动复用已启用的 LSP 和 nvim-lint 的 stdin 检查器；对隐藏渲染快照检查，经 source map 映射回模板，保留来源/级别/错误码；动态区域保守定位，旧快照结果隔离 |
-| 渲染结果高亮（实验） | `highlight.mode = "rendered"` 替代宿主 injection；对完整输出使用原生 Tree-sitter query，把可见静态文本的颜色映射回 source；持久 extmark 保留旧颜色并跟随编辑；隐藏 output buffer 增量解析；保留 gotmpl action，关闭诊断仍可使用；未执行静态片段使用 Comment，循环采用第一次执行 |
+| 渲染结果高亮（默认） | `highlight.mode = "rendered"` 对完整输出使用原生 Tree-sitter query，把可见静态文本的颜色映射回 source；持久 extmark 保留旧颜色并跟随编辑；隐藏 output buffer 增量解析；保留 gotmpl action，关闭诊断仍可使用；未执行静态片段使用 Comment，循环采用第一次执行；define/block 正文不投色，可显式切换 injection |
 | 关闭宿主高亮 | `highlight.mode = "disabled"` 关闭宿主 injection、渲染高亮和 Vim syntax 回退；保留模板 action 高亮及背景，不影响诊断或 source map |
 | 环境健康检查 | `:checkhealth vimoi` 检查版本要求、可执行文件、已发现路径、gotmpl parser/查询及打开模板的可选宿主 parser；不启动 chezmoi、不渲染或写文件 |
 | 自动化覆盖 | 路径、配置、缓存、任务取消、窗口生命周期、diff/preview/写回等测试；source map 覆盖条件、循环、trim、重复文本、空块与 includeTemplate |

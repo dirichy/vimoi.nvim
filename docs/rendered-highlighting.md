@@ -1,7 +1,7 @@
 # 渲染结果高亮实现
 
 `highlight.mode = "rendered"` 停用 source 上的宿主 injection，保留 gotmpl 自身的
-高亮。默认模式为 "injection"，可在同一会话中通过 setup 切换。
+高亮。默认模式为 "rendered"，可在同一会话中通过 setup 切换到 "injection"。
 模式 "disabled" 同时关闭宿主 injection、渲染高亮和 Vim syntax 回退，保留模板
 action 的高亮及背景，不关闭诊断或 source map。
 
@@ -57,7 +57,11 @@ source 的 decoration provider 只使用 `on_win` 来观察可见范围。当前
 - `literal_parts` 中没有任何 output occurrence 的非空静态区域，使用原生 `Comment`
   高亮，表示当前渲染未执行。包括条件分支和零次执行的循环体；不覆盖模板 action。
   同样按视口裁剪和缓存，缺少宿主 parser 时也会绘制 Comment。
-- 循环重复区域取第一次执行，避免不同执行的颜色相互覆盖。
+- 循环重复区域取第一次执行，避免不同执行的颜色相互覆盖；例如第一次是注释、第二次
+  是字符串时，source 使用注释颜色。首次执行的输出位置不必与源码顺序一致。
+- define/block 为不透明整体标签，正文没有静态映射，因此不会投射宿主颜色；需要正文
+  高亮时可使用 injection。调用输出仍按动态内容处理，不对应正文内部。
+- 首次成功渲染前可能没有宿主颜色；初始模板错误不会生成高亮快照。
 - 不投射 LSP semantic tokens，不实现原生的 conceal_lines 和 spell navigation。
   子语言同优先级重叠时，未使用原生私有 `_subpriority`，尚不能保证所有重叠效果一致。
 - 增量解析收益取决于输出的实际变化；if/range 变化可能影响大量输出，不承诺比
@@ -71,3 +75,8 @@ source 的 decoration provider 只使用 `on_win` 来观察可见范围。当前
   滚动过程中持续采样屏幕颜色，验证重叠 capture 的顺序稳定。
 - `tests/host_highlight_incremental.lua` 验证 output buffer/parser 复用、分离的最小字节
   编辑、无修改时复用语法树、UTF-8、EOF 和模式切换清理。
+- `tests/host_highlight_mapping.lua` 用独立原生查询和逐槽位穷举对照，验证整个文档与单行
+  视口中的逐字节 capture/priority；覆盖首次执行乱序、跳过/重复、break/continue、
+  define/block 多次调用及间隔文本、trim、UTF-8、YAML/JSON/TOML/shell、HTML 内的
+  JavaScript 和 Markdown 内的 Lua，以及迭代顺序变化、反向滚动和多窗口关闭清理。
+  TUI 测试另外将其中六种情况的实际屏幕颜色与原生完整输出逐项对照。

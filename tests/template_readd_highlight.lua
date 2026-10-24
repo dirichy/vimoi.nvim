@@ -32,6 +32,7 @@ for _, template in ipairs({
       syntax = vim.bo[buf].syntax,
       language = vim.b[buf].vimoi_template_language,
       captures = {},
+      host = {},
     }
     for row, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
       for col = 0, #line - 1 do
@@ -40,21 +41,40 @@ for _, template in ipairs({
         end
       end
     end
+    local marks = vim.api.nvim_buf_get_extmarks(
+      buf,
+      vim.api.nvim_create_namespace("vimoi-host-highlight"),
+      0,
+      -1,
+      { details = true }
+    )
+    for _, mark in ipairs(marks) do
+      local opts = assert(mark[4])
+      if not opts.invalid then
+        result.host[#result.host + 1] = { mark[2], mark[3], opts.end_row, opts.end_col, opts.hl_group }
+      end
+    end
     result.children = vim.tbl_keys(vim.treesitter.get_parser(buf, "gotmpl"):children())
     return result
   end
   assert(vim.wait(2000, function()
     local s = snapshot()
-    return #s.captures > 20
+    return #s.host > 0
   end))
   local before = snapshot()
   local result = assert(api.readd())
   local after = snapshot()
-  vim.wait(300)
-  local delayed = snapshot()
+  local before_host = before.host
+  before.host, after.host = nil, nil
 
   assert(result.merged == 1 and result.skipped == 1)
-  assert(vim.deep_equal(before, after) and vim.deep_equal(after, delayed), "highlight changed")
+  assert(vim.deep_equal(before, after), "template highlighting changed")
+  assert(
+    vim.wait(2000, function()
+      return vim.deep_equal(before_host, snapshot().host)
+    end),
+    "rendered highlighting did not recover after re-add"
+  )
   sessions.close(session)
   vim.fn.delete(source)
   vim.fn.delete(target)

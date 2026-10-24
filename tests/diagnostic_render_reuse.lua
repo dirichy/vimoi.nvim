@@ -71,11 +71,14 @@ end)
 assert(not jobs[2].cancelled and session.closed)
 assert(#vim.diagnostic.get(session.source_buf, { namespace = namespace }) == 0)
 
--- Release both consumers: the underlying process is actually terminated.
+-- Rendered highlighting remains a consumer after diagnostics and the view
+-- release the process. Disabling that final consumer must terminate it.
 session = open("C", "30")
 assert(#jobs == 3)
 require("vimoi").setup({ diagnostics = { enabled = false } })
 sessions.close(session)
+assert(not jobs[3].cancelled, "view/diagnostic cancellation interrupted rendered highlighting")
+require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
 wait_for(function()
   return jobs[3].finished
 end)

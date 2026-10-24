@@ -57,6 +57,7 @@ assert(background() == nil, "a theme group without a background gained a fixed c
 require("vimoi").setup()
 
 -- Unrelated OptionSet events must preserve a user's highlight override.
+require("vimoi").setup({ highlight = { mode = "injection" } })
 vim.api.nvim_set_hl(0, "VimoiTemplateAction", { bg = "#abcdef" })
 vim.api.nvim_exec_autocmds("OptionSet", { pattern = "number" })
 assert(background() == 0xabcdef)

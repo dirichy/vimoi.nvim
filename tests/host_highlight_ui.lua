@@ -32,7 +32,7 @@ if not vim.env.VIMOI_HIGHLIGHT_UI_RESULT then
     end,
   })
   assert(child > 0)
-  local status = vim.fn.jobwait({ child }, 30000)[1]
+  local status = vim.fn.jobwait({ child }, 45000)[1]
   if status == -1 then
     vim.fn.jobstop(child)
   end
@@ -68,13 +68,14 @@ require("vimoi.highlight").configure_template_buffer(buf, "lua")
 -- Lua identifiers and YAML plain scalars have generic and key-specific
 -- captures at equal priority. Check actual screen colors throughout edits,
 -- undo/redo and viewport replacement, against the native highlighter.
+local check_mappings
 local function check_keys(index)
   local case = ({
     { language = "lua", line = 'local t = { stable = "anchor" }', column = 13, generic = "@variable.lua" },
     { language = "yaml", line = 'stable: "anchor"', column = 1, generic = "@string.yaml" },
   })[index]
   if not case then
-    finish()
+    check_mappings(1)
     return
   end
   vim.api.nvim_set_hl(0, case.generic, { fg = "#eeeeee" })
@@ -138,6 +139,68 @@ local function check_keys(index)
       run()
     end)
   end)
+end
+
+-- Compare the displayed color with the same byte in a natively highlighted
+-- rendered buffer, including repeated/unsorted mappings and injected languages.
+check_mappings = function(index)
+  local case = ({
+    {
+      "lua",
+      '{{range list 1 2}}\n{{if eq . 2}}local second = "marker"{{end}}\n{{if eq . 1}}local first = 1{{end}}\n{{end}}',
+    },
+    { "lua", '{{range list 1 2}}\n{{if eq . 1}}--{{else}}local x="{{end}}marker{{if eq . 2}}"{{end}}\n{{end}}' },
+    { "yaml", 'items:\n{{ range list 1 2 }}\n - name: "{{ . }} marker"\n{{ end }}' },
+    { "html", '<script>\nconst value = "marker{{ "extra" }}";\n</script>' },
+    { "markdown", '# heading\n```lua\nlocal value = "marker{{ "extra" }}"\n```' },
+    { "bash", 'cat <<EOF\n{{ "dynamic" }}\nmarker\nEOF\necho "done"' },
+  })[index]
+  if not case then
+    finish()
+    return
+  end
+  local api, util = vim.api, require("vimoi.util")
+  local await = dofile("tests/helpers/await.lua")
+  local source_map = require("vimoi.gotmpl.source_map")
+  api.nvim_set_current_buf(buf)
+  util.set_buffer_text(buf, case[2])
+  require("vimoi.highlight").configure_template_buffer(buf, case[1])
+  local trace = assert(await(source_map.trace, case[2], { buf = buf }))
+  require("vimoi.host_highlight").update(buf, trace)
+  local first = assert(case[2]:find("marker", 1, true)) - 1
+  local output_byte
+  for _, part in ipairs(trace.literal_parts) do
+    if first >= part.source.start_byte and first < part.source.end_byte then
+      output_byte = part.output_ranges[1].start_byte + first - part.source.start_byte
+    end
+  end
+  local output_row, output_col = util.byte_to_position(trace.output, assert(output_byte))
+  local reference = api.nvim_create_buf(true, false)
+  api.nvim_set_current_buf(reference)
+  util.set_buffer_text(reference, trace.output)
+  vim.bo[reference].filetype = case[1]
+  vim.treesitter.start(reference, case[1])
+  api.nvim_win_set_cursor(0, { 1, 0 })
+  vim.cmd("normal! zt")
+  later(function()
+    local position = vim.fn.screenpos(0, output_row + 1, output_col + 1)
+    assert(position.row > 0 and vim.fn.screenstring(position.row, position.col) == "m")
+    local expected = vim.fn.screenattr(position.row, position.col)
+    api.nvim_set_current_buf(buf)
+    api.nvim_win_set_cursor(0, { 1, 0 })
+    vim.cmd("normal! zt")
+    later(function()
+      local row, col = util.byte_to_position(case[2], first)
+      local projected = vim.fn.screenpos(0, row + 1, col + 1)
+      assert(projected.row > 0 and vim.fn.screenstring(projected.row, projected.col) == "m")
+      assert(
+        vim.fn.screenattr(projected.row, projected.col) == expected,
+        "native/projected color mismatch: " .. case[1] .. "/" .. index
+      )
+      api.nvim_buf_delete(reference, { force = true })
+      check_mappings(index + 1)
+    end, 350)
+  end, 350)
 end
 
 later(function()

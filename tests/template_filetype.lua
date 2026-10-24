@@ -87,7 +87,7 @@ assert(vim.wait(300, function()
 end))
 assert(vim.b[external_buf].vimoi_template_language == "toml")
 assert(assert(vim.treesitter.get_parser(external_buf, "gotmpl")):parse(true))
-assert(assert(vim.treesitter.get_parser(external_buf, "gotmpl")):children().toml)
+assert(not assert(vim.treesitter.get_parser(external_buf, "gotmpl")):children().toml)
 
 local ignore_buf = vim.api.nvim_create_buf(true, false)
 vim.api.nvim_set_current_buf(ignore_buf)
@@ -100,7 +100,7 @@ end))
 assert(vim.b[ignore_buf].vimoi_template_language == "gitignore")
 assert(vim.b[ignore_buf].vimoi_gf == true, "gotmpl FileType did not attach gf")
 assert(assert(vim.treesitter.get_parser(ignore_buf, "gotmpl")):parse(true))
-assert(assert(vim.treesitter.get_parser(ignore_buf, "gotmpl")):children().gitignore)
+assert(not assert(vim.treesitter.get_parser(ignore_buf, "gotmpl")):children().gitignore)
 
 local buf = vim.api.nvim_create_buf(true, false)
 vim.api.nvim_set_current_buf(buf)
@@ -143,7 +143,7 @@ assert(vim.b[lua_buf].vimoi_template_language == "lua")
 assert(vim.bo[lua_buf].syntax == "gotmpl")
 local parser = assert(vim.treesitter.get_parser(lua_buf, "gotmpl"))
 parser:parse(true)
-assert(parser:children().lua)
+assert(not parser:children().lua)
 
 -- Classification supplies navigation semantics without changing template detection.
 for _, name in ipairs({ ".chezmoiignore", ".chezmoiremove", "nested/.chezmoiignore", "nested/.chezmoiremove" }) do

@@ -85,7 +85,7 @@ The available options and their defaults are: >lua
         host = true,
       },
       highlight = {
-        mode = "injection",
+        mode = "rendered",
         template_bg = "NormalFloat",
       },
       keymaps = {
@@ -552,9 +552,9 @@ uses --config, set the plugin's chezmoi_config_path to the same file.
 ==============================================================================
 SYNTAX HIGHLIGHTING                                    *vimoi-highlighting*
 
-Template sources use the `gotmpl` filetype. By default, static `text` nodes are
-injected into the Tree-sitter language inferred from the target filename, so a file
-such as `init.lua.tmpl` receives both Go-template and Lua highlighting.
+Template sources use the `gotmpl` filetype. The default rendered highlighter parses
+complete output in the language inferred from the target filename and projects
+colors onto static source text, while preserving Go-template action highlighting.
 For ordinary templates inside the source directory, cached chezmoi path queries
 resolve the real target name: `dot_zshrc.tmpl` uses zsh even if the target does
 not exist. If resolution fails, detection falls back to the source name and
@@ -580,25 +580,29 @@ parser is available. Template actions receive a basic syntax highlight too.
 Both highlighting paths give template actions the same configurable background;
 see |vimoi-setup|.
 
-Host-language highlighting is best effort. A template action may generate a
+Injection-mode host highlighting is best effort. A template action may generate a
 required token, branches may contain individually incomplete statements, and
 loops may generate fragments. Tree-sitter cannot see the final rendered
 program, so injected regions can contain errors or inaccurate highlighting.
 This does not affect template parsing, source mapping, or chezmoi rendering.
 
-Experimental rendered highlighting replaces host injections: >lua
-    require("vimoi").setup({ highlight = { mode = "rendered" } })
+Rendered highlighting is enabled by default. To use host injections instead: >lua
+    require("vimoi").setup({ highlight = { mode = "injection" } })
 <
-It uses native host queries, highlight groups and priorities on complete rendered
+Rendered mode uses native host queries, highlight groups and priorities on complete rendered
 output, projecting visible literal ranges onto source. Template actions retain
 gotmpl highlighting. Rendering shares the asynchronous cache with diagnostics and
 views, and still runs when diagnostics.enabled is false. Persistent highlights
 follow source edits while rendering is pending; successful results replace them.
 Temporary template errors retain the last successful colors. Literal text not executed in the current
 render uses Comment; template actions retain gotmpl highlighting. Loop bodies use
-their first execution. LSP semantic tokens, conceal_lines and spell
+their first execution, even when later executions have different syntax contexts.
+Opaque define/block bodies have no host-color projection. Use injection mode to
+highlight their contents. Host colors may be absent until the first successful
+render; rendering can execute template functions and invoke password helpers.
+LSP semantic tokens, conceal_lines and spell
 navigation are not projected. Missing host parsers retain the Vim syntax fallback.
-The default mode is "injection"; setting it restores host injections.
+Setting highlight.mode = "injection" restores host injections.
 Set highlight.mode = "disabled" to disable host highlighting, including the Vim
 syntax fallback. Template actions retain gotmpl highlighting and their background.
 Diagnostics and source mapping are independent of this setting.
