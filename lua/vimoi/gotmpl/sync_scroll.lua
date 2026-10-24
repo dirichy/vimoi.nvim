@@ -93,9 +93,10 @@ local function target_to_source_line(session, line)
   return rendered_to_source_line(session, target_to_rendered_line(session, line))
 end
 
-local function source_to_rendered_line(session, source_line)
+local function source_to_rendered_range(session, source_line)
   local source_starts = util.line_starts(session.source_text)
   local line_start_byte = source_starts[source_line] or #session.source_text
+  local line_end_byte = source_starts[source_line + 1] or #session.source_text
   local current_target_line = vim.api.nvim_win_get_cursor(session.target_win)[1]
   local current_rendered_line = target_to_rendered_line(session, current_target_line)
   local candidates = {}
@@ -108,7 +109,10 @@ local function source_to_rendered_line(session, source_line)
       for _, output_range in ipairs(literal_part.output_ranges) do
         local rendered_byte = math.min(output_range.start_byte + offset, output_range.end_byte)
         local row = util.byte_to_position(session.trace.output, rendered_byte)
-        candidates[#candidates + 1] = row + 1
+        local end_byte =
+          math.min(output_range.end_byte, output_range.start_byte + line_end_byte - literal_part.source.start_byte)
+        local end_row = util.byte_to_position(session.trace.output, math.max(rendered_byte, end_byte - 1))
+        candidates[#candidates + 1] = { row + 1, end_row + 1 }
       end
     end
   end
@@ -117,18 +121,74 @@ local function source_to_rendered_line(session, source_line)
       local source = region.source
       if line_start_byte >= source.start_byte and line_start_byte < source.end_byte then
         local row = util.byte_to_position(session.trace.output, region.output_range.start_byte)
-        candidates[1] = row + 1
+        local last = region.output_range.end_byte
+        local end_row = last > region.output_range.start_byte
+            and util.byte_to_position(session.trace.output, last - 1) + 1
+          or row
+        candidates[1] = { row + 1, end_row }
         break
       end
     end
   end
-  local selected = candidates[1] or 1
+  local selected = candidates[1] or { 1, 0 }
   for _, candidate in ipairs(candidates) do
-    if math.abs(candidate - current_rendered_line) < math.abs(selected - current_rendered_line) then
+    if math.abs(candidate[1] - current_rendered_line) < math.abs(selected[1] - current_rendered_line) then
       selected = candidate
     end
   end
-  return selected
+  return selected[1], selected[2]
+end
+
+-- Keep the existing occurrence choice, then project that one range to target.
+---@param session VimoiTemplateSession
+---@param source_line integer
+---@return integer first One-based target row.
+---@return integer last Less than first when the selected range has no output.
+function M.target_range(session, source_line)
+  local target_line = vim.api.nvim_win_get_cursor(session.target_win)[1]
+  local cached = session.cursor_range
+  if
+    cached
+    and cached.source_line == source_line
+    and cached.target_line == target_line
+    and cached.trace == session.trace
+    and cached.hunks == session.hunks
+  then
+    return cached.first, cached.last
+  end
+  local rendered_first, rendered_last = source_to_rendered_range(session, source_line)
+  local first = rendered_to_target_line(session, rendered_first)
+  local last = first - 1
+  if rendered_last >= rendered_first then
+    last = rendered_to_target_line(session, rendered_last)
+    -- A changed hunk can expand the chosen rendered range into more target
+    -- lines; exact line-by-line attribution is unavailable inside that hunk.
+    for _, hunk in ipairs(session.hunks) do
+      if
+        hunk.rendered_line_count > 0
+        and hunk.target_line_count > 0
+        and rendered_first < hunk.rendered_start_line + hunk.rendered_line_count
+        and rendered_last >= hunk.rendered_start_line
+      then
+        first = math.min(first, hunk.target_start_line)
+        last = math.max(last, hunk.target_start_line + hunk.target_line_count - 1)
+      end
+    end
+  end
+  session.cursor_range = {
+    source_line = source_line,
+    target_line = target_line,
+    trace = session.trace,
+    hunks = session.hunks,
+    first = first,
+    last = last,
+  }
+  return first, last
+end
+
+local function source_to_target_line(session, source_line)
+  local first, last = M.target_range(session, source_line)
+  return last >= first and math.floor((first + last) / 2) or first
 end
 
 local function align_cursor_screen_row(win, line, screen_row)
@@ -175,20 +235,32 @@ function M.sync(session, active_win)
   local other_win, other_line
   if is_source then
     other_win = session.target_win
-    other_line = rendered_to_target_line(session, source_to_rendered_line(session, active_line))
+    other_line = source_to_target_line(session, active_line)
   else
     other_win = session.source_win
     other_line = target_to_source_line(session, active_line)
   end
   if vim.api.nvim_win_is_valid(other_win) then
+    if is_source then
+      local first, last = M.target_range(session, active_line)
+      if last > first then
+        local height = vim.api.nvim_win_get_height(other_win)
+        if last - first + 1 <= height then
+          screen_row = math.max(other_line - first + 1, math.min(screen_row, height - (last - other_line)))
+        else
+          screen_row = math.floor((height + 1) / 2)
+        end
+      end
+    end
     align_cursor_screen_row(other_win, other_line, screen_row)
+    vim.api.nvim__redraw({ win = other_win, valid = false })
   end
   session.syncing = false
 end
 
 function M.corresponding_line(session, active_win, line)
   if active_win == session.source_win then
-    return session.target_win, rendered_to_target_line(session, source_to_rendered_line(session, line))
+    return session.target_win, source_to_target_line(session, line)
   end
   return session.source_win, target_to_source_line(session, line)
 end

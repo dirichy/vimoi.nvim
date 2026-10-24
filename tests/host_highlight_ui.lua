@@ -1,50 +1,10 @@
 -- Exercise persistent projected highlights and pending-render retention in a TUI.
-if not vim.env.VIMOI_HIGHLIGHT_UI_RESULT then
-  local result = vim.fn.tempname()
-  local pending = ""
-  local child = vim.fn.jobstart({
-    vim.v.progpath,
-    "-n",
-    "-i",
-    "NONE",
-    "--cmd",
-    "set ttyfast background=dark",
-    "-u",
-    "tests/minimal_init.lua",
-    "-c",
-    "lua dofile('tests/host_highlight_ui.lua')",
-  }, {
-    pty = true,
-    env = { VIMOI_HIGHLIGHT_UI_RESULT = result },
-    on_stdout = function(channel, data)
-      pending = pending .. table.concat(data, "\n")
-      -- The test owns the pseudo-terminal, including background-color replies.
-      if pending:find("\027]11;?", 1, true) then
-        vim.fn.chansend(channel, "\027]11;rgb:1414/1616/1b1b\027\\")
-      end
-      if pending:find("\027[c", 1, true) then
-        vim.fn.chansend(channel, "\027[?1;2c")
-      end
-      if pending:find("\027[5n", 1, true) then
-        vim.fn.chansend(channel, "\027[0n")
-      end
-      pending = pending:sub(-4)
-    end,
-  })
-  assert(child > 0)
-  local status = vim.fn.jobwait({ child }, 45000)[1]
-  if status == -1 then
-    vim.fn.jobstop(child)
-  end
-  assert(vim.fn.filereadable(result) == 1, "TUI test did not finish: " .. status)
-  local output = table.concat(vim.fn.readfile(result), "\n")
-  vim.fn.delete(result)
-  assert(status == 0 and output == "OK", output)
+if not dofile("tests/helpers/tui.lua")("tests/host_highlight_ui.lua", 45000) then
   return
 end
 
 local function finish(err)
-  vim.fn.writefile({ err or "OK" }, vim.env.VIMOI_HIGHLIGHT_UI_RESULT)
+  vim.fn.writefile({ err or "OK" }, vim.env.VIMOI_UI_RESULT)
   vim.cmd("qa!")
 end
 local function later(callback, delay)

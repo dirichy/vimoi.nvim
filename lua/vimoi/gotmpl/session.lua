@@ -21,6 +21,9 @@ local sync_scroll = require("vimoi.gotmpl.sync_scroll")
 ---@class VimoiTemplateSession
 ---@field source_text string Cached template buffer text.
 ---@field target_text string Cached target buffer text.
+---@field source_tick? integer Buffer version represented by the current mapping.
+---@field target_tick? integer Buffer version represented by the current mapping.
+---@field cursor_range? { source_line: integer, target_line: integer, trace: VimoiSourceMapTrace, hunks: VimoiDiffHunk[], first: integer, last: integer }
 ---@field trace? VimoiSourceMapTrace Absent until the initial asynchronous render finishes.
 ---@field hunks VimoiDiffHunk[] Changes from rendered output to target_text.
 ---@field projected_hunks? VimoiNativeDiffHunk[] Projected hunks consumed by the global diffexpr.
@@ -72,11 +75,11 @@ function M.is_valid(session)
   return true
 end
 
--- Loading/error decorations are ephemeral and scoped to the owning window,
+-- Status and cursor-line decorations are ephemeral and scoped to the owning window,
 -- so a second view of the same source buffer cannot erase or inherit them.
 local status_namespace = vim.api.nvim_create_namespace("vimoi-view-status")
 vim.api.nvim_set_decoration_provider(status_namespace, {
-  on_win = function(_, win, buf)
+  on_win = function(_, win, buf, top, bottom)
     local session = M.by_window[win]
     if not session or session.closed then
       return false
@@ -93,6 +96,39 @@ vim.api.nvim_set_decoration_provider(status_namespace, {
         virt_lines_above = true,
         ephemeral = true,
       })
+    end
+    local mode = vim.fn.mode(1):sub(1, 1)
+    if
+      win == session.target_win
+      and vim.api.nvim_get_current_win() == session.source_win
+      and session.trace
+      and not session.loading
+      and not session.preview_error
+      and vim.wo[session.source_win].cursorline
+      and vim.wo[session.source_win].cursorlineopt ~= "number"
+      and mode ~= "v"
+      and mode ~= "V"
+      and mode ~= "\22"
+      and session.source_tick == vim.api.nvim_buf_get_changedtick(session.source_buf)
+      and session.target_tick == vim.api.nvim_buf_get_changedtick(session.target_buf)
+    then
+      local line = vim.api.nvim_win_get_cursor(session.source_win)[1]
+      local first, last = sync_scroll.target_range(session, line)
+      if last <= first then
+        return false
+      end
+      first = math.max(first, top + 1)
+      last = math.min(last, bottom + 1, vim.api.nvim_buf_line_count(buf))
+      if first <= last then
+        vim.api.nvim_buf_set_extmark(buf, status_namespace, first - 1, 0, {
+          end_row = last,
+          end_col = 0,
+          hl_group = "CursorLine",
+          hl_eol = true,
+          priority = vim.hl.priorities.user,
+          ephemeral = true,
+        })
+      end
     end
     return false
   end,
@@ -153,6 +189,8 @@ local function update_session(session, source, modified, trace)
       end
     end
     session.source_text, session.target_text, session.trace = source, trace.output, trace
+    session.source_tick = vim.api.nvim_buf_get_changedtick(session.source_buf)
+    session.target_tick = vim.api.nvim_buf_get_changedtick(session.target_buf)
     session.hunks = {} -- Rendered-output coordinates are the base coordinates used by sync_scroll.sync.
     set_preview_error(session, nil)
     sync_scroll.sync(session, vim.api.nvim_get_current_win())
@@ -161,6 +199,8 @@ local function update_session(session, source, modified, trace)
   session.source_text = source
   session.target_text = modified
   session.trace = trace
+  session.source_tick = vim.api.nvim_buf_get_changedtick(session.source_buf)
+  session.target_tick = vim.api.nvim_buf_get_changedtick(session.target_buf)
   session.hunks = diff_hunks.compute(modified, trace)
   local ok, native_error = pcall(native_diff.update, session)
   if not ok then
@@ -448,6 +488,19 @@ function M.attach(session)
   end
   local refresh_group = vim.api.nvim_create_augroup("vimoi-view-" .. source_win .. "-" .. target_win, { clear = true })
   session.augroup = refresh_group
+  vim.api.nvim_create_autocmd("OptionSet", {
+    group = refresh_group,
+    pattern = { "cursorline", "cursorlineopt" },
+    callback = function()
+      redraw(session)
+    end,
+  })
+  vim.api.nvim_create_autocmd("ModeChanged", {
+    group = refresh_group,
+    callback = function()
+      redraw(session)
+    end,
+  })
   vim.api.nvim_create_autocmd("User", {
     group = refresh_group,
     pattern = "VimoiCacheInvalidated",
@@ -523,6 +576,7 @@ function M.attach(session)
     callback = function()
       if M.by_window[vim.api.nvim_get_current_win()] == session then
         configure_window_keymaps(session)
+        redraw(session)
       end
     end,
   })
@@ -531,6 +585,7 @@ function M.attach(session)
     callback = function()
       if M.by_window[vim.api.nvim_get_current_win()] == session then
         restore_keymaps(session)
+        redraw(session)
       end
     end,
   })

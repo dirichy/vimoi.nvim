@@ -312,6 +312,11 @@ buffer-local 映射：
 
     zo  zc  za  zO  zC  zA  zR  zM
 
+开启 'cursorline' 且焦点在 source 时，若当前选中映射对应多行 target，这些行都使用
+CursorLine，target 光标定位到中间行。重复输出仍按原来的最近位置选择，不合并其他
+映射块。'cursorlineopt' 仅为 number 或处于 Visual 模式时，不额外绘制 target 背景。
+action 和光标行背景遵循 Neovim 原生优先级，不混合颜色。预览也使用相同行为。
+
 Session 打开时会在两个 buffer 中禁用 Snacks smooth scroll；共享 buffer 的最后一个视图
 关闭后恢复，避免动画产生的
 中间滚动位置破坏映射视图的同步。

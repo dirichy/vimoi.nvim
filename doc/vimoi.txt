@@ -385,6 +385,14 @@ synchronization. Buffer-local mappings are installed for:
 
     zo  zc  za  zO  zC  zA  zR  zM
 
+With 'cursorline' enabled and focus in source, a selected mapping spanning
+multiple target rows highlights them with CursorLine and places the target
+cursor on its middle row. Repeated output keeps the existing nearest-occurrence
+selection; separate mappings are not combined. Number-only 'cursorlineopt' and
+Visual mode do not add target backgrounds. Action and cursor-line backgrounds
+follow Neovim's native priority; their colors are not blended. Preview uses the
+same behavior.
+
 Snacks smooth scrolling is disabled for both buffers while the session is
 open and restored when the last view of each buffer closes. This prevents animated intermediate scroll
 positions from desynchronizing the mapped views.
