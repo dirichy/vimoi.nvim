@@ -407,7 +407,7 @@ local sentinel_prefix = ("__VIMOI_%x_%x__"):format(vim.uv.hrtime(), math.random(
 ---@param buf? integer
 ---@param init boolean
 ---@return string
-local function context_prefix(buf, init)
+function M.context_prefix(buf, init)
   if init or not buf or not cli.source_root then
     return ""
   end
@@ -448,7 +448,7 @@ end
 function M.prepare(source, opts)
   opts = opts or {}
   local init = opts.init == true
-  local prefix = opts.prefix or context_prefix(opts.buf, init)
+  local prefix = opts.prefix or M.context_prefix(opts.buf, init)
   if
     source:find("chezmoi:template:left-delimiter", 1, true)
     or source:find("chezmoi:template:right-delimiter", 1, true)
@@ -542,7 +542,7 @@ function M.rebuild(trace, source, buf)
   if trace.context_generation ~= cli.context_generation then
     return nil
   end
-  if buf and context_prefix(buf, trace.init) ~= trace.prefix then
+  if buf and M.context_prefix(buf, trace.init) ~= trace.prefix then
     return nil
   end
   if trace.source == source then

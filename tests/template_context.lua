@@ -145,7 +145,9 @@ api.diff_files(managed_root .. "/dot_alpha.tmpl", target_root .. "/.alpha", { va
 dofile("tests/helpers/diff.lua")()
 local session = assert(sessions.by_window[vim.api.nvim_get_current_win()])
 assert(
-  assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == expected and session.verify_with_cat
+  assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == expected
+    and session.session.validate == true
+    and session.session.initialized == true
 )
 api.preview()
 session = assert(sessions.by_window[vim.api.nvim_get_current_win()])

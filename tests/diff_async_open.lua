@@ -148,26 +148,25 @@ deliver(pair.request)
 assert(computed[#computed].modified == "value=latest\n")
 assert(not (view_for_buffer(pair.source_buf) or {}).loading)
 
--- An obsolete render retries before starting cat validation.
+-- Construction validates its disk baseline even when the buffer changes first.
 pair = open("edit-before-validation", true)
 util.set_buffer_text(pair.source_buf, 'value={{ "E" }}\n')
 local validations_before = #validations
 before = #requests
 deliver(pair.request)
-assert(#validations == validations_before)
+assert(#validations == validations_before + 1)
+validations[#validations]("value=A\n")
 assert(vim.wait(1000, function()
   return #requests == before + 1
 end))
 deliver(requests[#requests])
-assert(#validations == validations_before + 1)
-validations[#validations]("value=E\n")
-assert(vim.wo[pair.source_win].diff)
+assert(#validations == validations_before + 1 and vim.wo[pair.source_win].diff)
 
 -- Closing during cat validation cancels that process and rejects its late result.
 pair = open("closed-during-validation", true)
 deliver(pair.request)
 local validation_job = validation_jobs[#validation_jobs]
-assert(assert(view_for_buffer(pair.source_buf)).render_job == validation_job)
+assert(require("vimoi.gotmpl.session").get(pair.source_buf).job == validation_job)
 vim.api.nvim_win_close(pair.source_win, true)
 assert(vim.wait(1000, function()
   return validation_job.cancelled
@@ -296,7 +295,6 @@ end))
 deliver(requests[#requests])
 vim.cmd("tabnew")
 user_tab, user_win = vim.api.nvim_get_current_tabpage(), vim.api.nvim_get_current_win()
-validations[#validations]("value=D\n")
 assert(vim.wo[pair.source_win].diff and computed[#computed].source == 'value={{ "D" }}\n')
 assert(vim.api.nvim_get_current_tabpage() == user_tab and vim.api.nvim_get_current_win() == user_win)
 assert(sessions.last_profile.validation_ms > 0)

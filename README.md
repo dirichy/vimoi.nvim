@@ -433,9 +433,11 @@ Restart Neovim after changing the source root directory.
   Templates that produce different results under `cat` and `apply` are not supported.
   Unnamed, unmanaged, source-only, and init templates keep their native
   `execute-template` context.
-- `diff.validate = true` additionally checks template rendering against chezmoi cat and
-  refuses to open the diff on mismatch. It is off by default and does not apply to previews
-  of unsaved content or make the unsupported templates above supported.
+- `diff.validate = true` (default) checks the file once when constructing its source
+  session, comparing a fixed on-disk baseline with `chezmoi cat`. Buffer edits do not
+  interrupt the check; after success, rendering uses the latest buffer text without
+  further cat checks. Failure prevents construction until the file is reopened.
+  Set it to `false` to skip validation. Unmanaged/source-only/init templates skip cat.
 - Source text must not contain the reserved sentinel prefix used by the current run,
   and dynamic output must not produce complete reserved markers. Random markers only
   reduce accidental collision risk; see `:help vimoi-limitations` for details.

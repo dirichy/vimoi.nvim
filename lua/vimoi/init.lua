@@ -20,7 +20,7 @@ local defaults = {
     buffer_write_fallback = "auto",
   },
   diff = {
-    validate = false,
+    validate = true,
   },
   completion = {
     enabled = true,

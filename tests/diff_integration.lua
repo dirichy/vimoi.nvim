@@ -61,6 +61,7 @@ assert(target_highlight == "DiffChange", target_highlight)
 local profile = assert(require("vimoi.gotmpl.view").last_profile)
 assert(profile.render_ms > 0)
 assert(profile.validation_ms >= 0)
+assert(require("vimoi.gotmpl.session").get(source_buf).initialized == true)
 
 vim.api.nvim_set_current_win(target_win)
 vim.api.nvim_win_set_cursor(target_win, { 2, 0 })

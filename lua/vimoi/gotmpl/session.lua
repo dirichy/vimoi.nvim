@@ -8,6 +8,8 @@ local cli = require("vimoi.cli")
 
 ---@class VimoiOutputMap
 ---@field tick integer Source buffer version represented by this map.
+---@field validate boolean
+---@field validation_target? string
 ---@field context_generation integer Rendering context represented by this map.
 ---@field path string Source path represented by this map.
 ---@field source_size integer
@@ -22,6 +24,8 @@ local cli = require("vimoi.cli")
 ---@class VimoiSessionOptions
 ---@field once? boolean Unregister after the first result.
 ---@field initial? boolean Deliver an already current result; defaults to true.
+---@field validate? boolean Override the source session’s validation mode.
+---@field target? string Explicit cat target when overriding validation for a file pair.
 
 ---@class VimoiSourceSession
 ---@field buf integer Read-only rendered buffer shared by all consumers.
@@ -43,12 +47,18 @@ local cli = require("vimoi.cli")
 ---@field error? string Current render failure; map/output retain the last success.
 ---@field request? table Identity of the current render request.
 ---@field cancelled? boolean Explicit cancellation also blocks a queued render.
+---@field validate boolean
+---@field validation_target? string Explicit cat target; otherwise use the managed target.
+---@field target_path? string Managed target corresponding to source_path.
+---@field initialized? boolean Nil while constructing; false caches construction failure, true enables rendering.
+---@field validation_started? integer Start time of the last cat validation.
+---@field validation_ms? number Time spent on the last cat validation.
 ---@field job? VimoiCommand
 ---@field source_path? string Source path used for native host root discovery.
 
 ---@type table<integer, VimoiSourceSession>
 local buffers = {}
-local diagnostics_enabled, host_enabled, rendered_enabled
+local diagnostics_enabled, host_enabled, rendered_enabled, configured_validation
 
 ---@param source integer
 ---@return VimoiSourceSession
@@ -71,7 +81,7 @@ function M.get(source)
         util.notify("rendered buffers cannot be saved", "output", vim.log.levels.ERROR)
       end,
     })
-    state = state or { subscribers = {}, views = {} }
+    state = state or { subscribers = {}, views = {}, validate = require("vimoi").config.diff.validate }
     state.buf, state.map, state.source_path = buf, nil, nil
     buffers[source] = state
   end
@@ -86,7 +96,12 @@ function M.get(source)
     local directory = path ~= "" and vim.fs.dirname(path) or vim.fn.getcwd()
     local basename = path ~= "" and vim.fs.basename(path) or "buffer"
     api.nvim_buf_set_name(state.buf, directory .. "/.vimoi-" .. source .. "-" .. basename)
-    state.source_path = source_path
+    state.source_path, state.target_path = source_path, target
+  end
+  local target = state.validation_target or state.target_path
+  local init = require("vimoi.filetype").init_template_names[vim.fs.basename(source_path)]
+  if state.initialized == nil and (not state.validate or not target or target == "" or init) then
+    state.initialized = true
   end
   return state
 end
@@ -95,9 +110,12 @@ end
 ---@param state VimoiSourceSession
 ---@return boolean
 local function current(source, state)
-  return state.map ~= nil
+  return state.initialized == true
+    and state.map ~= nil
     and not state.error
     and not state.request
+    and state.map.validate == state.validate
+    and state.map.validation_target == state.validation_target
     and state.map.tick == api.nvim_buf_get_changedtick(source)
     and state.map.source_eol == vim.bo[source].endofline
     and state.map.path == api.nvim_buf_get_name(source)
@@ -165,6 +183,12 @@ function M.update(source, trace)
   if current(source, state) then
     return state
   end
+  if state.initialized ~= true then
+    if state.check then
+      state.check()
+    end
+    return state
+  end
   cancel_request(state)
   local before = util.buffer_text(state.buf)
   if before ~= trace.output then
@@ -177,6 +201,8 @@ function M.update(source, trace)
   end
   state.map = {
     tick = api.nvim_buf_get_changedtick(source),
+    validate = state.validate,
+    validation_target = state.validation_target,
     path = api.nvim_buf_get_name(source),
     context_generation = trace.context_generation,
     source_size = #trace.source,
@@ -206,6 +232,7 @@ function M.rebuild(source)
   end
   if
     state.error
+    or state.initialized ~= true
     or not state.rendered_skeleton
     or not state.map
     or state.map.path ~= api.nvim_buf_get_name(source)
@@ -236,10 +263,89 @@ local function cancel(source, state)
   end)
 end
 
+-- Construction uses disk text and a private parser. Buffer edits only queue later rendering.
+local function construct(source, state)
+  if state.request then
+    return
+  end
+  local request = {}
+  state.request = request
+  state.prepared, state.root, state.error_tags = nil, nil, nil
+  vim.schedule(function()
+    if buffers[source] ~= state or state.request ~= request then
+      return
+    end
+    util.async(function()
+      local renderer = require("vimoi.gotmpl.source_map")
+      local target = assert(state.validation_target or state.target_path)
+      local source_path = api.nvim_buf_get_name(source)
+      local baseline, err = util.read_file(source_path)
+      local trace
+      if baseline then
+        trace, err = util.await(function(done)
+          state.job = renderer.trace_async(baseline, { prefix = renderer.context_prefix(source, false) }, done)
+        end)
+      end
+      if buffers[source] ~= state or state.request ~= request then
+        return
+      end
+      if state.job and state.job.cancelled then
+        cancel(source, state)
+        return
+      end
+      if trace then
+        state.validation_started = vim.uv.hrtime()
+        local actual
+        actual, err = util.await(function(done)
+          state.job = cli.run({ "cat", target }, {
+            text = false,
+            callback = done,
+          })
+        end)
+        if buffers[source] ~= state or state.request ~= request then
+          return
+        end
+        state.validation_ms = (vim.uv.hrtime() - state.validation_started) / 1e6
+        if actual and actual ~= trace.output then
+          err = "sentinel rendering differs from `chezmoi cat`; this template uses an unsupported render context"
+        end
+      end
+      if state.job and state.job.cancelled then
+        cancel(source, state)
+        return
+      end
+      state.job, state.request = nil, nil
+      state.initialized, state.error = err == nil, err
+      if err then
+        state.check()
+        return
+      end
+      if trace then
+        state.skeleton, state.prefix, state.init = trace.skeleton, trace.prefix, trace.init
+        state.context_generation, state.rendered_skeleton = trace.context_generation, trace.rendered_skeleton
+      end
+      if
+        trace
+        and trace.context_generation == cli.context_generation
+        and source_path == api.nvim_buf_get_name(source)
+        and trace.source == util.buffer_text(source)
+      then
+        M.update(source, trace)
+      else
+        state.check()
+      end
+    end)
+  end)
+end
+
 ---@param buf integer
 ---@param state VimoiSourceSession
 ---@return { tick: integer, eol: boolean, syntax?: boolean, cached?: boolean }?
 local function check(buf, state)
+  M.get(buf)
+  if state.initialized == nil then
+    return
+  end
   if current(buf, state) then
     return { tick = assert(state.map).tick, eol = state.map.source_eol, cached = true }
   end
@@ -257,6 +363,10 @@ local function check(buf, state)
   local root = tree and tree:root()
   if not root then
     return
+  end
+  if state.initialized == false then
+    state.root = root
+    return { tick = api.nvim_buf_get_changedtick(buf), eol = eol }
   end
   if root:has_error() then
     cancel_request(state)
@@ -316,9 +426,16 @@ end
 -- Source edits share one debounce; cached output needs no new notification.
 local function refresh(source)
   local state = buffers[source]
-  if state and next(state.subscribers) and not current(source, state) then
-    state.cancelled = nil
-    assert(state.check)()
+  if state and next(state.subscribers) then
+    M.get(source)
+    if not current(source, state) then
+      state.cancelled = nil
+      if state.initialized == nil then
+        construct(source, state)
+      else
+        assert(state.check)()
+      end
+    end
   end
 end
 
@@ -331,6 +448,19 @@ function M.register(source, callback, opts)
   local state = M.get(source)
   opts = opts or {}
   state.subscribers[callback] = opts
+  if
+    opts.validate ~= nil
+    and (
+      state.validate ~= opts.validate
+      or (opts.validate and opts.target and (state.validation_target or state.target_path) ~= opts.target)
+    )
+  then
+    cancel_request(state)
+    if state.initialized == false then
+      state.error, state.reported = nil, nil
+    end
+    state.validate, state.validation_target, state.initialized = opts.validate, opts.target, nil
+  end
   if not state.check then
     local revision = 0
     local function is_active()
@@ -463,10 +593,26 @@ function M.setup()
   local diagnostics = config.diagnostics.enabled
   local host = diagnostics and config.diagnostics.host
   local rendered = config.highlight.mode == "rendered"
-  if diagnostics_enabled == diagnostics and host_enabled == host and rendered_enabled == rendered then
+  local validation = config.diff.validate
+  if
+    diagnostics_enabled == diagnostics
+    and host_enabled == host
+    and rendered_enabled == rendered
+    and configured_validation == validation
+  then
     return
   end
-  for source in pairs(buffers) do
+  for source, state in pairs(buffers) do
+    if configured_validation ~= validation then
+      cancel_request(state)
+      if state.initialized == false then
+        state.error, state.reported = nil, nil
+      end
+      state.validate, state.validation_target, state.initialized = validation, nil, nil
+      if state.check and next(state.subscribers) then
+        refresh(source)
+      end
+    end
     if diagnostics_enabled and not diagnostics then
       require("vimoi.diagnostic").clear(source, true)
     elseif host_enabled and not host and package.loaded["vimoi.host_diagnostic"] then
@@ -476,7 +622,7 @@ function M.setup()
       require("vimoi.host_highlight").clear(source)
     end
   end
-  diagnostics_enabled, host_enabled, rendered_enabled = diagnostics, host, rendered
+  diagnostics_enabled, host_enabled, rendered_enabled, configured_validation = diagnostics, host, rendered, validation
   if rendered then
     require("vimoi.host_highlight")
   end

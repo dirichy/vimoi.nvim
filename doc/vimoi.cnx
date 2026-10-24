@@ -67,7 +67,7 @@ source 类型时，应提前 setup，不只依赖该 filetype 触发。
         buffer_write_fallback = "auto",
       },
       diff = {
-        validate = false,
+        validate = true,
       },
       completion = {
         enabled = true,
@@ -138,11 +138,20 @@ source root 和 init 模板/config 的对应关系只在 `setup()` 时初始化�
 （如 `"StatusLine"`）、单个颜色（如 `"#123456"`），或深浅色 table。反色高亮组取
 实际显示的背景；高亮组没有背景时不额外填充。切换 `background` 或配色方案时重新取色。
 
-启用 `diff.validate` 后，每次打开模板 Diff 还会运行 `chezmoi cat`。如果它的输出与
-哨兵渲染结果不同，插件会拒绝显示 Diff。这可以检测依赖暂不支持的执行上下文的模板，
-代价是打开 Diff 时额外启动一个 chezmoi 进程。
-初次渲染与验证按顺序异步等待，不阻塞编辑。source 或渲染上下文变化后，在下一轮
-事件循环重试；已过期的渲染跳过验证。等待期间对 target 的编辑会用于最终视图。
+`diff.validate` 使用布尔值，控制 source session 的构造校验：
+
+    true     默认值。首次打开文件、构造 session 时校验一次。
+    false    跳过校验。
+
+构造时对固定的磁盘 source 基线执行哨兵渲染，与 `chezmoi cat` 比较。buffer 内容修改
+不会取消或重启校验。构造成功前不发布 output 或 map；通过后才渲染最新 buffer。
+之后的编辑、改名和上下文刷新不重复 cat 校验。preview、高亮、诊断、diff 和 merge
+共用构造状态。校验失败会记录为本次构造失败，继续编辑或保存不会重试；卸载并重新
+打开文件后重新构造，也可以显式关闭校验。关闭 source 或主动取消仍会停止任务。
+无 cat target 的未受管理/source-only 文件及 init 模板跳过校验；diff_buffers 使用
+false。diff/diff_files 的单次 validate 覆盖值也是布尔值，作用于共享 session。
+cat 无法通过 stdin 覆盖模板正文。把 buffer 原文交给 execute-template 可以检查哨兵
+改写是否改变输出，但不能独立验证真实 cat 执行上下文。
 
 内部 `vimoi.job` 管理进程执行、进度浮窗和取消选择；`vimoi.cli` 负责 chezmoi
 参数、输出处理和缓存。共享 data/模板请求会向所有等待者交付结果，再抛出首个回调异常，
@@ -153,8 +162,8 @@ source session 统一处理 120ms 防抖、异步渲染和过期结果重试；�
 
 merge 使用一条协程流程：等待共享 session 结果、规划、按需等待 vim.ui.select 选择，
 最后写入。job.wait 统一管理模态等待和取消；session.register(..., { once = true })
-提供有效映射，不另开渲染进程。首次视图就绪还包含可选的 cat 校验。
-merge 的注册闭包持有 source 订阅和临时 VimoiViewChanged 监听，完成或取消时统一清理；
+提供有效映射，不另开渲染进程。cat 校验属于 session 构造，渲染在构造成功后执行。
+merge 的注册闭包持有 source 订阅和临时 VimoiViewClosed 监听，完成或取消时统一清理；
 view 只通知关闭状态，不保存 merge 的继续执行或取消句柄。
 
 `data`、`cat` 和用户模板渲染没有默认超时，允许等待密码输入。后台调用在右上角显示不抢焦点的
@@ -343,8 +352,9 @@ viewport 同步；静态编辑复用已渲染结构。不启用 diff 高亮、fi
 切换模式或结束 session 时会恢复被 diff 临时覆盖的原有映射。
 
 解析/渲染失败保留上次成功结果，并显示 "Preview out of date"。编辑模板后重试，成功
-则清除提示；首次渲染失败也可继续编辑并恢复。`diff.validate` 不适用于预览，因为预览
-使用未保存的文本，而非磁盘 source 对应的真实 target；其他 |vimoi-limitations| 仍适用。
+则清除提示。构造校验失败则需要重新打开文件或关闭校验，编辑不会重试构造。
+预览同样共享 session 的首次构造校验，即使没有打开 diff；固定磁盘基线不受预览
+buffer 编辑影响。其他 |vimoi-limitations| 仍适用。
 
 在活动的 diff/preview 任一侧执行均使用对应 source。重复执行会刷新并复用当前窗口；
 diff 与 preview 互相切换时复用双窗口。关闭或替换任一侧会停止该视图的同步。

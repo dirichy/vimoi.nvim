@@ -1,7 +1,6 @@
 -- Attach window views to a source session; keep only target and window state here.
 local M = {}
 local util = require("vimoi.util")
-local cli = require("vimoi.cli")
 local diff_hunks = require("vimoi.gotmpl.diff_hunks")
 local native_diff = require("vimoi.gotmpl.native_diff")
 local sessions = require("vimoi.gotmpl.session")
@@ -25,7 +24,7 @@ local sync_scroll = require("vimoi.gotmpl.sync_scroll")
 ---@field source_win integer
 ---@field target_win integer
 ---@field buffer_pair? boolean Explicit buffer pair with no disk validation.
----@field verify_with_cat boolean Whether the first diff render must match chezmoi cat.
+---@field validate? boolean Explicit source-session validation override.
 ---@field preview boolean True for a read-only rendered-output peer instead of a real target.
 ---@field preview_error? string The visible output is stale while rendering is invalid.
 ---@field keymaps VimoiSessionKeymap[] Original buffer mappings replaced for this view.
@@ -33,7 +32,6 @@ local sync_scroll = require("vimoi.gotmpl.sync_scroll")
 ---@field syncing? boolean Prevents recursive cursor/scroll events.
 ---@field loading? boolean Initial rendering is pending.
 ---@field stop_updates? fun(cancel_render?: boolean) Live output registration.
----@field render_job? VimoiCommand Current render/validation process, cancellable by a blocking transfer.
 ---@field augroup? integer Per-view autocmd group, removed on close.
 
 -- A view belongs to two windows; the same buffers may appear in other views.
@@ -186,8 +184,11 @@ function M.refresh(view, trace)
     M.close(view)
     return nil, "diff/preview view no longer matches its original buffers and windows"
   end
-  sessions.update(view.source_buf, trace)
-  return update_session(view)
+  local state = sessions.update(view.source_buf, trace)
+  if sessions.is_current(view.source_buf, state.map) then
+    return update_session(view)
+  end
+  return true
 end
 
 local function apply_refresh(view)
@@ -294,9 +295,6 @@ function M.close(view)
   if view.stop_updates then
     view.stop_updates()
   end
-  if view.render_job then
-    view.render_job.cancel()
-  end
   set_loading(view, false)
   for _, win in ipairs({ view.source_win, view.target_win }) do
     if M.by_window[win] == view then
@@ -332,7 +330,7 @@ function M.close(view)
   native_diff.restore_diffexpr_if_unused(M.by_window)
   vim.api.nvim_exec_autocmds(
     "User",
-    { pattern = "VimoiViewChanged", data = { source_win = view.source_win, target_win = view.target_win } }
+    { pattern = "VimoiViewClosed", data = { source_win = view.source_win, target_win = view.target_win } }
   )
 end
 
@@ -476,92 +474,54 @@ function M.start_initial_render(view, profile, opened_at)
   M.last_profile = nil
   local source_buf, preview = view.source_buf, view.preview
   local started_at = vim.uv.hrtime()
-  view.stop_updates = sessions.register(source_buf, function(rendered, render_error)
+  view.stop_updates = sessions.register(source_buf, function(rendered, err)
     if not M.is_valid(view) then
       return M.close(view)
     end
-    local previous_job = view.render_job
-    view.render_job = nil
-    if previous_job then
-      previous_job.cancel()
-    end
-    util.async(function()
-      local map = not render_error and rendered and rendered.map or nil
-      local err = render_error
-      local initializing = view.loading
-      if initializing and map and view.verify_with_cat and not view.session.init then
-        local before_validation = vim.uv.hrtime()
-        local validation_job
-        local real_base, base_error = util.await(function(done)
-          validation_job = cli.run({ "cat", vim.api.nvim_buf_get_name(view.target_buf) }, {
-            text = false,
-            callback = function(text, error)
-              done(text, error)
-            end,
-          })
-          view.render_job = validation_job
-        end)
-        -- A newer source result or a closed view abandons this validation.
-        if view.closed or view.render_job ~= validation_job then
-          return
-        end
-        view.render_job = nil
-        profile.validation_ms = profile.validation_ms + (vim.uv.hrtime() - before_validation) / 1e6
-        if not real_base then
-          err = base_error
-        elseif util.buffer_text(rendered.buf) ~= real_base then
-          err = "sentinel rendering differs from `chezmoi cat`; this template uses an unsupported render context"
-        end
-      end
-      if not M.is_valid(view) then
-        return M.close(view)
-      end
-      if map and not sessions.is_current(source_buf, map) then
-        return
-      end
-      if err or not map then
-        if preview then
-          set_loading(view, false)
-          set_preview_error(view, err)
-        elseif initializing then
-          M.close(view)
-        end
-        if initializing then
-          util.notify(err, preview and "preview" or "diff", vim.log.levels.ERROR)
-        end
-        return
-      end
-      if not initializing then
-        if view.map ~= map or view.preview_error then
-          apply_refresh(view)
-        end
-        return
-      end
-      profile.render_ms = (vim.uv.hrtime() - started_at) / 1e6 - profile.validation_ms
-      local before_view_update = vim.uv.hrtime()
-      local updated, update_error = update_session(view)
-      profile[preview and "preview_write_ms" or "diff_ms"] = (vim.uv.hrtime() - before_view_update) / 1e6
-      set_loading(view, false)
-      if not updated then
+    local map = not err and rendered and rendered.map or nil
+    local initializing = view.loading
+    if err or not map then
+      if preview then
+        set_loading(view, false)
+        set_preview_error(view, err)
+      elseif initializing then
         M.close(view)
-        util.notify(
-          "cannot initialize view: " .. tostring(update_error),
-          preview and "preview" or "diff",
-          vim.log.levels.ERROR
-        )
-        return
       end
-      profile.total_ms = (vim.uv.hrtime() - opened_at) / 1e6
-      M.last_profile = profile
-      if not preview and #view.hunks == 0 then
-        util.notify("target matches rendered template", "diff")
+      if initializing then
+        util.notify(err, preview and "preview" or "diff", vim.log.levels.ERROR)
       end
-      vim.api.nvim_exec_autocmds(
-        "User",
-        { pattern = "VimoiViewChanged", data = { source_win = view.source_win, target_win = view.target_win } }
+      return
+    end
+    if not initializing then
+      if view.map ~= map or view.preview_error then
+        apply_refresh(view)
+      end
+      return
+    end
+    profile.validation_ms = rendered.validation_started
+        and rendered.validation_started >= started_at
+        and rendered.validation_ms
+      or 0
+    profile.render_ms = (vim.uv.hrtime() - started_at) / 1e6 - profile.validation_ms
+    local before_view_update = vim.uv.hrtime()
+    local updated, update_error = update_session(view)
+    profile[preview and "preview_write_ms" or "diff_ms"] = (vim.uv.hrtime() - before_view_update) / 1e6
+    set_loading(view, false)
+    if not updated then
+      M.close(view)
+      util.notify(
+        "cannot initialize view: " .. tostring(update_error),
+        preview and "preview" or "diff",
+        vim.log.levels.ERROR
       )
-    end)
-  end)
+      return
+    end
+    profile.total_ms = (vim.uv.hrtime() - opened_at) / 1e6
+    M.last_profile = profile
+    if not preview and #view.hunks == 0 then
+      util.notify("target matches rendered template", "diff")
+    end
+  end, { validate = view.validate, target = view.validate and vim.api.nvim_buf_get_name(view.target_buf) or nil })
 end
 
 return M

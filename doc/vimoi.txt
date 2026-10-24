@@ -75,7 +75,7 @@ The available options and their defaults are: >lua
         buffer_write_fallback = "auto",
       },
       diff = {
-        validate = false,
+        validate = true,
       },
       completion = {
         enabled = true,
@@ -164,13 +164,25 @@ colors. Other highlight group names (such as `"StatusLine"`), single colors
 their visible background. A group without a background adds no background.
 Changes to `background` or the colorscheme refresh the selected color.
 
-When `diff.validate` is true, opening a template diff also runs `chezmoi cat`.
-The diff is rejected if its output differs from the sentinel rendering. This
-detects templates that depend on an unsupported execution context, at the
-cost of one additional chezmoi process whenever a diff is opened.
-Initial rendering and validation await sequentially without blocking editing.
-Source/context changes retry on the next event-loop turn; obsolete renders skip
-validation. Target edits made while rendering are included when the view opens.
+`diff.validate` is a boolean controlling source-session construction:
+
+    true     Default. Validate once when the file's session is first constructed.
+    false    Skip validation.
+
+The constructor renders a fixed on-disk source baseline with sentinels and compares
+its output with `chezmoi cat`. Buffer edits cannot cancel or restart this check.
+No output or map is published until construction succeeds. It then renders the
+latest buffer text; subsequent edits, renames and context refreshes do not repeat
+cat validation. Preview, highlighting, diagnostics, diff and merge share this state.
+A failed check caches construction failure: editing or saving does not retry it.
+Unload/reopen the file to construct a new session, or explicitly disable validation.
+Checks remain cancellable; source unload and explicit cancellation stop the task.
+Unmanaged/source-only files without a cat target and init templates skip validation;
+diff_buffers uses false. Per-call diff/diff_files `validate` is also boolean and
+sets the shared source session's construction policy.
+Cat has no stdin template override. Executing the original buffer with
+execute-template can check sentinel transformations, but does not independently
+verify the real cat execution context.
 
 Internal `vimoi.job` owns process execution, progress floats and cancellation;
 `vimoi.cli` owns chezmoi arguments, output handling and caching. Shared
@@ -183,8 +195,8 @@ when continuing after a render wait or placement choice.
 Merge runs as one coroutine: await the shared session result, plan hunks, await
 vim.ui.select when needed, then write. job.wait owns the modal wait and cancellation;
 session.register(..., { once = true }) supplies fresh mappings without another process.
-Initial view rendering also waits for optional cat validation. The merge's
-registration closure owns its source subscription and temporary VimoiViewChanged
+Cat validation belongs to session construction; rendering waits for its success. The merge's
+registration closure owns its source subscription and temporary VimoiViewClosed
 listener. Views report closure and retain no merge continuation.
 Use `vimoi.api` for user operations.
 
@@ -427,9 +439,11 @@ shadowed by diff are restored when switching modes or closing the session.
 
 Parse/render errors retain the last successful output with a visible
 "Preview out of date" message. Editing the template retries and clears the
-message on success. Initial errors remain editable and can recover as well.
-`diff.validate` does not apply: preview renders unsaved text, not the target
-produced from the on-disk source. Other |vimoi-limitations| still apply.
+message on success. A construction-check failure instead requires reopening
+the file or disabling validation; editing does not retry construction.
+Preview shares the session’s one-time construction check, including when no diff
+is open. The disk baseline is independent of edits to the previewed buffer.
+Other |vimoi-limitations| still apply.
 
 Invoking preview from either side of an active diff/preview uses its source.
 Repeated invocation refreshes and reuses the same pair; switching between diff

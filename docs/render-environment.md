@@ -1,9 +1,10 @@
 # Render environment compatibility
 
-> Historical investigation and design options. Managed template buffers now inject
-> their cat context as described below. Mandatory validation was not adopted: `diff.validate`
-> check is optional and defaults to false; preview does not use it. Static put/re-add
-> uses local source-map inference rather than candidate re-rendering. See
+> Historical investigation and design options. Managed templates inject their cat
+> context as described below. `diff.validate = true` now validates a fixed disk
+> baseline once during source-session construction, independently of buffer edits.
+> `false` skips it. All consumers, including preview, wait for construction success.
+> Static put/re-add uses local source-map inference after that check. See
 > [FEATURES](../FEATURES.md) and [README](../README.md) for current behavior.
 
 The sentinel MVP renders its instrumented template with `chezmoi
@@ -32,7 +33,7 @@ restored skeleton must omit the output-free prelude.
 Unnamed buffers, unmanaged/source-only files, raw string traces without a buffer,
 and init templates keep their native execute-template context. Templates that produce
 different results under cat and apply remain unsupported; this feature simulates cat,
-not apply. Optional diff.validate still compares with the real read-only cat command.
+not apply. Source-session construction validates a disk baseline against the real read-only cat command once by default.
 Regression coverage is in tests/template_context.lua and tests/diagnostic.lua.
 
 ## Empirical results

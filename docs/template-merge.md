@@ -99,8 +99,7 @@ Tree-sitter 本身只能提供第一阶段。第二阶段仍然必须结合一�
 语法树无法告诉我们的运行时信息。
 
 当前 sentinel 使用 `execute-template`；受管理模板通过骨架前缀注入 cat 上下文，详见
-[render environment compatibility](render-environment.md)。`diff.validate = true` 可选择
-校验移除哨兵后的输出与 `chezmoi cat` 是否一致；cat/apply 结果不同的模板不受支持。
+[render environment compatibility](render-environment.md)。`diff.validate` 默认 true，在 session 构造时校验固定磁盘基线的哨兵输出与 `chezmoi cat` 是否一致，可设为 false 跳过；cat/apply 结果不同的模板不受支持。
 
 ## 用户修改映射
 

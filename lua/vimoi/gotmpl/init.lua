@@ -87,6 +87,7 @@ end
 ---@param opts? { source?: string, target?: string, source_buf?: integer, target_buf?: integer, filetype?: string, validate?: boolean, preview?: boolean }
 function M.open(opts)
   opts = opts or {}
+  vim.validate("validate", opts.validate, "boolean", true)
   local preview = opts.preview == true
   local started = vim.uv.hrtime()
   local source_buf, target_buf = opts.source_buf, opts.target_buf
@@ -111,7 +112,6 @@ function M.open(opts)
     previous = nil
   end
   local current_path = vim.api.nvim_buf_get_name(0)
-  local config = require("vimoi").config
   local source_path = opts.source and util.normalize_path(opts.source)
   local target_path = opts.target and util.normalize_path(opts.target)
   local path_lookup_ms = 0
@@ -204,10 +204,7 @@ function M.open(opts)
     target_filetype = require("vimoi.filetype").host_filetype(target_path, target_buf) or ""
   end
   require("vimoi.highlight").configure_template_buffer(source_buf, target_filetype)
-  local validate = not preview and opts.validate
-  if validate == nil then
-    validate = config.diff.validate
-  end
+  local validate = opts.validate
   if buffer_pair then
     validate = false -- Buffers need not correspond to managed files on disk.
   end
@@ -223,7 +220,7 @@ function M.open(opts)
     target_buf = target_buf,
     source_win = source_win,
     target_win = target_win,
-    verify_with_cat = validate,
+    validate = validate,
   }
   views.attach(session)
   ---@type VimoiOpenProfile

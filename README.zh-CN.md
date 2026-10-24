@@ -389,8 +389,10 @@ require("vimoi.api").invalidate_cache()
 - 受管理模板 buffer 的 `.chezmoi.sourceFile`、`.chezmoi.targetFile`、`.chezmoi.command`
   和 `.chezmoi.args` 模拟 `chezmoi cat target`。在 cat 与 apply 下产生不同结果的模板
   不在支持范围内。无名、未受管理、source-only 及 init 模板保留原生 execute-template 上下文。
-- `diff.validate = true` 可额外检查模板渲染与 chezmoi cat 是否一致，不一致时拒绝打开 diff；
-  默认关闭，不适用于未保存内容的 preview，也不代表上述不支持的模板已获支持。
+- `diff.validate = true`（默认）在首次打开文件、构造 source session 时校验一次，
+  使用固定磁盘基线与 `chezmoi cat` 比较。校验不受 buffer 编辑打断；通过后渲染最新
+  buffer，不再重复 cat 校验。失败时本次构造失败，重新打开文件后才能重新校验。
+  `false` 跳过校验。未受管理、source-only 和 init 模板跳过 cat。
 - 源码不能包含本次运行使用的保留哨兵前缀，动态输出不能产生完整保留标记。
   随机标记只降低意外碰撞概率；详细约束见 `:help vimoi-limitations`。
 - 不提供自动 re-add、自动 apply，也不替代 chezmoi CLI 的文件属性和加密操作。

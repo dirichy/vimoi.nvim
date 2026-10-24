@@ -15,41 +15,26 @@ local sessions = require("vimoi.gotmpl.session")
 local function wait_for_render(view)
   return job.wait("Waiting for template rendering…", function(finish, cancel)
     local changed = vim.api.nvim_create_autocmd("User", {
-      pattern = "VimoiViewChanged",
+      pattern = "VimoiViewClosed",
       callback = function(args)
         if args.data.source_win ~= view.source_win or args.data.target_win ~= view.target_win then
           return
         end
-        if view.closed then
-          cancel(false)
-        elseif not view.loading then
-          finish(sessions.snapshot(view.source_buf))
-        end
+        cancel(false)
       end,
     })
     local stop = sessions.register(view.source_buf, function(state, err)
       if not views.is_valid(view) then
         cancel(false)
-      elseif err or not view.loading then
+      else
         finish(state and sessions.snapshot(view.source_buf), err)
       end
     end, { once = true })
     return function(cancel_render)
       vim.api.nvim_del_autocmd(changed)
-      if cancel_render and view.loading and view.stop_updates then
-        -- The one-shot result may already have arrived while cat validation waits.
-        view.stop_updates(true)
-        stop()
-      else
-        stop(cancel_render)
-      end
-      if cancel_render then
-        if view.render_job then
-          view.render_job.cancel()
-        end
-        if view.loading then
-          views.close(view)
-        end
+      stop(cancel_render)
+      if cancel_render and view.loading then
+        views.close(view)
       end
     end
   end)
@@ -166,7 +151,7 @@ local function merge(mode)
       vim.log.levels.ERROR
     )
   end
-  local trace = not session.loading and sessions.rebuild(session.source_buf) or nil
+  local trace = sessions.rebuild(session.source_buf)
   if not trace then
     local completed, rendered, render_error = wait_for_render(session)
     if not completed then

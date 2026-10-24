@@ -55,11 +55,11 @@ assert(package.loaded["vimoi.goto"] == nil, "opening symlink source should not l
 
 -- Runtime options can be reset; omitted setup-time process/watch/map settings persist.
 local original_config = vim.deepcopy(vimoi.config)
-vimoi.setup({ completion = { enabled = false }, diff = { validate = true } })
-assert(not vimoi.config.completion.enabled and vimoi.config.diff.validate)
+vimoi.setup({ completion = { enabled = false }, diff = { validate = false } })
+assert(not vimoi.config.completion.enabled and vimoi.config.diff.validate == false)
 assert(vimoi.config.chezmoi_executable == original_config.chezmoi_executable)
 vimoi.setup()
-assert(vimoi.config.completion.enabled and not vimoi.config.diff.validate)
+assert(vimoi.config.completion.enabled and vimoi.config.diff.validate == true)
 for _, opts in ipairs({
   { chezmoi_executable = "different" },
   { watch = { buffer_write_fallback = false } },
