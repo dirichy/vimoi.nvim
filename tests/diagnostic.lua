@@ -92,6 +92,20 @@ for _, keyword in ipairs({ "define", "block" }) do
   assert(#diagnostics == 1 and diagnostics[1].lnum == 2 and diagnostics[1].col == 3, vim.inspect(diagnostics))
 end
 
+-- The injected context shifts skeleton bytes but not source error positions.
+local original_name = vim.api.nvim_buf_get_name(buf)
+vim.api.nvim_buf_set_name(buf, fixture .. "/source/dot_probe.tmpl")
+diagnostics = change("键: {{ index (list 1) 5 }}\n")
+assert(#diagnostics == 1 and diagnostics[1].lnum == 0 and diagnostics[1].col == #"键: {{ ", vim.inspect(diagnostics))
+local source_map = require("vimoi.gotmpl.source_map")
+assert(assert(source_map.prepare(util.buffer_text(buf), { buf = buf })).prefix ~= "")
+diagnostics = change("header\n{{ index (list 1) 5 }}\n")
+assert(#diagnostics == 1 and diagnostics[1].lnum == 1 and diagnostics[1].col == 3, vim.inspect(diagnostics))
+diagnostics = change("literal only\n")
+assert(#diagnostics == 0)
+assert(assert(source_map.prepare(util.buffer_text(buf), { buf = buf })).output == "literal only\n")
+vim.api.nvim_buf_set_name(buf, original_name)
+
 -- Recovery clears errors. Repeated/trimmed literal changes reuse successes.
 diagnostics = change("{{ range (list 1 2) -}}\n item={{ . }}\n{{- end }}\n")
 assert(#diagnostics == 0)

@@ -70,7 +70,7 @@
 | 文件类型及管理属性识别与缓存 | source 根目录识别、按需 source/target 路径查询和缓存；普通模板与非模板 managed source 均按真实 target 名称识别 | 尚无全部受管理文件的属性索引；仅在具体操作需要时考虑 |
 | static/dynamic/repeated/boundary/unknown 分类 | 内部区分 static、dynamic、repeated、ambiguous，写回规划检查边界并报告跳过原因 | 稳定的用户可见分类与冲突浏览；不能认为完整五类模型已实现 |
 | 边界修改交互 | 控制边界插入有 picker；静态修改可按字节拆分 | 无法安全映射到静态槽位的修改由用户手动处理；复杂动态反向合并不在计划中 |
-| 上下文不兼容检测与降级 | 已记录不支持字段；`diff.validate = true` 时比较哨兵结果与 `chezmoi cat`，不一致则拒绝 diff | AST 字段检测、精确错误原因及自动降级尚未实现；严格校验默认关闭，preview 不适用 |
+| 渲染上下文 | 受管理模板以骨架前缀注入 sourceFile、targetFile、command="cat" 和 cat args；严格校验可与真实 cat 对照 | cat/apply 结果不同的模板不支持；无名、未受管理/source-only 和 init 模板保留 execute-template 上下文；严格校验默认关闭，preview 不适用 |
 | 编辑 source 时保留目标语言体验 | 已有独立 Toggle、目标文件类型、宿主语言高亮、预览和 diff | source 路径上的 LSP 工作区仍未解决 |
 | 模板语法校验 | 已有独立于 diff/preview 的默认 diagnostics，支持语法与执行错误定位 | 没有额外的手动完整原文校验命令；无法定位的错误仍以通知展示，沿用哨兵限制 |
 | 外部 source 变化后刷新 | 配置、data、include 模板依赖失效后自动延迟刷新现有视图，初次渲染由 guard 重试 | 不是全部 source state 的索引与属性自动重扫；未监听的新目录仍需手动 invalidate/rescan |
@@ -152,7 +152,7 @@ target 及取消时的行为，避免隐式保存或覆盖。其余候选及取�
 - 静默用 target 或渲染结果覆盖 source template。
 - 自动执行全局 `chezmoi apply`、Git commit 或 push。
 - 替代 chezmoi CLI，或强依赖特定插件管理器、picker、通知插件。
-- MVP 中自动映射 `.chezmoi.sourceFile`、`.chezmoi.targetFile`、`.chezmoi.command`、`.chezmoi.args` 或自定义 delimiter。
+- 支持在 chezmoi cat/apply 下结果不同的模板，或自定义 delimiter。
 
 ## 历史设计说明
 

@@ -98,9 +98,9 @@ rendered span -> source span + kind + confidence
 Tree-sitter 本身只能提供第一阶段。第二阶段仍然必须结合一次真实的 chezmoi 渲染；这是
 语法树无法告诉我们的运行时信息。
 
-当前 sentinel MVP 使用 `execute-template`，它与真实 target 渲染的上下文差异记录在
-[render environment compatibility](render-environment.md)。任何自动写回功能都必须先验证
-移除哨兵后的输出与 `chezmoi cat` 完全一致。
+当前 sentinel 使用 `execute-template`；受管理模板通过骨架前缀注入 cat 上下文，详见
+[render environment compatibility](render-environment.md)。`diff.validate = true` 可选择
+校验移除哨兵后的输出与 `chezmoi cat` 是否一致；cat/apply 结果不同的模板不受支持。
 
 ## 用户修改映射
 
@@ -222,8 +222,8 @@ require("vimoi").setup({
 - 依赖 `gotmpl` Tree-sitter parser 解析 source，但不重写 AST。
 - 动态区域可以精确显示其 source/rendered 范围，但第一版仍由用户决定如何修改模板。
 - 一对多映射、include 和无法唯一对齐的区域默认视为冲突。
-- 依赖 `.chezmoi.sourceFile`、`.chezmoi.targetFile`、`.chezmoi.command` 或
-  `.chezmoi.args` 的模板暂不支持自动映射。
+- 当前受管理模板已注入 `.chezmoi.sourceFile`、`.chezmoi.targetFile`、`.chezmoi.command`
+  和 `.chezmoi.args` 的 cat 上下文；cat/apply 结果不同的模板不受支持。
 - 自定义 template delimiter 暂不支持。
 - 不自动修改 `.chezmoidata` 来满足目标内容变化。
 - 不在 merge 成功后自动 commit、push 或 apply 其他文件。

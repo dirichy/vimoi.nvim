@@ -891,14 +891,20 @@ LIMITATIONS                                                *vimoi-limitations*
 The sentinel renderer does not currently support:
 
 - Custom Go-template delimiters.
-- Templates whose result depends on `.chezmoi.sourceFile`,
-  `.chezmoi.targetFile`, `.chezmoi.command`, or `.chezmoi.args`.
-- `includeTemplate` calls whose result indirectly depends on those fields.
+- Templates that produce different results under chezmoi cat and apply.
 - Reverse-mapping dynamic or repeated output changes, or cross-boundary edits
   whose placement cannot be inferred. Edit source manually for these cases.
   Inferable but ambiguous static placements use an interactive choice.
 - Guaranteed valid host-language injections for incomplete template
   fragments; see |vimoi-highlighting|.
+
+Managed template buffers use an output-free skeleton prelude to simulate
+chezmoi cat target: sourceFile is relative to the effective source root,
+targetFile is the managed absolute target, command is "cat", and args simulates
+the corresponding cat invocation. includeTemplate calls receiving the same data
+see these injected values too. This does not run chezmoi apply or change files.
+Unnamed buffers, unmanaged/source-only files, raw string traces, and init
+templates retain their native execute-template context.
 
 Entire define/block bodies are opaque to source mapping. Each template call
 maps its whole output to its call site, and a block's initial output maps to

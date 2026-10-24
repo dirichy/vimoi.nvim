@@ -31,6 +31,7 @@ local cli = require("vimoi.cli")
 ---Prepared source structure. Output fields appear together after sentinel decoding.
 ---@class VimoiPreparedTrace: VimoiTemplateParts
 ---@field skeleton string Template tags with each literal part replaced by a sentinel.
+---@field prefix string Context-injection actions included at the start of the skeleton.
 ---@field init boolean
 ---@field context_generation integer
 ---@field output? string Absent before rendering; present on a reused complete trace.
@@ -400,20 +401,59 @@ local sentinel_prefix = ("__VIMOI_%x_%x__"):format(vim.uv.hrtime(), math.random(
 ---@type VimoiSourceMapTrace?
 local last_trace
 
+-- Only managed files have a target context. Keep raw strings, source-only files,
+-- and init templates in execute-template's native context.
+---@param buf? integer
+---@param init boolean
+---@return string
+local function context_prefix(buf, init)
+  if init or not buf or not cli.source_root then
+    return ""
+  end
+  local path = vim.api.nvim_buf_get_name(buf)
+  local source_file = path ~= "" and vim.fs.relpath(cli.source_root, path)
+  if not source_file then
+    return ""
+  end
+  local target = cli.counterpart_path(path)
+  if not target or target == "" then
+    return ""
+  end
+  target = vim.json.encode(target)
+  -- Empty if bodies discard set's return value without declaring variables or
+  -- emitting whitespace. Preserve the real CLI/wrapper arguments before cat.
+  return '{{if set .chezmoi "sourceFile" '
+    .. vim.json.encode(source_file)
+    .. '}}{{end}}{{if set .chezmoi "targetFile" '
+    .. target
+    .. '}}{{end}}{{if set .chezmoi "command" "cat"}}{{end}}'
+    .. '{{if set .chezmoi "args" (append (append (initial .chezmoi.args) "cat") '
+    .. target
+    .. " | toStrings)}}{{end}}"
+end
+
+---@class VimoiTraceOptions
+---@field init? boolean
+---@field buf? integer
+---@field timeout? integer
+---@field prefix? string Captured context reused by local inference without a live buffer.
+
 -- Replace each literal slot with its stable ID; unchanged tags/slot count reuse the rendered skeleton.
 -- The result has no output until restored, except when the last complete trace is reused directly.
 ---@param source string
----@param opts? { init?: boolean, buf?: integer }
+---@param opts? VimoiTraceOptions
 ---@return VimoiPreparedTrace?
 ---@return string? error
 function M.prepare(source, opts)
   opts = opts or {}
   local init = opts.init == true
+  local prefix = opts.prefix or context_prefix(opts.buf, init)
   if
     last_trace
     and last_trace.context_generation == cli.context_generation
     and last_trace.source == source
     and last_trace.init == init
+    and last_trace.prefix == prefix
   then
     return last_trace
   end
@@ -431,7 +471,7 @@ function M.prepare(source, opts)
   if not template_parts then
     return nil, parse_error
   end
-  local skeleton_parts, skeleton_bytes = {}, 0
+  local skeleton_parts, skeleton_bytes = { prefix }, #prefix
   for literal_part_id, _ in ipairs(template_parts.literal_parts) do
     local following_tag = template_parts.template_tags[literal_part_id]
     -- Every literal part gets a token, even between adjacent tags. Parsing has already
@@ -449,6 +489,7 @@ function M.prepare(source, opts)
   return {
     source = source,
     skeleton = skeleton,
+    prefix = prefix,
     init = init,
     context_generation = cli.context_generation,
     literal_parts = template_parts.literal_parts,
@@ -514,10 +555,13 @@ function M.rebuild(trace, source, buf)
   if trace.context_generation ~= cli.context_generation then
     return nil
   end
+  if buf and context_prefix(buf, trace.init) ~= trace.prefix then
+    return nil
+  end
   if trace.source == source then
     return trace
   end
-  local prepared_trace = M.prepare(source, { init = trace.init, buf = buf })
+  local prepared_trace = M.prepare(source, { init = trace.init, buf = buf, prefix = trace.prefix })
   -- Identical skeletons preserve dynamic output and execution order; only literal text/ranges need rebuilding.
   if not prepared_trace or prepared_trace.skeleton ~= trace.skeleton then
     return nil
@@ -541,7 +585,7 @@ function M.rebuild_after_edits(trace, source, edits)
   if trace.context_generation ~= cli.context_generation then
     return nil, "rendering context changed"
   end
-  local prepared, prepare_error = M.prepare(source, { init = trace.init })
+  local prepared, prepare_error = M.prepare(source, { init = trace.init, prefix = trace.prefix })
   if not prepared then
     return nil, prepare_error
   end
@@ -600,7 +644,7 @@ end
 
 ---Render structure once, then restore current literal text and source ranges.
 ---@param source string
----@param opts? { timeout?: integer, init?: boolean, buf?: integer }
+---@param opts? VimoiTraceOptions
 ---@return VimoiSourceMapTrace? trace
 ---@return string? error
 function M.trace(source, opts)
@@ -625,7 +669,7 @@ end
 
 ---Asynchronously build the same mapping as trace(); even cached results invoke the callback later.
 ---@param source string
----@param opts? { timeout?: integer, init?: boolean, buf?: integer }
+---@param opts? VimoiTraceOptions
 ---@param callback fun(trace: VimoiSourceMapTrace?, error: string?)
 ---@return VimoiCommand?
 function M.trace_async(source, opts, callback)

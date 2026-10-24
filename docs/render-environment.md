@@ -1,7 +1,7 @@
 # Render environment compatibility
 
-> Historical investigation and design options. The context differences below remain
-> relevant, but mandatory validation was not adopted: the current `diff.validate`
+> Historical investigation and design options. Managed template buffers now inject
+> their cat context as described below. Mandatory validation was not adopted: `diff.validate`
 > check is optional and defaults to false; preview does not use it. Static put/re-add
 > uses local source-map inference rather than candidate re-rendering. See
 > [FEATURES](../FEATURES.md) and [README](../README.md) for current behavior.
@@ -12,6 +12,28 @@ identical to rendering a managed target with `chezmoi cat`.
 
 The repository contains an executable comparison in `tests/environment.lua`
 and its isolated fixture in `tests/fixtures/environment`.
+
+## Current context injection
+
+For managed template buffers, source_map prepends output-free `set .chezmoi`
+actions to the sentinel skeleton. They supply sourceFile relative to the effective
+source root, the managed absolute targetFile, command="cat", and the corresponding
+cat args. Empty if bodies discard set's return value without introducing variables
+into the user's scope or emitting whitespace. args retains its native []string type.
+The injected values also reach includeTemplate when passed the same template data.
+
+The entire prelude is part of the skeleton cache key. The last complete trace also
+compares its prelude, so equal source text in different files cannot reuse the wrong
+context. Local static inference retains the captured prelude; live-buffer rebuilds
+reject a changed context, including renames. Tag skeleton offsets include the prelude,
+preserving diagnostic source positions. Plain text can skip execution, but its
+restored skeleton must omit the output-free prelude.
+
+Unnamed buffers, unmanaged/source-only files, raw string traces without a buffer,
+and init templates keep their native execute-template context. Templates that produce
+different results under cat and apply remain unsupported; this feature simulates cat,
+not apply. Optional diff.validate still compares with the real read-only cat command.
+Regression coverage is in tests/template_context.lua and tests/diagnostic.lua.
 
 ## Empirical results
 
@@ -49,7 +71,8 @@ enables this flag for every render and refresh.
 
 ## MVP policy
 
-The initial implementation keeps stdin rendering. Templates whose output
+The following describes the historical implementation before context injection.
+The initial implementation kept stdin rendering. Templates whose output
 depends on `sourceFile`, `targetFile`, `command`, or `args` are explicitly
 unsupported, including indirect access from `includeTemplate`. Before an
 automatic merge is allowed, the tracer must compare its clean, sentinel-free

@@ -1,4 +1,5 @@
 ---@diagnostic disable: duplicate-set-field -- Intentional selector and sentinel mocks.
+local run_async = dofile("tests/helpers/await.lua")
 local root = vim.fn.getcwd()
 local fixture = root .. "/tests/fixtures/environment"
 local wrapper = fixture .. "/chezmoi-wrapper.sh"
@@ -35,4 +36,4 @@ vim.ui.select = original_select
 assert(offered and #offered == 3, vim.inspect(offered))
 assert(renders == 0, ("empty-if choice called the render entry %d times"):format(renders))
 local merged = require("vimoi.util").buffer_text(vim.fn.bufnr(source))
-assert(original_trace(merged).output == "before\nnew\nafter\n")
+assert(run_async(original_trace, merged, { buf = vim.fn.bufnr(source) }).output == "before\nnew\nafter\n")

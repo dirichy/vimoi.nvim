@@ -425,9 +425,11 @@ Restart Neovim after changing the source root directory.
   maps its whole output to the call site; a `block` maps its initial output to the
   whole block. Edit their bodies manually, including static text.
 - Custom template delimiters are not supported.
-- Templates whose output depends on `.chezmoi.sourceFile`, `.chezmoi.targetFile`,
-  `.chezmoi.command`, or `.chezmoi.args` are not supported, including includeTemplate
-  calls that read those fields indirectly.
+- Managed template buffers render with simulated `chezmoi cat target` values for
+  `.chezmoi.sourceFile`, `.chezmoi.targetFile`, `.chezmoi.command`, and `.chezmoi.args`.
+  Templates that produce different results under `cat` and `apply` are not supported.
+  Unnamed, unmanaged, source-only, and init templates keep their native
+  `execute-template` context.
 - `diff.validate = true` additionally checks template rendering against chezmoi cat and
   refuses to open the diff on mismatch. It is off by default and does not apply to previews
   of unsaved content or make the unsupported templates above supported.

@@ -225,7 +225,9 @@ local function check(buf, state)
   end
   if #prepared.template_tags == 0 or prepared.output ~= nil then
     cancel_request(state)
-    state.result = { rendered_skeleton = prepared.rendered_skeleton or prepared.skeleton }
+    -- With no user actions, expand literal sentinels without executing the
+    -- context prelude. It has no output and must not become literal text.
+    state.result = { rendered_skeleton = prepared.rendered_skeleton or prepared.skeleton:sub(#prepared.prefix + 1) }
   end
   if state.result then
     return { tick = state.tick }
