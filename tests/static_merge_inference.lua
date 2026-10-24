@@ -2,15 +2,15 @@ local run_async = dofile("tests/helpers/await.lua")
 local source_map = require("vimoi.gotmpl.source_map")
 local merge_plan = require("vimoi.gotmpl.merge_plan")
 local cli = require("vimoi.cli")
-local checked = 0
+local checked, duplicate_ranges = 0, 0
 
 local function check(trace, edits)
-  local candidate, candidate_error = merge_plan.prepare_candidate(trace, edits)
+  local candidate, candidate_error, source_edits = merge_plan.apply_source_edits(trace, edits)
   assert(candidate, candidate_error)
-  local inferred, infer_error = source_map.rebuild_after_edits(trace, candidate.source_text, candidate.source_edits)
+  local inferred, infer_error = source_map.rebuild_after_edits(trace, candidate, source_edits)
   assert(inferred, infer_error)
   -- Bypass all trace/skeleton caches: the external renderer is an independent oracle.
-  local actual, render_error = run_async(cli.execute_template, candidate.source_text, { cache = false })
+  local actual, render_error = run_async(cli.execute_template, candidate, { cache = false })
   assert(actual, render_error)
   assert(inferred.output == actual, vim.inspect({ trace.source, edits, candidate, inferred.output, actual }))
   checked = checked + 1
@@ -38,6 +38,7 @@ for _, source in ipairs({
 }) do
   local trace = assert(run_async(source_map.trace, source))
   local snapshot = vim.deepcopy(trace)
+  local seen = {}
   for index = 1, #trace.literal_parts do
     local previous_tag, following_tag = trace.template_tags[index - 1], trace.template_tags[index]
     local first = previous_tag and previous_tag.end_byte or 0
@@ -45,8 +46,15 @@ for _, source in ipairs({
     local middle = math.floor((first + last) / 2)
     local ranges = { { first, first }, { last, last }, { middle, middle }, { first, last } }
     for _, range in ipairs(ranges) do
-      for _, replacement in ipairs({ "", "{", "{{", "{{{", "{{{{", " {{ x }} ", "\n{\n", " \t\r\n" }) do
-        check(trace, { { start_byte = range[1], end_byte = range[2], replacement = replacement } })
+      local key = range[1] .. ":" .. range[2]
+      -- Empty and one-byte slots make several boundary positions identical.
+      if seen[key] then
+        duplicate_ranges = duplicate_ranges + 1
+      else
+        seen[key] = true
+        for _, replacement in ipairs({ "", "{", "{{", "{{{", "{{{{", " {{ x }} ", "\n{\n", " \t\r\n" }) do
+          check(trace, { { start_byte = range[1], end_byte = range[2], replacement = replacement } })
+        end
       end
     end
   end
@@ -74,13 +82,19 @@ local inferred = check(trace, {
   { start_byte = middle, end_byte = middle + 6, replacement = "middle{{{" },
   { start_byte = right, end_byte = right + 5, replacement = "{{right" },
 })
-local following = assert(merge_plan.prepare_candidate(inferred, {
+local following, following_error, following_edits = merge_plan.apply_source_edits(inferred, {
   {
     start_byte = assert(inferred.source:find("right", 1, true)) - 1,
     end_byte = assert(inferred.source:find("right", 1, true)) + 4,
     replacement = "new{{text",
   },
-}))
-local following_trace = assert(source_map.rebuild_after_edits(inferred, following.source_text, following.source_edits))
-assert(following_trace.output == assert(run_async(cli.execute_template, following.source_text, { cache = false })))
-print(("static merge inference: %d independent render comparisons"):format(checked + 1))
+})
+assert(following, following_error)
+local following_trace = assert(source_map.rebuild_after_edits(inferred, following, following_edits))
+assert(following_trace.output == assert(run_async(cli.execute_template, following, { cache = false })))
+print(
+  ("static merge inference: %d independent render comparisons; skipped %d identical edit cases"):format(
+    checked + 1,
+    duplicate_ranges * 8
+  )
+)

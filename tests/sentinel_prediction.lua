@@ -33,7 +33,8 @@ for _, source in ipairs(templates) do
   for byte in pairs(positions) do
     for _, replacement in ipairs(replacements) do
       local candidate = source:sub(1, byte) .. replacement .. source:sub(byte + 1)
-      local predicted = source_map.predict_literal_edit(trace, candidate)
+      local rebuilt = source_map.rebuild(trace, candidate)
+      local predicted = rebuilt and rebuilt.output
       if predicted ~= nil then
         local actual, trace_error = run_async(source_map.trace, candidate)
         assert(actual, trace_error)

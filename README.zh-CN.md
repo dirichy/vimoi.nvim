@@ -219,7 +219,7 @@ require("vimoi").setup({
   chezmoi_config_path = nil, -- 可选的 chezmoi 配置文件路径
   split = "vertical", -- 或 "horizontal"
   watch = { buffer_write_fallback = "auto" },
-  diff = { validate = false },
+  diff = { validate = true },
   completion = { enabled = true },
   diagnostics = { enabled = true, host = true },
   highlight = {
@@ -288,9 +288,11 @@ require("vimoi").setup({ keymaps = { diff = "<leader>hd", readd = false } })
 
 宿主检查需要已知的宿主 filetype，以及已启用的 LSP 或已配置的 nvim-lint provider。
 nvim-lint 只运行支持 stdin 的检查器，其他检查插件暂不接入。检查使用 target 同目录下
-具有唯一名称的隐藏、未保存快照；没有受管理的 target 时，使用 source 所在目录或当前
+具有唯一名称的共享、未保存 output buffer；没有受管理的 target 时，使用 source 所在目录或当前
 目录。项目根目录照常识别，但依赖精确文件名的规则（例如部分 YAML schema 关联）可能
-需要调整。不会修改真实 target buffer 或文件。
+需要调整。每个 source buffer 的 preview、diff、高亮和诊断共用同一个 output。
+LSP 保持绑定，通过 `didChange` 接收编辑；provider 更新期间可能短暂保留旧宿主诊断。
+不会修改真实 target buffer 或文件。
 
 诊断、预览和渲染高亮会实际执行模板函数，可能调用密码助手；耗时任务可取消，没有默认超时。
 模板宿主语言会按 target 名称和 shebang 识别，例如 `dot_zshrc.tmpl` 使用 zsh 高亮。

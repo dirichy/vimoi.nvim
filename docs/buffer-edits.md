@@ -7,9 +7,10 @@ source edits，通过现有执行记录推算新输出和 source map，最后局
 ## 实现与取舍
 
 - `merge_plan.plan()` 只规划 edits、choices 和 skipped。选择完成后，
-  `merge_plan.prepare_candidate()` 构造转义后的 source 文本和实际 edits；
+  `merge_plan.apply_source_edits()` 构造转义后的 source 文本和实际 edits；
   `source_map.rebuild_after_edits()` 根据原有执行记录重建映射。
-- `merge` 负责等待、选择和写回前的快照检查，`buffer_edits.apply()` 只负责按 edits
+- `merge` 用协程按顺序等待结果、选择位置并检查写回快照；模态等待和取消复用
+  `job.wait()`，有效渲染通过 `session.register(..., { once = true })` 获取。`buffer_edits.apply()` 只负责按 edits
   写入 buffer，不理解模板。多个同位置 edits 使用候选构造时确定的实际顺序。
 - 完整行修改用 `nvim_buf_set_lines()`，行内修改用 `nvim_buf_set_text()`，减少对未修改
   文本、extmark 和解析缓存的影响。行首索引每次操作只建立一次。

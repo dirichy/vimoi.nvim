@@ -149,7 +149,7 @@ function M.open(opts)
   if preview and previous and previous.preview and vim.api.nvim_buf_get_name(previous.source_buf) == source_path then
     vim.api.nvim_set_current_win(previous.source_win)
     if not previous.loading then
-      views.schedule_refresh(previous)
+      views.refresh_target(previous)
     end
     return previous
   end

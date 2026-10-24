@@ -612,15 +612,6 @@ function M.rebuild_after_edits(trace, source, edits)
   return M.restore(prepared, rendered_skeleton)
 end
 
----Predict a literal edit using the same structure reconstruction as diff refresh.
----@param trace VimoiSourceMapTrace
----@param source string
----@return string?
-function M.predict_literal_edit(trace, source)
-  local updated_trace = M.rebuild(trace, source)
-  return updated_trace and updated_trace.output
-end
-
 ---Render structure once, then restore current literal text and source ranges.
 ---@param source string
 ---@param opts? VimoiTraceOptions

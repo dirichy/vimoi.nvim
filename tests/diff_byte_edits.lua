@@ -6,19 +6,18 @@ local merge_plan = require("vimoi.gotmpl.merge_plan")
 -- Production infers the new map. Independently render without the skeleton
 -- cache here so tests detect inference errors rather than reuse their result.
 local function validate_edits(trace, edits)
-  local candidate, err = merge_plan.prepare_candidate(trace, edits)
+  local candidate, err, source_edits = merge_plan.apply_source_edits(trace, edits)
   if not candidate then
     return nil, err
   end
-  local inferred, infer_error = source_map.rebuild_after_edits(trace, candidate.source_text, candidate.source_edits)
+  local inferred, infer_error = source_map.rebuild_after_edits(trace, candidate, source_edits)
   if not inferred then
     return nil, infer_error
   end
-  local actual, render_error =
-    run_async(require("vimoi.cli").execute_template, candidate.source_text, { cache = false })
+  local actual, render_error = run_async(require("vimoi.cli").execute_template, candidate, { cache = false })
   assert(actual, render_error)
-  assert(inferred.output == actual, vim.inspect({ candidate.source_text, inferred.output, actual }))
-  return { source_text = candidate.source_text, source_edits = candidate.source_edits, trace = inferred }
+  assert(inferred.output == actual, vim.inspect({ candidate, inferred.output, actual }))
+  return { source_text = candidate, source_edits = source_edits, trace = inferred }
 end
 
 local function plan(source, modified)
@@ -109,7 +108,7 @@ expect_automatic("a{x{y{b\n", "a{{{b\n", 2)
 -- A static write must never replace existing dynamic code.
 do
   local trace = assert(run_async(source_map.trace, '{{ "A" }}\n'))
-  local candidate, err = merge_plan.prepare_candidate(trace, {
+  local candidate, err = merge_plan.apply_source_edits(trace, {
     { start_byte = 3, end_byte = 6, replacement = 'fail "candidate failure"' },
   })
   assert(not candidate and err == "source edit crosses a template tag", err)

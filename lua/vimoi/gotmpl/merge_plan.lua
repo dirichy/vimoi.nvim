@@ -545,18 +545,5 @@ end
 
 M.plan = plan_merge
 
----Construct escaped source writes; source_map infers their actual output.
----@param trace VimoiSourceMapTrace
----@param edits VimoiBufferEdit[]
----@return { source_text: string, source_edits: VimoiBufferEdit[] }?
----@return string? error
-function M.prepare_candidate(trace, edits)
-  local source, source_error, source_edits = apply_source_edits(trace, edits)
-  if not source then
-    return nil, source_error
-  end
-  return { source_text = source, source_edits = source_edits }
-end
-
 M.apply_source_edits = apply_source_edits
 return M

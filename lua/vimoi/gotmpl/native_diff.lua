@@ -83,7 +83,7 @@ local function write_diff(path, output)
   vim.fn.writefile(lines, path)
 end
 
----@param sessions table<integer, VimoiTemplateView> Shared registry owned by gotmpl/session.lua.
+---@param sessions table<integer, VimoiTemplateView> Window registry owned by gotmpl/view.lua.
 function M.diffexpr(sessions)
   local original_text = util.read_file(vim.v.fname_in) or ""
   local modified_text = util.read_file(vim.v.fname_new) or ""
@@ -210,8 +210,7 @@ function M.fold(session, command)
   local active_win = vim.api.nvim_get_current_win()
   local active_line = vim.api.nvim_win_get_cursor(active_win)[1]
   local other_win, other_line = sync_scroll.corresponding_line(session, active_win, active_line)
-  local commands = { zo = true, zc = true, za = true, zO = true, zC = true, zA = true, zR = true, zM = true }
-  if not commands[command] then
+  if not vim.tbl_contains(require("vimoi").fold_commands, command) then
     return util.notify("unsupported fold command: " .. command, "diff", vim.log.levels.ERROR)
   end
 

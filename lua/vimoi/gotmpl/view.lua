@@ -13,11 +13,6 @@ local sync_scroll = require("vimoi.gotmpl.sync_scroll")
 ---@field callback function
 ---@field previous? table Original buffer-local maparg() dictionary, restored via mapset().
 
----@class VimoiPendingMerge
----@field complete fun(...) Resume only while the waiting window is still active.
----@field cancel fun(cancel_render?: boolean) Release the wait window without writing either buffer.
----@field stop? fun(cancel_render?: boolean) Pending output registration.
-
 ---@class VimoiTemplateView
 ---@field session VimoiSourceSession Source owner; windows are borrowed views.
 ---@field target_tick? integer Buffer version represented by the current mapping.
@@ -34,7 +29,6 @@ local sync_scroll = require("vimoi.gotmpl.sync_scroll")
 ---@field preview boolean True for a read-only rendered-output peer instead of a real target.
 ---@field preview_error? string The visible output is stale while rendering is invalid.
 ---@field keymaps VimoiSessionKeymap[] Original buffer mappings replaced for this view.
----@field pending_merge? VimoiPendingMerge Explicit merge waiting in a cancellable window.
 ---@field closed? boolean
 ---@field syncing? boolean Prevents recursive cursor/scroll events.
 ---@field loading? boolean Initial rendering is pending.
@@ -208,7 +202,7 @@ local function apply_refresh(view)
 end
 
 ---@param view VimoiTemplateView
-function M.schedule_refresh(view)
+function M.refresh_target(view)
   if not M.is_valid(view) then
     return M.close(view)
   end
@@ -229,29 +223,6 @@ local function set_session_keymap(view, buf, lhs, callback, desc)
     previous = previous.buffer == 1 and previous or nil,
   }
   vim.keymap.set("n", lhs, callback, { buffer = buf, desc = desc })
-end
-
-local function configure_fold_mappings(view, buf)
-  local mappings = {
-    fold_open = "zo",
-    fold_close = "zc",
-    fold_toggle = "za",
-    fold_open_recursive = "zO",
-    fold_close_recursive = "zC",
-    fold_toggle_recursive = "zA",
-    fold_open_all = "zR",
-    fold_close_all = "zM",
-  }
-  local config = require("vimoi").config.keymaps
-  for name, command in pairs(mappings) do
-    local keymap = config[name]
-    if keymap and keymap ~= "" then
-      local fold_command = command
-      set_session_keymap(view, buf, keymap, function()
-        require("vimoi.api").fold(fold_command)
-      end, "Synchronize chezmoi diff fold " .. fold_command)
-    end
-  end
 end
 
 -- Buffer-local maps must follow focus because Neovim has no window-local maps.
@@ -282,9 +253,16 @@ local function configure_window_keymaps(view)
     return
   end
   local buf = vim.api.nvim_win_get_buf(win)
-  configure_fold_mappings(view, buf)
   local api = require("vimoi.api")
   local keymaps = require("vimoi").config.keymaps
+  for name, command in pairs(require("vimoi").fold_commands) do
+    local lhs = keymaps[name]
+    if lhs and lhs ~= "" then
+      set_session_keymap(view, buf, lhs, function()
+        api.fold(command)
+      end, "Synchronize chezmoi diff fold " .. command)
+    end
+  end
   local in_source = win == view.source_win
   if keymaps.diff_get and keymaps.diff_get ~= "" then
     set_session_keymap(
@@ -319,11 +297,6 @@ function M.close(view)
   if view.render_job then
     view.render_job.cancel()
   end
-  local pending_merge = view.pending_merge
-  view.pending_merge = nil
-  if pending_merge then
-    pending_merge.cancel(false)
-  end
   set_loading(view, false)
   for _, win in ipairs({ view.source_win, view.target_win }) do
     if M.by_window[win] == view then
@@ -357,6 +330,10 @@ function M.close(view)
     end
   end
   native_diff.restore_diffexpr_if_unused(M.by_window)
+  vim.api.nvim_exec_autocmds(
+    "User",
+    { pattern = "VimoiViewChanged", data = { source_win = view.source_win, target_win = view.target_win } }
+  )
 end
 
 ---Register the opened pair and own everything that close must undo.
@@ -427,8 +404,8 @@ function M.attach(view)
         group = refresh_group,
         buffer = buf,
         callback = function()
-          if not view.closed and (view.map or (preview and not view.loading)) then
-            M.schedule_refresh(view)
+          if not view.closed and view.map then
+            M.refresh_target(view)
           end
         end,
       })
@@ -579,11 +556,10 @@ function M.start_initial_render(view, profile, opened_at)
       if not preview and #view.hunks == 0 then
         util.notify("target matches rendered template", "diff")
       end
-      local pending_merge = view.pending_merge
-      view.pending_merge = nil
-      if pending_merge then
-        pending_merge.complete()
-      end
+      vim.api.nvim_exec_autocmds(
+        "User",
+        { pattern = "VimoiViewChanged", data = { source_win = view.source_win, target_win = view.target_win } }
+      )
     end)
   end)
 end

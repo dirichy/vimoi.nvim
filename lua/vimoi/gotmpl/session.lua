@@ -86,7 +86,6 @@ function M.get(source)
     local directory = path ~= "" and vim.fs.dirname(path) or vim.fn.getcwd()
     local basename = path ~= "" and vim.fs.basename(path) or "buffer"
     api.nvim_buf_set_name(state.buf, directory .. "/.vimoi-" .. source .. "-" .. basename)
-    vim.b[state.buf].vimoi_target_path = target
     state.source_path = source_path
   end
   return state
@@ -296,7 +295,7 @@ local function check(buf, state)
       done(trace and trace.rendered_skeleton, err)
     end)
   end)
-  -- Always retire this request before the guard decides whether to publish.
+  -- Always retire this request before deciding whether to publish.
   -- An old completion must never clear a newer request's state.
   if buffers[buf] ~= state or state.request ~= request then
     return
@@ -333,43 +332,52 @@ function M.register(source, callback, opts)
   opts = opts or {}
   state.subscribers[callback] = opts
   if not state.check then
-    state.check = util.guard(function()
-      return check(source, state)
-    end, {
-      delay = 120,
-      allow_parallel = true,
-      is_valid = function()
-        return buffers[source] == state
-          and not state.cancelled
-          and next(state.subscribers) ~= nil
-          and api.nvim_buf_is_loaded(source)
-      end,
-      should_retry = function(result)
-        return result ~= nil
-          and (result.tick ~= api.nvim_buf_get_changedtick(source) or result.eol ~= vim.bo[source].endofline)
-      end,
-      on_result = function(result)
-        if not result then
+    local revision = 0
+    local function is_active()
+      return buffers[source] == state
+        and not state.cancelled
+        and next(state.subscribers) ~= nil
+        and api.nvim_buf_is_loaded(source)
+    end
+    state.check = function()
+      revision = revision + 1
+      local queued_revision = revision
+      vim.defer_fn(function()
+        if queued_revision ~= revision or not is_active() then
           return
         end
-        if result.syntax then
-          state.error = "template contains Tree-sitter parse errors"
-        elseif result.cached then
-          publish(state)
-        elseif not state.error then
-          local trace, err = require("vimoi.gotmpl.source_map").restore(assert(state.prepared), state.rendered_skeleton)
-          state.error = err
-          if trace then
-            M.update(source, trace)
+        util.async(function()
+          local result = check(source, state)
+          if not result or not is_active() then
+            return
           end
-        end
-        if state.error then
-          state.error_tags = state.prepared and state.prepared.template_tags
-          state.prepared = nil
-          publish(state)
-        end
-      end,
-    })
+          if result.tick ~= api.nvim_buf_get_changedtick(source) or result.eol ~= vim.bo[source].endofline then
+            -- A newer queued edit already covers this retry; keep its debounce.
+            if queued_revision == revision then
+              state.check()
+            end
+            return
+          end
+          if result.syntax then
+            state.error = "template contains Tree-sitter parse errors"
+          elseif result.cached then
+            publish(state)
+          elseif not state.error then
+            local trace, err =
+              require("vimoi.gotmpl.source_map").restore(assert(state.prepared), state.rendered_skeleton)
+            state.error = err
+            if trace then
+              M.update(source, trace)
+            end
+          end
+          if state.error then
+            state.error_tags = state.prepared and state.prepared.template_tags
+            state.prepared = nil
+            publish(state)
+          end
+        end)
+      end, 120)
+    end
     api.nvim_buf_attach(source, false, {
       on_lines = function()
         refresh(source)
@@ -479,7 +487,7 @@ function M.setup()
   end
 end
 
-local group = api.nvim_create_augroup("vimoi-rendered-output", { clear = true })
+local group = api.nvim_create_augroup("vimoi-sessions", { clear = true })
 api.nvim_create_autocmd("FileType", {
   group = group,
   callback = function(args)

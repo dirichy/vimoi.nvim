@@ -15,6 +15,40 @@ end
 assert(job.run({ "printf", "quick" }, { label = "quick", text = true }).stdout == "quick")
 assert(float_count() == 0 and vim.api.nvim_get_current_win() == original_win)
 
+-- Waiting for an existing shared result owns only a modal UI and its subscription.
+for _, mode in ipairs({ "inline", "complete", "cancel", "detach" }) do
+  local finish, cancel_wait, stopped, completed, value
+  util.async(function()
+    completed, value = job.wait("shared render", function(done, cancel)
+      finish, cancel_wait = done, cancel
+      if mode == "inline" then
+        done("ready")
+      end
+      return function(cancel_work)
+        assert(stopped == nil, "wait cleaned up twice")
+        stopped = cancel_work
+      end
+    end)
+  end)
+  if mode == "complete" then
+    assert(completed == nil and vim.bo.filetype == "vimoi-progress")
+    finish("ready")
+  elseif mode == "cancel" then
+    vim.fn.maparg("q", "n", false, true).callback()
+  elseif mode == "detach" then
+    cancel_wait(false)
+  end
+  assert(completed == (mode == "inline" or mode == "complete"))
+  assert(stopped == (mode == "cancel"))
+  assert(value == (completed and "ready" or nil))
+  finish("late")
+  assert(value == (completed and "ready" or nil), "late result resumed a retired wait")
+  wait_for(function()
+    return float_count() == 0
+  end)
+  assert(vim.api.nvim_get_current_win() == original_win)
+end
+
 -- An imperative caller suspends immediately; events keep running and completion
 -- resumes in its original editing window, preserving all returned values.
 ---@type vim.SystemCompleted|VimoiCommand?

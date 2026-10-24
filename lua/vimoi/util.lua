@@ -9,89 +9,6 @@ function M.notify(message, prefix, level)
   vim.notify(title .. ": " .. message, level or vim.log.levels.INFO)
 end
 
----@class VimoiGuardOptions
----@field is_valid fun(...): boolean Check the original call arguments before starting and before publishing.
----@field on_fail? fun(...): any Handle an invalid call; always receives the original arguments.
----@field delay? integer Debounce in milliseconds; queued calls keep only the latest arguments.
----@field allow_parallel? boolean Default false: running work finishes before the latest queued call starts.
----@field should_retry? fun(...): boolean Inspect computation results; true retries after delay (default 100ms).
----@field on_result? function Consume final results after should_retry returns false; its return value never triggers retries.
-
----Own scheduling for one task. Call validity and result freshness are separate:
----an obsolete call is dropped; should_retry decides whether results need recomputing.
----Either should_retry or on_result enables coroutine execution and final call checks.
----Cleanup belongs in the computation, since rejected results skip on_result.
----@param callback function
----@param options VimoiGuardOptions
----@return function
-function M.guard(callback, options)
-  local latest_arguments = { n = 0 }
-  local revision, running = 0, 0
-  -- pending records a queued call; ready means its debounce has elapsed.
-  local pending, ready = false, false
-  local schedule, invoke
-  invoke = function()
-    if not pending or not ready or (running > 0 and not options.allow_parallel) then
-      return
-    end
-    local arguments = latest_arguments
-    pending, ready = false, false
-    if not options.is_valid(unpack(arguments, 1, arguments.n)) then
-      return options.on_fail and options.on_fail(unpack(arguments, 1, arguments.n))
-    end
-    if not options.should_retry and not options.on_result then
-      return callback(unpack(arguments, 1, arguments.n))
-    end
-    running = running + 1
-    return M.async(function()
-      -- pcall can yield in LuaJIT; always release the running slot, even on error.
-      local outcome = vim.F.pack_len(pcall(function()
-        local results = vim.F.pack_len(callback(unpack(arguments, 1, arguments.n)))
-        if not options.is_valid(unpack(arguments, 1, arguments.n)) then
-          return options.on_fail and options.on_fail(unpack(arguments, 1, arguments.n))
-        end
-        if options.should_retry and options.should_retry(unpack(results, 1, results.n)) then
-          -- A newer queued call already covers the retry; keep its debounce.
-          if not pending then
-            schedule(options.delay or 100, unpack(latest_arguments, 1, latest_arguments.n))
-          end
-          return
-        end
-        if options.on_result then
-          return options.on_result(unpack(results, 1, results.n))
-        end
-        return unpack(results, 1, results.n)
-      end))
-      running = running - 1
-      if pending and ready then
-        vim.schedule(invoke)
-      end
-      if not outcome[1] then
-        error(outcome[2], 0)
-      end
-      return unpack(outcome, 2, outcome.n)
-    end)
-  end
-  schedule = function(delay, ...)
-    latest_arguments = vim.F.pack_len(...)
-    revision = revision + 1
-    pending, ready = true, not delay
-    if not delay then
-      return invoke()
-    end
-    local queued_revision = revision
-    vim.defer_fn(function()
-      if queued_revision == revision then
-        ready = true
-        invoke()
-      end
-    end, delay)
-  end
-  return function(...)
-    return schedule(options.delay, ...)
-  end
-end
-
 ---Await an asynchronous result inside an explicitly started coroutine.
 ---The editor's normal input/event loop keeps running while the caller is suspended.
 ---@param start fun(done: function)
@@ -119,9 +36,10 @@ end
 
 ---Start an imperative workflow that may await modal commands.
 ---@param work function
+---@param ... any Arguments passed to the workflow.
 ---@return any ... Immediate results, or nil while work is suspended.
-function M.async(work)
-  local result = vim.F.pack_len(coroutine.resume(coroutine.create(work)))
+function M.async(work, ...)
+  local result = vim.F.pack_len(coroutine.resume(coroutine.create(work), ...))
   if not result[1] then
     error(result[2], 0)
   end

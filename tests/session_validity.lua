@@ -62,7 +62,7 @@ for _, side in ipairs({ "source", "target" }) do
     vim.cmd("noautocmd buffer " .. replacement)
   end)
   assert(not sessions.is_valid(session))
-  sessions.schedule_refresh(session)
+  sessions.refresh_target(session)
   await(function()
     return session.closed
   end)

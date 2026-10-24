@@ -145,8 +145,8 @@ template results and derived source maps, preserving cached paths/data.
 Exact `.chezmoiignore` files invalidate only path mappings. Other `.chezmoi*`
 names are not treated as cache dependencies merely because of their prefix.
 Template/data/config invalidation also schedules refreshes of open diff/preview
-views, including other tabs. Loading views retry through their initial-render
-guard. Refresh never writes a real source or target file. Other cached queries
+views, including other tabs. Source sessions schedule fresh rendering for loading
+views too. Refresh never writes a real source or target file. Other cached queries
 reload on demand. Call `require("vimoi.api").invalidate_cache()` to clear it manually
 and rescan the watch list. See |vimoi-limitations| for watch coverage.
 The source root and init-template/config mapping are initialized once by
@@ -175,46 +175,18 @@ validation. Target edits made while rendering are included when the view opens.
 Internal `vimoi.job` owns process execution, progress floats and cancellation;
 `vimoi.cli` owns chezmoi arguments, output handling and caching. Shared
 data/template requests deliver to all waiting consumers even if one callback fails; the first callback error is then propagated. Coroutine and
-general helpers remain in `vimoi.util`. Its internal util.guard(callback,
-{ is_valid = ..., on_fail = ... }) owns task validity and scheduling. `is_valid`
-checks the original call arguments before starting and before publishing;
-`on_fail` receives those same arguments when the call is invalid. Its return
-value never controls scheduling. `delay` debounces queued calls, keeping the
-latest arguments. Either `should_retry` or `on_result` enables coroutine execution
-and rechecking call validity after computation. `should_retry` receives the
-computation results: true requests a deferred retry using delay, or 100ms when
-delay is unset; false passes results to optional on_result. The on_result
-return value never triggers retries. Invalid calls are never retried. A queued call already
-covers a retry, preserving its debounce. By default one computation runs at a
-time; calls while it runs coalesce into one latest invocation, starting after
-both completion and the debounce. `allow_parallel = true` permits overlap.
-Callers own cleanup; mandatory cleanup belongs in the computation, since
-rejected results skip on_result. Use `vimoi.api` for user operations.
-
-Usually should_retry checks freshness and on_result consumes final results.
-When computing and checking each item are closely coupled, should_retry may
-also consume the final result, omitting on_result. For example (compute,
-owner_is_current, compute_item and publish are caller-provided functions): >lua
-    require("vimoi.util").guard(compute, {
-      is_valid = owner_is_current,
-      should_retry = function(items)
-        local values = {}
-        for _, item in ipairs(items) do
-          local value, stale = compute_item(item)
-          if stale then
-            return true
-          end
-          values[#values + 1] = value
-        end
-        publish(values)
-        return false
-      end,
-    })()
-<
-Return true to retry or false when handling is complete. Keep intermediate work
-local until the retry decision is final, so retries cannot apply partial results
-twice. on_result is optional; omitting it returns the computation results after
-should_retry finishes, or nil while asynchronous work/retries remain pending.
+general helpers remain in `vimoi.util`. Source sessions own the 120ms debounce,
+asynchronous rendering and stale result retries; a newer queued edit already
+covers a retry. Navigation resolves paths synchronously and checks its window
+after picker selection. Deferred writes check their view, paths, text and rendering context
+when continuing after a render wait or placement choice.
+Merge runs as one coroutine: await the shared session result, plan hunks, await
+vim.ui.select when needed, then write. job.wait owns the modal wait and cancellation;
+session.register(..., { once = true }) supplies fresh mappings without another process.
+Initial view rendering also waits for optional cat validation. The merge's
+registration closure owns its source subscription and temporary VimoiViewChanged
+listener. Views report closure and retain no merge continuation.
+Use `vimoi.api` for user operations.
 
 `data`, `cat`, and user-template rendering have no default timeout, allowing
 password prompts to wait. Background calls show progress floats at the top right without taking
@@ -230,7 +202,7 @@ Template diagnostics are enabled by default: >lua
     require("vimoi").setup({ diagnostics = { enabled = false } })
 <
 The `vimoi-diagnostics` namespace reports gotmpl syntax errors and errors from
-asynchronous sentinel-template rendering. Checks run 300ms after edits, without
+asynchronous sentinel-template rendering. Checks run 120ms after edits, without
 opening a diff or preview. Edits while the native completion menu is visible also
 trigger checks. The `vimoi-host-diagnostics` namespace additionally projects
 diagnostics from rendered output back to source. Host checks are enabled by
@@ -250,14 +222,19 @@ map precisely; dynamic output anchors to the generating template region and
 is labeled template-generated. Repeated source locations are deduplicated;
 ambiguous locations are skipped. Only executed template branches are checked.
 
-Snapshots have unique filenames in the target directory (falling back to the
-source directory or cwd); nothing is written to disk and real targets are
-untouched. Normal LSP project discovery and user on_attach hooks run. Exact
-filename rules, including some schema associations, may not match snapshot
-names. Each new render gets a new URI, so late provider results cannot be
-projected through a newer source map. Editing, dependency invalidation, changing
-filetype or disabling diagnostics deletes the old snapshot, detaches its LSP
-clients and cancels its nvim-lint processes.
+Each source buffer owns one read-only rendered buffer, shared by preview, diff,
+rendered highlighting and host diagnostics. Its name is in the target directory
+(falling back to the source directory or cwd); nothing is written to disk and
+real targets are untouched. Normal LSP project discovery and user on_attach
+hooks run. Exact filename rules, including some schema associations, may not
+match the generated name. Editing updates the same buffer through didChange;
+as with ordinary files, old host diagnostics may briefly remain until the
+provider publishes replacements. Debounce/render waits retain displayed diagnostics
+and existing lint jobs. Old mappings cannot project new provider results; fresh
+render results replace diagnostics and start checks, canceling the prior lint
+jobs. An unchanged mapping keeps its current checks.
+Changing host filetype or disabling host diagnostics detaches LSP clients
+without deleting the shared output.
 
 The renderer reuses the same skeleton and completed CLI cache as diff/preview.
 Concurrent cached requests for the same skeleton/init mode/timeout share one
@@ -456,9 +433,10 @@ produced from the on-disk source. Other |vimoi-limitations| still apply.
 
 Invoking preview from either side of an active diff/preview uses its source.
 Repeated invocation refreshes and reuses the same pair; switching between diff
-and preview reuses two windows. Closing/replacing either side stops updates;
-the scratch output is wiped when hidden. A still-visible output after closing
-the source remains a read-only snapshot.
+and preview reuses two windows. Closing/replacing either side stops that view's
+synchronization. The output remains available to other views, highlighting and
+diagnostics while its source is loaded; unloading the source deletes it.
+Closing the last consumer cancels pending rendering.
 
 Watched data/include/config changes refresh open views automatically. Call
 |vimoi.api.invalidate_cache()| when a change or new directory was missed;
@@ -766,7 +744,10 @@ Within `vimoi.gotmpl`, `native_diff` adapts mapped hunks to Neovim's diffexpr
 and manages native diff windows and synchronized folds. `buffer_edits` applies
 local byte edits, including EOF
 and undo handling, for both merging and preview refreshes. Template escaping
-remains in `merge_plan`; the window registry belongs to `gotmpl/view.lua`.
+remains in `merge_plan`; `gotmpl/view.lua` holds window bindings under each source session. One subscription
+handles initial rendering and updates. Closing a view exits diff mode without
+closing its windows. Buffer renames retain views; delayed writes still check paths.
+Source unload releases its views and rendered buffer.
 
 Coordinates distinguish template source, rendered output, and target text.
 Hunks use `rendered_start_line`/`target_start_line` and their `*_line_count`
@@ -777,17 +758,27 @@ zero-based and half-open.
 
 `merge_plan.plan(trace, target_text, hunks)` returns edits, choices, and skipped
 hunks. It uses the trace's complete control-tag ranges, including multiline tags.
-`merge_plan.prepare_candidate()` constructs escaped source edits without UI
+`merge_plan.apply_source_edits()` constructs escaped source edits without UI
 or subprocesses. `source_map.rebuild_after_edits()` infers a complete trace,
 including newly generated constant brace actions. `merge` owns placement
 selection, snapshot checks, and explicit source writes for put/template re-add.
 The source map types distinguish prepared structure from a complete trace,
 which always has both output and rendered skeleton.
 
-`init.lua` resolves paths and opens windows. `session.lua` owns one rendered state
-per source; `view.lua` holds window bindings, temporary mappings and cleanup.
-A same-buffer rename retains its view. Source unload releases its views and output.
-`vimoi.readd` resolves paths; templates delegate merging to `gotmpl/merge.lua`.
+`init.lua` resolves paths, opens windows, and dispatches user operations.
+`session.lua` owns one state per source, including the output buffer, rendering,
+subscriptions and attached views. `view.lua` keeps the `by_window` index and
+window-local refreshes, event listeners, temporary mappings and cleanup.
+WinEnter/WinLeave install and restore mappings for the focused window, including
+when its buffer appears in another view. Loading/error decorations are window-scoped.
+One subscription receives completed session results and handles all view refreshes.
+`view.is_valid()` checks registry ownership and buffer/window bindings; changing
+a buffer name does not retire its view. Deferred writes capture paths, texts and
+rendering context separately and cancel if any of those change.
+`vimoi.readd` resolves the
+source/target pair and handles ordinary text files; templates delegate to
+`gotmpl/merge.lua`. Put loads that merge module directly. Opening diff/preview
+does not load merge planning.
 `cli.counterpart_path()` owns the bidirectional path cache used directly by
 toggle. `cli.resolve_paths()` orders the same paths as source/target for diff and re-add.
 `merge.lua` coordinates put and template re-add: resolve placements, infer, write, and refresh;
@@ -955,12 +946,12 @@ traversed. Setup-time source-root and init mappings are not recomputed.
 The same invalidation clears rendered structure caches. Undetected changes to
 data, other included files, environment, or time-sensitive functions may leave cached
 dynamic output stale. Literal text is restored locally; updates are debounced
-by 120ms, and unchanged source text can reuse the last complete trace.
+by 120ms; unchanged source/context versions reuse the current output and mapping.
 
 ==============================================================================
 TROUBLESHOOTING                                    *vimoi-troubleshooting*
 
-Path navigation drops delayed lookup/picker results if the originating window is
+Path navigation drops delayed picker results if the originating window is
 closed/replaced, focus changes, or the original buffer text changes.
 
 Run `:checkhealth vimoi` to inspect the Neovim requirement, configured executable,
@@ -983,7 +974,7 @@ commands. Complex dynamic output changes require manual source editing.
 
 `sentinel rendering differs from chezmoi cat`
     Strict validation found an environment-sensitive template. Disable
-    `diff.validate` only if the difference is understood, or use a plain
+    `diff.validate = false` only if the difference is understood, or use a plain
     chezmoi workflow for that template.
 
 The two views scroll incorrectly

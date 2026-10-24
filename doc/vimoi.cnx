@@ -125,7 +125,7 @@ source/target 路径查询和 `chezmoi data` 使用全局缓存，切换工作�
 `.chezmoitemplates` 下的修改只清空模板结果及派生 source map，保留路径/data 缓存。
 `.chezmoiignore` 精确匹配，只清空路径对应关系；不会仅因文件名以 `.chezmoi` 开头就失效。
 模板、data 或配置失效后，会延迟刷新已打开的 diff/preview，包含其他 tab；初次渲染中的
-视图由已有 guard 重试。刷新不写真实 source/target 文件，其他缓存仍按需重新加载。
+由 source session 调度重新渲染。刷新不写真实 source/target 文件，其他缓存仍按需重新加载。
 可调用 `require("vimoi.api").invalidate_cache()` 手动清空并
 重新扫描监听范围；监听覆盖范围参见 |vimoi-limitations|。
 source root 和 init 模板/config 的对应关系只在 `setup()` 时初始化一次，清空缓存时保留。
@@ -147,38 +147,15 @@ source root 和 init 模板/config 的对应关系只在 `setup()` 时初始化�
 内部 `vimoi.job` 管理进程执行、进度浮窗和取消选择；`vimoi.cli` 负责 chezmoi
 参数、输出处理和缓存。共享 data/模板请求会向所有等待者交付结果，再抛出首个回调异常，
 避免一个消费者出错卡住其他消费者。协程及通用工具保留在 `vimoi.util`，用户操作仍通过 `vimoi.api`。
-内部 util.guard(callback, { is_valid = ..., on_fail = ... }) 统一有效性检查与调度。
-is_valid 在启动前及发布前检查本次调用，始终接收原始调用参数；调用失效后，on_fail
-接收同样的参数，负责通知或收尾，返回值不参与调度。`delay` 对尚未启动的调用防抖，
-只保留最新参数。设置 `should_retry` 或 `on_result` 均会启用协程计算，并在计算后再次
-检查调用有效性。should_retry 接收计算结果：返回 true 时异步重试，沿用 delay，未设置
-时默认等待 100ms；返回 false 时将结果交给可选的 on_result。on_result 的返回值不触发重试。
-调用失效则不重试。已有新调用排队时直接沿用，不重置防抖。默认串行：运行期间重复
-调用只保留最新参数，等前一轮结束且防抖到期后启动；`allow_parallel = true` 允许并行。
-必要收尾应在计算过程中完成，因为被拒绝的结果不会进入 on_result。
+source session 统一处理 120ms 防抖、异步渲染和过期结果重试；已有新编辑排队时
+沿用该次防抖。路径跳转同步解析路径，在 picker 选择后检查窗口；异步写回在渲染等待或位置选择
+结束后检查视图、路径、文本和渲染上下文。
 
-通常让 should_retry 判断是否需要重算，on_result 处理最终结果。逐项计算与合法性检查
-紧密结合时，也可以在 should_retry 中直接处理最终结果，省略 on_result。例如（compute、
-owner_is_current、compute_item、publish 均由调用方提供）： >lua
-    require("vimoi.util").guard(compute, {
-      is_valid = owner_is_current,
-      should_retry = function(items)
-        local values = {}
-        for _, item in ipairs(items) do
-          local value, stale = compute_item(item)
-          if stale then
-            return true
-          end
-          values[#values + 1] = value
-        end
-        publish(values)
-        return false
-      end,
-    })()
-<
-返回 true 表示重试，返回 false 表示本轮处理完成。在确定不需要重试前，将中间计算保留
-在局部变量中，避免重试时重复应用部分结果。on_result 可省略，此时 should_retry 完成后
-返回计算函数的原始结果；尚在异步等待或重试时返回 nil。
+merge 使用一条协程流程：等待共享 session 结果、规划、按需等待 vim.ui.select 选择，
+最后写入。job.wait 统一管理模态等待和取消；session.register(..., { once = true })
+提供有效映射，不另开渲染进程。首次视图就绪还包含可选的 cat 校验。
+merge 的注册闭包持有 source 订阅和临时 VimoiViewChanged 监听，完成或取消时统一清理；
+view 只通知关闭状态，不保存 merge 的继续执行或取消句柄。
 
 `data`、`cat` 和用户模板渲染没有默认超时，允许等待密码输入。后台调用在右上角显示不抢焦点的
 进度浮窗；需要等待结果时，异步进程配合聚焦浮窗暂停调用流程，Neovim 仍正常处理输入。
@@ -190,7 +167,7 @@ owner_is_current、compute_item、publish 均由调用方提供）： >lua
 模板诊断默认启用，可通过配置关闭： >lua
     require("vimoi").setup({ diagnostics = { enabled = false } })
 <
-`vimoi-diagnostics` namespace 展示 gotmpl 语法错误和异步哨兵渲染错误。编辑后等待 300ms
+`vimoi-diagnostics` namespace 展示 gotmpl 语法错误和异步哨兵渲染错误。编辑后等待 120ms
 检查，包括原生补全菜单显示时的编辑，无须打开 diff/preview，也不清除其他 LSP
 的诊断。`vimoi-host-diagnostics` namespace 默认启用，按高亮已识别的宿主 filetype
 （包括 diff_buffers 的覆盖值）检查完整渲染结果，再映射回源码。照常配置
@@ -206,11 +183,15 @@ vim.api.nvim_get_namespaces()["vimoi-diagnostics"] 取得 namespace。
 标注 template-generated。重复源码位置会去重，无法明确定位的位置跳过；只检查实际
 执行的模板分支。
 
-快照使用 target 同目录下的唯一文件名，没有受管理的 target 时回退到 source 目录或
+每个 source buffer 对应唯一的只读 output buffer，供 preview、diff、渲染高亮和宿主
+诊断共享。其文件名位于 target 同目录下，没有受管理的 target 时回退到 source 目录或
 当前目录；不写入磁盘，也不修改真实 target。原生 LSP 项目识别和用户 on_attach
-回调照常运行；依赖精确文件名的规则（包括部分 schema 关联）可能无法匹配快照名称。
-每次渲染使用新的 URI，旧 provider 结果不会套用新的 source map。编辑、依赖失效、
-切换 filetype 或关闭诊断会删除旧快照、解除 LSP 绑定，并取消其 nvim-lint 进程。
+回调照常运行；依赖精确文件名的规则（包括部分 schema 关联）可能无法匹配生成的名称。
+编辑通过 didChange 更新同一个 buffer；与普通文件一样，宿主诊断可能短暂保留旧结果，
+直到 provider 发布新结果。等待 debounce/渲染期间保留已有诊断和 lint 任务，旧映射
+不再投射新到的 provider 结果；新渲染结果再替换诊断、启动检查并取消上一轮 lint。
+映射未变时保留现有检查。切换宿主 filetype 或关闭
+宿主诊断会解除 LSP 绑定，但不删除共享 output。
 
 诊断复用 diff/preview 的骨架及已完成 CLI 缓存；相同骨架/init 模式/timeout 的并发缓存
 请求共用一个进程。关闭视图或诊断只取消该使用方，最后一个使用方取消时才杀掉进程；
@@ -366,8 +347,9 @@ viewport 同步；静态编辑复用已渲染结构。不启用 diff 高亮、fi
 使用未保存的文本，而非磁盘 source 对应的真实 target；其他 |vimoi-limitations| 仍适用。
 
 在活动的 diff/preview 任一侧执行均使用对应 source。重复执行会刷新并复用当前窗口；
-diff 与 preview 互相切换时复用双窗口。关闭或替换任一侧会停止更新；结果 buffer 隐藏
-时自动清理。关闭 source 后仍然可见的结果保留为只读快照。
+diff 与 preview 互相切换时复用双窗口。关闭或替换任一侧会停止该视图的同步。
+source 仍加载时，output 保留供其他视图、高亮和诊断使用；卸载 source 才删除 output。
+关闭最后一个使用方会取消等待中的渲染。
 
 已监听的 data/include/config 变化会自动刷新视图；遗漏变化或新增目录时，可调用
 |vimoi.api.invalidate_cache()|，无需重新打开预览。`split = "horizontal"` 改为上下分屏。
@@ -620,7 +602,9 @@ source_map.restore 无须再次执行即可还原完整输出和 byte 映射。
 
 `vimoi.gotmpl` 内的 `native_diff` 负责将映射后的差异块接入 Neovim 的 diffexpr
 及原生 diff 窗口和折叠同步。`buffer_edits` 负责局部字节写入、EOF 和 undo，供合并及预览刷新
-共用。模板转义仍由 `merge_plan` 负责；窗口注册表由 `gotmpl/view.lua` 管理。
+共用。模板转义仍由 `merge_plan` 负责；`gotmpl/view.lua` 管理 source session 下的窗口绑定，
+初始化和后续更新共用一次订阅。关闭视图只退出 diff，不关闭窗口；buffer 改名保留视图，
+异步写回仍检查路径。source 卸载时释放其视图和渲染 buffer。
 
 坐标区分模板源码、渲染结果和目标文本。差异块使用 `rendered_start_line`、
 `target_start_line` 及对应的 `*_line_count`，遵循 vim.text.diff 的约定：行号从 1
@@ -629,15 +613,20 @@ source_map.restore 无须再次执行即可还原完整输出和 byte 映射。
 开始，左闭右开。
 
 `merge_plan.plan(trace, target_text, hunks)` 返回 edits、choices 和 skipped，复用 trace
-中的完整控制标签范围（包括跨行标签）。`merge_plan.prepare_candidate()` 只构造转义后的
+中的完整控制标签范围（包括跨行标签）。`merge_plan.apply_source_edits()` 只构造转义后的
 源码修改，不调用 UI 或外部进程。`source_map.rebuild_after_edits()` 推算完整 trace，
 包括新增的常量花括号标签。`merge` 统一负责选择位置、快照检查及 put/template re-add 的
 显式写入。source map 的注解区分准备阶段和完整 trace，
 完整 trace 保证同时具备输出及渲染后的哨兵骨架。
 
-`init.lua` 负责解析路径和打开窗口。`session.lua` 按 source 管理渲染状态，
-`view.lua` 管理窗口绑定、临时按键及清理。同一 buffer 改名保留视图；source 卸载时
-释放其视图和 output。`vimoi.readd` 解析路径，模板合并委托 `gotmpl/merge.lua`。
+`init.lua` 负责解析路径、打开窗口及操作分派。`session.lua` 按 source 管理渲染 buffer、
+渲染任务、订阅和关联视图；`view.lua` 保存按窗口 ID 索引的 `by_window` 表，负责窗口
+刷新、事件监听、临时按键和关闭清理。WinEnter/WinLeave 为当前窗口安装和恢复映射，
+加载/错误提示也按窗口显示。session 完成结果与后续视图刷新共用一次订阅。
+`view.is_valid()` 检查注册关系及 buffer/window 绑定，buffer 改名不会解除视图；异步
+写回单独记录路径、文本和渲染上下文，变化时取消写入。
+`vimoi.readd` 统一解析路径并处理普通文本文件，模板委托 `gotmpl/merge.lua`；
+put 直接加载该合并模块。打开 diff/preview 不会加载合并规划。
 `cli.counterpart_path()` 统一管理双向路径缓存，toggle 直接复用；
 `cli.resolve_paths()` 将同一映射整理为 source/target 文件对，供 diff 和 re-add 使用。
 `merge.lua` 负责 put 和 template re-add 的位置选择、映射推算、
@@ -780,7 +769,7 @@ source 树。新建或移动目录、文件系统
 ==============================================================================
 故障排查                                            *vimoi-troubleshooting*
 
-路径跳转等待查询或 picker 期间，若发起窗口关闭/替换、焦点切换或原 buffer 文本变化，
+路径跳转等待 picker 期间，若发起窗口关闭/替换、焦点切换或原 buffer 文本变化，
 会丢弃延迟结果。
 
 执行 `:checkhealth vimoi` 检查 Neovim 版本、配置的可执行文件、setup 已发现的 source/config
@@ -797,7 +786,7 @@ CLI setup 未成功时说明路径尚未发现。config 只检查存在性和可
     安装并启用注册为 `gotmpl` 语言的 Tree-sitter parser，然后重新打开 buffer。
 
 `sentinel rendering differs from chezmoi cat`
-    严格校验发现了依赖执行环境的模板。只有明确理解差异后才应关闭 `diff.validate`，
+    严格校验发现了依赖执行环境的模板。只有明确理解差异后才应设置 `diff.validate = false`，
     否则应当对该模板使用普通 chezmoi 工作流。
 
 两个视图滚动不正确

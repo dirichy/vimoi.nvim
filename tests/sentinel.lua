@@ -4,7 +4,7 @@ local source_map = require("vimoi.gotmpl.source_map")
 local trace, err = run_async(source_map.trace, 'hello {{ "world" }}!\n')
 assert(trace, err)
 assert(trace.output == "hello world!\n", vim.inspect(trace))
-assert(rawget(trace, "segments") == nil and #trace.literal_parts == 2)
+assert(#trace.literal_parts == 2)
 assert(#trace.template_tags == 1 and trace.template_tags[1].text == '{{ "world" }}')
 assert(trace.literal_parts[1].output_ranges[1].execution_order == 1)
 assert(trace.literal_parts[2].output_ranges[1].execution_order == 2)
@@ -92,33 +92,33 @@ local empty_true = assert(run_async(source_map.trace, "{{ if true }}{{ end }}"))
 local empty_false = assert(run_async(source_map.trace, "{{ if false }}{{ end }}"))
 assert(#empty_true.literal_parts == 3 and #empty_true.literal_parts[2].output_ranges == 1)
 assert(#empty_false.literal_parts == 3 and #empty_false.literal_parts[2].output_ranges == 0)
-assert(source_map.predict_literal_edit(empty_true, "{{ if true }}X{{ end }}") == "X")
-assert(source_map.predict_literal_edit(empty_false, "{{ if false }}X{{ end }}") == "")
+assert(assert(source_map.rebuild(empty_true, "{{ if true }}X{{ end }}")).output == "X")
+assert(assert(source_map.rebuild(empty_false, "{{ if false }}X{{ end }}")).output == "")
 
 local else_trace = assert(run_async(source_map.trace, "{{ if false }}{{ else }}{{ end }}"))
 assert(#else_trace.literal_parts == 4)
 assert(#else_trace.literal_parts[2].output_ranges == 0 and #else_trace.literal_parts[3].output_ranges == 1)
-assert(source_map.predict_literal_edit(else_trace, "{{ if false }}{{ else }}X{{ end }}") == "X")
+assert(assert(source_map.rebuild(else_trace, "{{ if false }}{{ else }}X{{ end }}")).output == "X")
 local else_if_trace = assert(run_async(source_map.trace, "{{ if false }}{{ else if true }}{{ end }}"))
 assert(#else_if_trace.literal_parts[2].output_ranges == 0 and #else_if_trace.literal_parts[3].output_ranges == 1)
-assert(source_map.predict_literal_edit(else_if_trace, "{{ if false }}{{ else if true }}X{{ end }}") == "X")
+assert(assert(source_map.rebuild(else_if_trace, "{{ if false }}{{ else if true }}X{{ end }}")).output == "X")
 
 local empty_range = assert(run_async(source_map.trace, "{{ range (list) }}{{ end }}"))
 local double_range = assert(run_async(source_map.trace, "{{ range (list 1 2) }}{{ end }}"))
 assert(#empty_range.literal_parts[2].output_ranges == 0)
 assert(#double_range.literal_parts[2].output_ranges == 2)
-assert(source_map.predict_literal_edit(double_range, "{{ range (list 1 2) }}X{{ end }}") == "XX")
+assert(assert(source_map.rebuild(double_range, "{{ range (list 1 2) }}X{{ end }}")).output == "XX")
 
 local trim_source = "before\n{{- if true }}\n{{- end }}\nafter\n"
 local trim_trace = assert(run_async(source_map.trace, trim_source))
 assert(trim_trace.output == "before\nafter\n")
 assert(
-  source_map.predict_literal_edit(trim_trace, "before\nnew\n{{- if true }}\n{{- end }}\nafter\n")
+  assert(source_map.rebuild(trim_trace, "before\nnew\n{{- if true }}\n{{- end }}\nafter\n")).output
     == "before\nnew\nafter\n"
 )
 
 -- A new template action is not a literal change and must not be guessed.
-assert(source_map.predict_literal_edit(assert(run_async(source_map.trace, "A\n")), 'A{{ "B" }}\n') == nil)
+assert(source_map.rebuild(assert(run_async(source_map.trace, "A\n")), 'A{{ "B" }}\n') == nil)
 
 -- Gap probes must never change the template's actual output, including
 -- adjacent actions, whitespace-only gaps, comments, and nested branches.

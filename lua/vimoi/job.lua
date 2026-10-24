@@ -125,6 +125,41 @@ function M.progress(message, mode, on_cancel)
   return progress
 end
 
+---Await shared work with the same modal UI as a command, without starting a process.
+---@param message string
+---@param start fun(finish: function, cancel: fun(cancel_work?: boolean)): fun(cancel_work: boolean)
+---@return boolean completed
+---@return any ... Shared work results, absent after cancellation.
+function M.wait(message, start)
+  return util.await(function(done)
+    local stop
+    local cancel_work = true
+    local progress = M.progress(message, "modal", function()
+      if stop then
+        stop(cancel_work)
+      end
+      done(false)
+    end)
+    stop = start(function(...)
+      if not progress.active then
+        return
+      end
+      if stop then
+        stop(false)
+      end
+      cancel_work = false
+      done(progress.finish(), ...)
+    end, function(cancel)
+      cancel_work = cancel ~= false
+      progress.cancel()
+    end)
+    -- Inline completion can finish before start returns its cleanup function.
+    if not progress.active then
+      stop(cancel_work)
+    end
+  end)
+end
+
 ---@class VimoiCommand
 ---@field label string Command purpose shown in the cancellation picker; excludes input/output.
 ---@field process? vim.SystemObj

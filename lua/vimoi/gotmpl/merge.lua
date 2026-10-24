@@ -8,69 +8,51 @@ local native_diff = require("vimoi.gotmpl.native_diff")
 local buffer_edits = require("vimoi.gotmpl.buffer_edits")
 local merge_plan = require("vimoi.gotmpl.merge_plan")
 local source_map = require("vimoi.gotmpl.source_map")
+local sessions = require("vimoi.gotmpl.session")
 
--- Wait for the view's render using the same modal progress UI as commands.
----@param session VimoiTemplateView
----@param validity VimoiGuardOptions
----@param resume function
----@return VimoiPendingMerge
-local function wait_for_render(session, validity, resume)
-  if session.pending_merge then
-    session.pending_merge.cancel(false)
-  end
-  resume = util.guard(resume, validity)
-  local active = true
-  ---@type VimoiPendingMerge
-  local pending
-  ---@type VimoiProgress
-  local progress
-  local function cancel(cancel_render)
-    if not active then
-      return
-    end
-    active = false
-    if session.pending_merge == pending then
-      session.pending_merge = nil
-    end
-    progress.cancel()
-    if pending.stop then
-      pending.stop(cancel_render ~= false)
-    elseif cancel_render ~= false and session.stop_updates then
-      session.stop_updates(true)
-    end
-    if session.render_job then
-      -- Abandoning an explicit modal wait kills the command, including any
-      -- automatic diagnostic subscriber; merely closing a view releases its caller.
-      if session.render_job.progress then
-        session.render_job.progress.cancel()
+-- This operation owns both subscriptions; the view stores no merge continuation.
+---@param view VimoiTemplateView
+local function wait_for_render(view)
+  return job.wait("Waiting for template rendering…", function(finish, cancel)
+    local changed = vim.api.nvim_create_autocmd("User", {
+      pattern = "VimoiViewChanged",
+      callback = function(args)
+        if args.data.source_win ~= view.source_win or args.data.target_win ~= view.target_win then
+          return
+        end
+        if view.closed then
+          cancel(false)
+        elseif not view.loading then
+          finish(sessions.snapshot(view.source_buf))
+        end
+      end,
+    })
+    local stop = sessions.register(view.source_buf, function(state, err)
+      if not views.is_valid(view) then
+        cancel(false)
+      elseif err or not view.loading then
+        finish(state and sessions.snapshot(view.source_buf), err)
+      end
+    end, { once = true })
+    return function(cancel_render)
+      vim.api.nvim_del_autocmd(changed)
+      if cancel_render and view.loading and view.stop_updates then
+        -- The one-shot result may already have arrived while cat validation waits.
+        view.stop_updates(true)
+        stop()
       else
-        session.render_job.cancel()
+        stop(cancel_render)
+      end
+      if cancel_render then
+        if view.render_job then
+          view.render_job.cancel()
+        end
+        if view.loading then
+          views.close(view)
+        end
       end
     end
-    -- A queued first render has no process yet. Retire it before it can start.
-    if session.loading then
-      views.close(session)
-    end
-  end
-  progress = job.progress("Waiting for template rendering…", "modal", cancel)
-  local function complete(...)
-    if not active then
-      return
-    end
-    active = false
-    if pending.stop then
-      pending.stop()
-    end
-    if session.pending_merge == pending then
-      session.pending_merge = nil
-    end
-    if progress.finish() then
-      return resume(...)
-    end
-  end
-  pending = { cancel = cancel, complete = complete }
-  session.pending_merge = pending
-  return pending
+  end)
 end
 
 ---@param trace VimoiSourceMapTrace
@@ -105,41 +87,38 @@ end
 
 ---@param trace VimoiSourceMapTrace
 ---@param choices VimoiMergeChoice[]
----@param validity VimoiGuardOptions
----@param callback fun(selected: VimoiMergeEdit[], skipped: VimoiSkippedHunk[])
-local function select_choices(trace, choices, validity, callback)
+---@param check fun(): boolean
+---@return VimoiMergeEdit[]? selected Nil if the operation became invalid while selecting.
+---@return VimoiSkippedHunk[] skipped
+local function select_choices(trace, choices, check)
   local selected, skipped = {}, {}
-  local select_next
-  select_next = util.guard(function(index)
-    local choice = choices[index]
-    if not choice then
-      return callback(selected, skipped)
-    end
+  for _, choice in ipairs(choices) do
     local candidates = choice_candidates(trace, choice)
-    local choose = util.guard(function(item)
-      if item then
-        selected[#selected + 1] = item
-      else
-        skipped[#skipped + 1] = {
-          hunk = choice.hunk,
-          reason = #candidates == 0 and "no static placement produces the requested result"
-            or "insertion choice cancelled",
-        }
+    local item = candidates[1]
+    if #candidates > 1 then
+      item = util.await(function(done)
+        vim.ui.select(candidates, {
+          prompt = "Choose where to insert the target hunk in the chezmoi template:",
+          format_item = function(candidate)
+            return candidate.label
+          end,
+        }, done)
+      end)
+      if not check() then
+        return nil, skipped
       end
-      select_next(index + 1)
-    end, validity)
-    if #candidates < 2 then
-      choose(candidates[1])
-    else
-      vim.ui.select(candidates, {
-        prompt = "Choose where to insert the target hunk in the chezmoi template:",
-        format_item = function(item)
-          return item.label
-        end,
-      }, choose)
     end
-  end, validity)
-  select_next(1)
+    if item then
+      selected[#selected + 1] = item
+    else
+      skipped[#skipped + 1] = {
+        hunk = choice.hunk,
+        reason = #candidates == 0 and "no static placement produces the requested result"
+          or "insertion choice cancelled",
+      }
+    end
+  end
+  return selected, skipped
 end
 
 ---@param mode "put"|"get"|"readd"
@@ -163,29 +142,23 @@ local function merge(mode)
   local source_text = util.buffer_text(session.source_buf)
   local target_text = util.buffer_text(session.target_buf)
   local context_generation = cli.context_generation
-  local cancelled = false
-  local result
-  local validity = {
-    is_valid = function()
-      return not cancelled
-        and views.is_valid(session)
-        and vim.api.nvim_buf_get_name(session.source_buf) == source_path
-        and vim.api.nvim_buf_get_name(session.target_buf) == target_path
-        and cli.context_generation == context_generation
-        and util.buffer_text(session.source_buf) == source_text
-        and util.buffer_text(session.target_buf) == target_text
-    end,
-    on_fail = function()
-      if cancelled then
-        return
-      end
-      cancelled = true
-      if not views.is_valid(session) then
-        views.close(session)
-      end
-      util.notify("session, buffers, or rendering context changed; merge cancelled", "diff", vim.log.levels.WARN)
-    end,
-  }
+  local function check()
+    if
+      views.is_valid(session)
+      and vim.api.nvim_buf_get_name(session.source_buf) == source_path
+      and vim.api.nvim_buf_get_name(session.target_buf) == target_path
+      and cli.context_generation == context_generation
+      and util.buffer_text(session.source_buf) == source_text
+      and util.buffer_text(session.target_buf) == target_text
+    then
+      return true
+    end
+    if not views.is_valid(session) then
+      views.close(session)
+    end
+    util.notify("session, buffers, or rendering context changed; merge cancelled", "diff", vim.log.levels.WARN)
+    return false
+  end
   local function report_error(message)
     return util.notify(
       "cannot " .. ({ put = "put this hunk: ", get = "get this hunk: ", readd = "re-add template: " })[mode] .. message,
@@ -193,157 +166,136 @@ local function merge(mode)
       vim.log.levels.ERROR
     )
   end
-  local transfer_hunks = util.guard(function(trace)
-    local refreshed, refresh_error = views.refresh(session, trace)
-    if not refreshed then
-      return report_error(tostring(refresh_error))
-    end
-    local hunks = session.hunks
-    if mode ~= "readd" then
-      local hunk = native_diff.hunk_at(session, requested_buf, requested_line)
-      if not hunk then
-        return report_error("cursor is not on a diff hunk")
-      end
-      hunks = { hunk }
-    end
-    if to_target then
-      local hunk = hunks[1]
-      local rendered_start, rendered_end = util.line_range(
-        trace.output,
-        util.line_starts(trace.output),
-        hunk.rendered_start_line,
-        hunk.rendered_line_count
-      )
-      local target_start, target_end =
-        util.line_range(target_text, util.line_starts(target_text), hunk.target_start_line, hunk.target_line_count)
-      -- Native diff copies source lines, which contain template actions. Copy
-      -- this hunk's rendered bytes instead, narrowing the write to changed bytes.
-      local first, last, replacement = util.changed_bytes(
-        target_text:sub(target_start + 1, target_end),
-        trace.output:sub(rendered_start + 1, rendered_end)
-      )
-      local edit = {
-        start_byte = target_start + first,
-        end_byte = target_start + last,
-        replacement = replacement,
-      }
-      local updated = target_text:sub(1, edit.start_byte) .. replacement .. target_text:sub(edit.end_byte + 1)
-      buffer_edits.apply(session.target_buf, target_text, updated, { edit })
-      local refreshed_target, target_error = views.refresh(session, trace)
-      if not refreshed_target then
-        return report_error("target was updated, but refreshing the diff failed: " .. tostring(target_error))
-      end
-      result = true
-      util.notify("copied rendered hunk into target", "diff")
+  local trace = not session.loading and sessions.rebuild(session.source_buf) or nil
+  if not trace then
+    local completed, rendered, render_error = wait_for_render(session)
+    if not completed then
       return
     end
-    local plan = merge_plan.plan(trace, target_text, hunks)
-    if mode ~= "readd" and #plan.skipped > 0 then
-      return report_error(plan.skipped[1].reason or "unknown mapping")
+    if not rendered then
+      return report_error(tostring(render_error))
     end
-    local selected, skipped = {}, vim.deepcopy(plan.skipped)
-    local infer_and_apply = util.guard(function()
-      if mode ~= "readd" and #skipped > 0 then
-        result = false
-        return util.notify("insertion choice cancelled; source was not changed", "diff", vim.log.levels.WARN)
-      end
-      local edits = vim.list_extend(vim.deepcopy(plan.edits), selected)
-      local merged_hunks, skipped_hunks = {}, {}
-      for _, edit in ipairs(edits) do
-        merged_hunks[edit.hunk.id] = true
-      end
-      for _, item in ipairs(skipped) do
-        skipped_hunks[item.hunk.id] = true
-      end
-      local merged_count, skipped_count = vim.tbl_count(merged_hunks), vim.tbl_count(skipped_hunks)
-      if #edits == 0 then
-        if mode ~= "readd" then
-          return report_error("no byte edits found")
-        end
-        result = { merged = 0, skipped = skipped_count, reasons = skipped }
-        return util.notify(
-          ("no hunks merged; %d require manual editing"):format(skipped_count),
-          "diff",
-          vim.log.levels.WARN
-        )
-      end
-      local candidate, candidate_error = merge_plan.prepare_candidate(trace, edits)
-      if not candidate then
-        return report_error(tostring(candidate_error))
-      end
-      local candidate_trace, trace_error =
-        source_map.rebuild_after_edits(trace, candidate.source_text, candidate.source_edits)
-      if not candidate_trace then
-        return report_error("cannot infer static edit: " .. tostring(trace_error))
-      end
-      buffer_edits.apply(session.source_buf, source_text, candidate.source_text, candidate.source_edits)
-      local updated, update_error = views.refresh(session, candidate_trace)
-      if not updated then
-        return util.notify(
-          "source was updated, but refreshing the diff failed: " .. tostring(update_error),
-          "diff",
-          vim.log.levels.ERROR
-        )
-      end
-      if mode ~= "readd" then
-        result = true
-        util.notify("merged target hunk into source template", "diff")
-      else
-        result = { merged = merged_count, skipped = skipped_count, reasons = skipped }
-        util.notify(
-          ("re-added %d hunks; %d require manual editing"):format(merged_count, skipped_count),
-          "diff",
-          skipped_count > 0 and vim.log.levels.WARN or vim.log.levels.INFO
-        )
-      end
-    end, validity)
-
-    select_choices(trace, plan.choices, validity, function(choices, choice_skipped)
-      selected = choices
-      vim.list_extend(skipped, choice_skipped)
-      infer_and_apply()
-    end)
-  end, validity)
-  local refresh_trace = util.guard(function()
-    local trace = require("vimoi.gotmpl.session").rebuild(session.source_buf)
-    if trace then
-      transfer_hunks(trace)
-    else
-      local pending = wait_for_render(session, validity, function(rendered, render_error)
-        if not rendered then
-          return report_error(tostring(render_error))
-        end
-        transfer_hunks(rendered)
-      end)
-      pending.stop = require("vimoi.gotmpl.session").register(session.source_buf, function(state, err)
-        pending.complete(state and require("vimoi.gotmpl.session").snapshot(session.source_buf), err)
-      end, { once = true })
-    end
-  end, validity)
-  if session.map then
-    refresh_trace()
-  else
-    wait_for_render(session, validity, refresh_trace)
+    trace = rendered
   end
-  return result
+  if not check() then
+    return
+  end
+  local refreshed, refresh_error = views.refresh(session, trace)
+  if not refreshed then
+    return report_error(tostring(refresh_error))
+  end
+  local hunks = session.hunks
+  if mode ~= "readd" then
+    local hunk = native_diff.hunk_at(session, requested_buf, requested_line)
+    if not hunk then
+      return report_error("cursor is not on a diff hunk")
+    end
+    hunks = { hunk }
+  end
+  if to_target then
+    local hunk = hunks[1]
+    local rendered_start, rendered_end =
+      util.line_range(trace.output, util.line_starts(trace.output), hunk.rendered_start_line, hunk.rendered_line_count)
+    local target_start, target_end =
+      util.line_range(target_text, util.line_starts(target_text), hunk.target_start_line, hunk.target_line_count)
+    -- Native diff copies source lines, which contain template actions. Copy
+    -- this hunk's rendered bytes instead, narrowing the write to changed bytes.
+    local first, last, replacement = util.changed_bytes(
+      target_text:sub(target_start + 1, target_end),
+      trace.output:sub(rendered_start + 1, rendered_end)
+    )
+    local edit = {
+      start_byte = target_start + first,
+      end_byte = target_start + last,
+      replacement = replacement,
+    }
+    local updated = target_text:sub(1, edit.start_byte) .. replacement .. target_text:sub(edit.end_byte + 1)
+    buffer_edits.apply(session.target_buf, target_text, updated, { edit })
+    local refreshed_target, target_error = views.refresh(session, trace)
+    if not refreshed_target then
+      return report_error("target was updated, but refreshing the diff failed: " .. tostring(target_error))
+    end
+    util.notify("copied rendered hunk into target", "diff")
+    return true
+  end
+  local plan = merge_plan.plan(trace, target_text, hunks)
+  if mode ~= "readd" and #plan.skipped > 0 then
+    return report_error(plan.skipped[1].reason or "unknown mapping")
+  end
+  if not check() then
+    return
+  end
+  local selected, choice_skipped = select_choices(trace, plan.choices, check)
+  if not selected then
+    return
+  end
+  local skipped = vim.list_extend(vim.deepcopy(plan.skipped), choice_skipped)
+  if mode ~= "readd" and #skipped > 0 then
+    util.notify("insertion choice cancelled; source was not changed", "diff", vim.log.levels.WARN)
+    return false
+  end
+  local edits = vim.list_extend(vim.deepcopy(plan.edits), selected)
+  local merged_hunks, skipped_hunks = {}, {}
+  for _, edit in ipairs(edits) do
+    merged_hunks[edit.hunk.id] = true
+  end
+  for _, item in ipairs(skipped) do
+    skipped_hunks[item.hunk.id] = true
+  end
+  local merged_count, skipped_count = vim.tbl_count(merged_hunks), vim.tbl_count(skipped_hunks)
+  if #edits == 0 then
+    if mode ~= "readd" then
+      return report_error("no byte edits found")
+    end
+    util.notify(("no hunks merged; %d require manual editing"):format(skipped_count), "diff", vim.log.levels.WARN)
+    return { merged = 0, skipped = skipped_count, reasons = skipped }
+  end
+  local candidate, candidate_error, source_edits = merge_plan.apply_source_edits(trace, edits)
+  if not candidate then
+    return report_error(tostring(candidate_error))
+  end
+  local candidate_trace, trace_error = source_map.rebuild_after_edits(trace, candidate, source_edits)
+  if not candidate_trace then
+    return report_error("cannot infer static edit: " .. tostring(trace_error))
+  end
+  buffer_edits.apply(session.source_buf, source_text, candidate, source_edits)
+  local updated, update_error = views.refresh(session, candidate_trace)
+  if not updated then
+    return util.notify(
+      "source was updated, but refreshing the diff failed: " .. tostring(update_error),
+      "diff",
+      vim.log.levels.ERROR
+    )
+  end
+  if mode ~= "readd" then
+    util.notify("merged target hunk into source template", "diff")
+    return true
+  else
+    util.notify(
+      ("re-added %d hunks; %d require manual editing"):format(merged_count, skipped_count),
+      "diff",
+      skipped_count > 0 and vim.log.levels.WARN or vim.log.levels.INFO
+    )
+    return { merged = merged_count, skipped = skipped_count, reasons = skipped }
+  end
 end
 
 ---Put the current hunk into the peer window; rendering/choices may be asynchronous.
 ---@return boolean?
 function M.put_hunk()
-  return merge("put")
+  return util.async(merge, "put")
 end
 
 ---Get the peer hunk into the current window; rendering/choices may be asynchronous.
 ---@return boolean?
 function M.get_hunk()
-  return merge("get")
+  return util.async(merge, "get")
 end
 
 ---Re-add all target hunks in the current template diff.
 ---@return VimoiReAddResult?
 function M.readd()
-  return merge("readd")
+  return util.async(merge, "readd")
 end
 
 return M

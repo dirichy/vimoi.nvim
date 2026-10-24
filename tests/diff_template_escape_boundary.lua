@@ -1,3 +1,4 @@
+local waiting = dofile("tests/helpers/waiting.lua")
 local run_async = dofile("tests/helpers/await.lua")
 local view_for_buffer = dofile("tests/helpers/view.lua")
 local source = vim.fn.tempname() .. ".tmpl"
@@ -23,8 +24,8 @@ local result = require("vimoi.api").put_hunk()
 vim.ui.select = original_select
 assert(choices == nil, "a parser text-node boundary must not require a placement choice")
 assert(result == true)
-local session = assert(view_for_buffer(vim.fn.bufnr(source)))
-assert(not session.pending_merge)
+assert(view_for_buffer(vim.fn.bufnr(source)))
+assert(not waiting())
 local merged = require("vimoi.util").buffer_text(vim.fn.bufnr(source))
 assert(assert(run_async(require("vimoi.gotmpl.source_map").trace, merged)).output == "a{{\n")
 

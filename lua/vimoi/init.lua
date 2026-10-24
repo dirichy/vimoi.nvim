@@ -1,5 +1,17 @@
 local M = {}
 
+-- Shared by default keymaps, view bindings and fold-command validation.
+M.fold_commands = {
+  fold_open = "zo",
+  fold_close = "zc",
+  fold_toggle = "za",
+  fold_open_recursive = "zO",
+  fold_close_recursive = "zC",
+  fold_toggle_recursive = "zA",
+  fold_open_all = "zR",
+  fold_close_all = "zM",
+}
+
 local defaults = {
   chezmoi_executable = "chezmoi",
   chezmoi_config_path = nil,
@@ -22,7 +34,7 @@ local defaults = {
     template_bg = "NormalFloat",
   },
   ---@type VimoiKeymaps
-  keymaps = {
+  keymaps = vim.tbl_extend("force", M.fold_commands, {
     cancel_command = "<leader>cx",
     diff = "<leader>cd",
     preview = "<leader>cp",
@@ -33,15 +45,7 @@ local defaults = {
     goto_file_line = "gF",
     diff_get = "do",
     diff_put = "dp",
-    fold_open = "zo",
-    fold_close = "zc",
-    fold_toggle = "za",
-    fold_open_recursive = "zO",
-    fold_close_recursive = "zC",
-    fold_toggle_recursive = "zA",
-    fold_open_all = "zR",
-    fold_close_all = "zM",
-  },
+  }),
 }
 
 M.config = vim.deepcopy(defaults)

@@ -238,7 +238,7 @@ require("vimoi").setup({
   chezmoi_config_path = nil, -- Optional chezmoi configuration file path
   split = "vertical", -- Or "horizontal"
   watch = { buffer_write_fallback = "auto" },
-  diff = { validate = false },
+  diff = { validate = true },
   completion = { enabled = true },
   diagnostics = { enabled = true, host = true },
   highlight = {
@@ -316,10 +316,12 @@ checks while keeping template diagnostics.
 
 Host checks require a known host filetype and an enabled LSP or configured nvim-lint
 provider. nvim-lint integration runs stdin-capable linters only. Other checker plugins
-are not integrated. Checks use hidden, unsaved snapshots with unique names beside the
+are not integrated. Checks use a shared, unsaved output buffer with a unique name beside the
 target (or source/current directory when no managed target is available). Project root
 discovery works normally, but rules tied to an exact filename, such as some YAML schema
-associations, may need adjustment. Real target buffers and files are untouched.
+associations, may need adjustment. Preview, diff, highlighting and diagnostics share one
+output per source buffer. LSP stays attached and receives edits through `didChange`;
+old host diagnostics may briefly remain while providers update. Real targets are untouched.
 
 Diagnostics, previews, and rendered highlighting execute template functions and may invoke password helpers.
 Slow tasks can be canceled and have no default timeout.
