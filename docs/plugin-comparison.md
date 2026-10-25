@@ -10,7 +10,51 @@
 依赖失效后的视图刷新、块 snippet、可选 vim-matchup 查询及横向分屏。
 下文保留修改前的调研快照，当前完成状态以 FEATURES 和 benchmark 文档的状态表为准。
 
-## 本地仓库与版本
+## 2026-10-25：与 chezmoi-template.nvim 的当前对比
+
+本次重新浅克隆到 `/tmp/vimoi-compare-chezmoi-template`，提交仍为
+[`670ba83`](https://github.com/dpezto/chezmoi-template.nvim/tree/670ba83095ba6571f3125a5e5fd4118505a2c3c6)。
+逐项核对 README、默认配置和相关实现；本轮没有运行第三方插件，也没有新增性能测量。
+下表反映当前 vimoi；后续章节保留 2026-10-22 的历史快照，不能将其中的旧缺口当作当前状态。
+
+| 功能 | 当前 vimoi.nvim | chezmoi-template.nvim |
+| --- | --- | --- |
+| source / target 导航 | 独立 Toggle，保留两侧未保存内容 | source、target、edit，另有可选自动 redirect |
+| target 文件类型 | 模板及普通 managed source 按真实 target 识别 | 模板及普通 managed source 均有 |
+| 宿主高亮 | 默认解析渲染结果并投射回源码；可选 injection；缺少 parser 回退 syntax | Tree-sitter injection |
+| 预览 | 未保存 buffer 实时只读预览，失败保留旧结果；支持横向或纵向分屏 | 相同基本能力，慢渲染默认降级为保存刷新 |
+| 比较和写回 | 原生 diff 投影、同步滚动、折叠、双向 do/dp；ReAdd 保留表达式写回可确定的静态修改 | 预览中以 extmark / virtual lines 显示相对已部署文件的差异；未发现对应 hunk 写回 |
+| 无名 buffer 比较 | `diff_buffers()` 支持已加载的无名及 scratch buffer | 未发现同类公开入口 |
+| 模板诊断 | 编辑时检查语法与执行错误 | 保存时完整执行模板检查 |
+| 宿主诊断 | 复用已启用 LSP 和 nvim-lint stdin 检查器，检查渲染结果并映射回源码 | 未发现同类集成 |
+| blink 补全 | 函数、data 字段、局部变量、路径、块 snippet；不展示 data 值 | 函数、data 字段和值说明、按字段模式遮盖敏感值、块 snippet |
+| 路径与块导航 | gf/gF 覆盖 include、template、includeTemplate、glob、symlink 等；可选 vim-matchup | gf 跳转共享模板；可选 vim-matchup |
+| 宿主格式化 | 未提供 | Conform：屏蔽模板、格式化、恢复，必要时整行屏蔽 |
+| 图标 | 未提供 | mini.icons 按 target 名称解析 |
+| 透明加密 | 未提供 | 可选 `.age` / `.asc` 解密读取、加密保存，委托 chezmoi |
+| managed-files picker | 未提供；现有 picker 用于候选选择 | snacks / telescope / fzf-lua / mini.pick / vim.ui.select |
+| 部署 | 无 apply 命令；Put/Get 与 ReAdd 只改 buffer | 显式 apply，默认 `apply.on_save = true`、`force = false` |
+| 默认按键 | 全局快捷键，可全部关闭；视图映射按窗口启用 | 默认关闭，可选 source buffer 局部快捷键 |
+| 耗时渲染 | 后台进度与取消入口，无默认超时 | 模板执行 10 秒超时；预览默认超过 500ms 降级为保存刷新 |
+| 版本与平台 | Neovim 0.12+；目前验证 Linux | README 要求 Neovim 0.10+，声明 macOS / Linux / Windows 测试 |
+
+实现依据：对方的 [默认配置与入口](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/init.lua)、
+[预览与差异显示](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/commands.lua)、
+[诊断](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/diagnostics.lua)、
+[补全](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/blink.lua)、
+[格式化](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/format.lua)、
+[加密](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/encryption.lua)
+和 [CLI 调用](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/resolve.lua)；
+我们的 [公开 API](../lua/vimoi/api.lua)、[文件类型](../lua/vimoi/filetype.lua)、
+[宿主高亮](../lua/vimoi/host_highlight.lua) 和 [诊断](../lua/vimoi/diagnostic.lua)。
+
+选择上，它更适合需要格式化、加密、文件浏览和部署配套的 source 编辑流程；
+vimoi 更侧重渲染结果与实际文件的比较，以及保留模板结构的静态写回。
+格式化与透明加密仍值得独立研究，但分别需要处理合法宿主输入、模板恢复和明文持久化、失败保存、取消语义，
+不应为了功能对等而直接加入。默认保存后 apply 也不能照搬到我们当前的显式 buffer 修改流程。
+预览性能结论继续以已有独立实测为准，不从代码结构推断整体快慢。
+
+## 历史调研：本地仓库与版本
 
 仓库放在 `/tmp/vimoi-plugin-comparison/`，均为浅克隆；临时目录可能被系统清理。
 下列链接固定到本次检查的提交，避免之后更新导致结论错位。

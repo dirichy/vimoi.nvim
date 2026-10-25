@@ -9,3 +9,4 @@ __pycache__/
 *~
 /.demo-deps/
 /docs/demos/output/
+/README*.local.md

@@ -21,7 +21,7 @@ concurrency:
 jobs:
   record:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
       XDG_CONFIG_HOME: ${{ github.workspace }}/.demo-deps/config
       XDG_DATA_HOME: ${{ github.workspace }}/.demo-deps/data
@@ -30,6 +30,8 @@ jobs:
       VIMOI_DEMO_TREESITTER: ${{ github.workspace }}/.demo-deps/nvim-treesitter
       VIMOI_DEMO_TOKYONIGHT: ${{ github.workspace }}/.demo-deps/tokyonight.nvim
       VIMOI_DEMO_SCREENKEY: ${{ github.workspace }}/.demo-deps/screenkey.nvim
+      VIMOI_DEMO_BLINK: ${{ github.workspace }}/.demo-deps/blink.cmp
+      VIMOI_DEMO_LINT: ${{ github.workspace }}/.demo-deps/nvim-lint
       NVIM_LOG_FILE: ${{ github.workspace }}/.demo-deps/nvim.log
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +50,16 @@ jobs:
           repository: NStefan002/screenkey.nvim
           ref: 740e238d1f143cb5f3a9d932f9c5142d3581b986
           path: .demo-deps/screenkey.nvim
+      - uses: actions/checkout@v4
+        with:
+          repository: Saghen/blink.cmp
+          ref: 78336bc89ee5365633bcf754d93df01678b5c08f
+          path: .demo-deps/blink.cmp
+      - uses: actions/checkout@v4
+        with:
+          repository: mfussenegger/nvim-lint
+          ref: 3d55c8f67c6ae5c15e1042571e107c7a3d5c5f4e
+          path: .demo-deps/nvim-lint
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
@@ -55,14 +67,22 @@ jobs:
       - uses: charmbracelet/vhs-action@v2
         with:
           version: v0.12.1
-      - name: Expose and check recording fonts
+      - name: Install and check Nerd Font
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # VHS Action installs fonts here even when XDG_DATA_HOME is overridden.
-          mkdir -p "$XDG_DATA_HOME"
-          ln -s "$HOME/.local/share/fonts" "$XDG_DATA_HOME/fonts"
+          mkdir -p "$XDG_DATA_HOME/fonts" "$RUNNER_TEMP/demo-fonts"
+          gh release download v3.4.0 --repo ryanoasis/nerd-fonts \
+            --pattern JetBrainsMono.zip --dir "$RUNNER_TEMP/demo-fonts"
+          unzip -j "$RUNNER_TEMP/demo-fonts/JetBrainsMono.zip" \
+            JetBrainsMonoNerdFontMono-Regular.ttf JetBrainsMonoNerdFontMono-Bold.ttf \
+            JetBrainsMonoNerdFontMono-Italic.ttf JetBrainsMonoNerdFontMono-BoldItalic.ttf \
+            -d "$XDG_DATA_HOME/fonts"
           fc-cache -f
-          fc-match -f 'Family: %{family}\nStyle: %{style}\nFile: %{file}\n' 'JetBrains Mono'
-          test "$(fc-match -f '%{family}' 'JetBrains Mono')" = 'JetBrains Mono'
+          fc-match -f 'Family: %{family}\nStyle: %{style}\nFile: %{file}\n' 'JetBrainsMono Nerd Font Mono'
+          test "$(fc-match -f '%{family}' 'JetBrainsMono Nerd Font Mono' | cut -d, -f1)" = 'JetBrainsMono Nerd Font Mono'
+      - name: Install Lua checker
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
       - name: Install chezmoi and Tree-sitter CLI
         env:
           GH_TOKEN: ${{ github.token }}
@@ -80,17 +100,16 @@ jobs:
       - name: Install and check parsers
         run: nvim --headless -n -i NONE -u NONE -l docs/demos/install-parsers.lua
       - name: Record
-        run: |
-          mkdir -p docs/demos/output
-          for demo in preview diff readd; do
-            vhs "docs/demos/$demo.tape"
-          done
+        run: python3 docs/demos/build.py
       - uses: actions/upload-artifact@v4
         with:
           name: demos
           path: |
             docs/demos/output/*.gif
+            docs/demos/output/*.png
             docs/demos/output/*.mp4
+            docs/demos/output/*.json
+            docs/demos/output/index.html
           if-no-files-found: error
           retention-days: 7
 
@@ -121,5 +140,14 @@ jobs:
               --title 'Demo recordings' --prerelease --latest=false \
               --notes-file "$RUNNER_TEMP/demo-notes.md"
           fi
-          gh release upload demos demos/*.gif demos/*.mp4 --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload demos demos/*.gif demos/*.png demos/*.mp4 --clobber --repo "$GITHUB_REPOSITORY"
           gh release edit demos --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/demo-notes.md"
+
+      - name: Check published README media
+        run: |
+          for demo in diff readd preview; do
+            for extension in gif mp4; do
+              curl --fail --silent --show-error --location --head --retry 3 \
+                "https://github.com/$GITHUB_REPOSITORY/releases/download/demos/$demo.$extension" >/dev/null
+            done
+          done

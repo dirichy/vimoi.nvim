@@ -1,37 +1,67 @@
 # vimoi.nvim
 
-Edit [chezmoi](https://www.chezmoi.io/)-managed files in Neovim.
+Edit [chezmoi](https://www.chezmoi.io/) templates in Neovim, preview their output, and bring changes from deployed files back into source.
 
 [简体中文](README.zh-CN.md) · [English help](doc/vimoi.txt) · [中文帮助](doc/vimoi.cnx)
 
 > This project is in alpha. APIs and behavior may change.
 
+Open a chezmoi source or target with your usual editing workflow. vimoi connects the template,
+its rendered output, and the actual file: see results as you type, compare them with familiar
+diff controls, and bring identifiable static target changes back into the template while preserving expressions.
+
 ## Demos
 
-Live preview: edit static text, switch branches, and undo.
+GIFs play directly here. Use the MP4 links for full-resolution video; local builds use relative GIF paths.
 
-![Live template preview: static edits, branch changes, and undo](https://github.com/dirichy/vimoi.nvim/releases/download/demos/preview.gif)
-
-Template diff: synchronized scrolling, `do` / `dp` hunk transfer, and insertion choices.
+**Template-aware diff.** Compare rendered output with the actual file, transfer hunks in both directions, and choose insertion positions. [MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diff.mp4)
 
 ![Template diff: synchronized scrolling, hunk transfer, and insertion choices](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diff.gif)
 
-Re-add: write static target changes back to the source. Template expressions are preserved;
-changes to dynamic output remain for manual editing.
+**Static write-back.** Bring target changes into the template in bulk while preserving expressions. [MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/readd.mp4)
 
-![Template diff and re-add: write back static edits and preserve expressions](https://github.com/dirichy/vimoi.nvim/releases/download/demos/readd.gif)
+![Write static changes back to source while preserving template expressions](https://github.com/dirichy/vimoi.nvim/releases/download/demos/readd.gif)
 
-[Preview MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/preview.mp4) · [Diff MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diff.mp4) · [Re-add MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/readd.mp4) · [Recording guide](docs/demos/README.md)
+**Live preview.** Edit unsaved templates with synchronized scrolling, branch changes, undo, and error recovery. [MP4](https://github.com/dirichy/vimoi.nvim/releases/download/demos/preview.mp4)
+
+![Live template preview: static edits, branch changes, and undo](https://github.com/dirichy/vimoi.nvim/releases/download/demos/preview.gif)
+
+[All feature recording scripts and coverage](docs/demos/README.md)
+
+Build local demos with `python3 docs/demos/build.py`, then open `README.local.md` in your Markdown previewer.
+Use `--readme-only` to reuse existing videos. Generated READMEs and media are ignored by Git.
 
 ## Features
 
-- Switch between chezmoi source and actual target files, preserving unsaved changes on both sides.
-- Preview templates while editing, or compare templates with targets and transfer individual hunks in either direction.
-- Manual ReAdd: copy target content back to plain source files, or write back identifiable static changes while preserving template expressions.
-- Template diagnostics, host language highlighting, blink.cmp completion, and path navigation.
+- **Live preview.** Render unsaved templates as you edit. Failed renders retain the previous output and mark it stale.
+- **Template-aware diff.** Keep source editable while comparing rendered output with the actual target, with synchronized scrolling, change navigation, folds, and bidirectional `do` / `dp`.
+- **Write back without losing expressions.** `:VimoiReAdd` merges identifiable static changes in bulk. Dynamic output needs manual edits; ambiguous insertions prompt for a location.
+- **Template and host highlighting.** See both template and zsh syntax in `dot_zshrc.tmpl`. By default, colors are mapped from complete rendered output; Tree-sitter injection is also available. Plain sources get their target's filetype.
+- **Diagnostics as you edit.** Check template syntax and execution, reuse your LSP / nvim-lint configuration to check rendered output, and map host diagnostics back to source.
+- **Completion and navigation.** blink.cmp offers functions, data fields, local variables, paths, and block snippets. `gf` / `gF` understand includes, shared templates, globs, and symlink paths; optional vim-matchup provides `%` matching for template blocks.
+- **Source / target navigation.** `:VimoiToggle` opens the other side and preserves unsaved changes in both buffers. Slow background tasks show progress and can be canceled.
 
-All write-back operations are explicitly triggered by the user and only modify buffers.
-They do not save automatically or run chezmoi apply.
+Write-back operations modify buffers. Review and save with `:write`, then run `chezmoi apply` when ready to deploy.
+
+## Contents
+
+- [Demos](#demos)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Preview, compare, and write back](#preview-compare-and-write-back)
+- [Highlighting and diagnostics](#highlighting-and-diagnostics)
+- [Completion](#completion)
+- [Path navigation](#path-navigation)
+- [Keymaps](#keymaps)
+- [Cancel tasks and refresh manually](#cancel-tasks-and-refresh-manually)
+- [Lua API](#lua-api)
+- [Compared with chezmoi-template.nvim](#compared-with-chezmoi-templatenvim)
+- [Scope and limitations](#scope-and-limitations)
+- [Health and documentation](#health-and-documentation)
+- [Development and roadmap](#development-and-roadmap)
+- [License](#license)
 
 ## Requirements
 
@@ -39,6 +69,14 @@ They do not save automatically or run chezmoi apply.
 - chezmoi 2.x, available on `PATH` or specified in the configuration.
 - The `gotmpl` Tree-sitter parser for template features. Target language parsers are optional;
   highlighting falls back to Vim syntax when unavailable.
+
+Optional integrations:
+
+| Feature | Needs |
+| --- | --- |
+| Template completion | [blink.cmp](https://github.com/Saghen/blink.cmp), with the source registered |
+| Host diagnostics | An enabled Neovim LSP or configured [nvim-lint](https://github.com/mfussenegger/nvim-lint) stdin linter |
+| `%` block matching | [vim-matchup](https://github.com/andymass/vim-matchup), with Tree-sitter matching enabled |
 
 Tested on Linux with Neovim 0.12.6 and chezmoi 2.73.3. Other platforms have not been verified.
 
@@ -67,7 +105,65 @@ You can also lazy-load with `ft = "gotmpl"`, but opening a plain source file wil
 trigger loading. Use the startup configuration above for plain source filetype detection
 and global commands.
 
-## Quick start
+## Configuration
+
+The defaults work without extra options. Set only what you want to change:
+
+```lua
+require("vimoi").setup({
+  split = "horizontal", -- Stacked windows
+  keymaps = { readd = false }, -- Disable the default ReAdd mapping
+})
+```
+
+<details>
+<summary>All options with defaults</summary>
+
+```lua
+require("vimoi").setup({
+  chezmoi_executable = "chezmoi", -- Can also be an executable wrapper
+  chezmoi_config_path = nil, -- Optional chezmoi configuration file path
+  split = "vertical", -- Or "horizontal"
+  watch = { buffer_write_fallback = "auto" },
+  diff = { validate = true },
+  completion = { enabled = true },
+  diagnostics = { enabled = true, host = true },
+  highlight = {
+    mode = "rendered",
+    template_bg = "NormalFloat",
+  },
+  keymaps = {
+    diff = "<leader>cd",
+    preview = "<leader>cp",
+    toggle = "<leader>ct",
+    invalidate_cache = "<leader>cr",
+    readd = "<leader>ca",
+    cancel_command = "<leader>cx",
+    goto_file = "gf",
+    goto_file_line = "gF",
+    diff_get = "do",
+    diff_put = "dp",
+    fold_open = "zo",
+    fold_close = "zc",
+    fold_toggle = "za",
+    fold_open_recursive = "zO",
+    fold_close_recursive = "zC",
+    fold_toggle_recursive = "zA",
+    fold_open_all = "zR",
+    fold_close_all = "zM",
+  },
+})
+```
+
+</details>
+
+`chezmoi_config_path` selects another chezmoi configuration file. It supports `~` and relative paths,
+resolved against the working directory at setup; read environment variables explicitly with `vim.env`.
+Executable/config paths, watch options, and keymaps are fixed after the first successful setup;
+restart Neovim to change them. Other options can be updated with another setup call;
+omitted updatable options revert to defaults. See `:help vimoi-setup`.
+
+## Preview, compare, and write back
 
 Open a chezmoi-managed source or target file:
 
@@ -110,11 +206,6 @@ Changes on both sides support undo/redo and are not saved automatically.
 Changes to dynamic output cannot be inverted into template expressions; edit the source
 manually. Ambiguous static insertion positions prompt you to choose a location.
 
-Breaking change: `VimoiDiffApply` / `apply_hunk()` have been removed. Use
-`VimoiDiffPut` / `put_hunk()` from source, or `VimoiDiffGet` / `get_hunk()` from
-target, to copy rendered output into target. To merge target changes into source,
-use Put from target or Get from source.
-
 These template operations require the plugin mappings or commands. Native `:diffget` /
 `:diffput` or `normal!` copy template source text. Plain files use native two-file diff,
 where `do` / `dp` keep their native meaning.
@@ -143,214 +234,45 @@ Review the result and run `:write` in the source window. ReAdd does not invoke t
 CLI's re-add, update file attributes, save automatically, or apply changes.
 Likewise, Diff Put/Get only modify a buffer hunk; they do not run chezmoi apply.
 
-### Compare two buffers without file paths
+You can also configure vimoi as a `chezmoi merge` editor; see `:help vimoi-chezmoi-merge`.
+The external `chezmoi diff` interface does not directly provide source, so the merge recipe cannot be reused as-is.
 
-Pass two loaded buffers in source/target order. Unnamed and scratch buffers are supported:
+## Highlighting and diagnostics
 
-```lua
-require("vimoi.api").diff_buffers(source_buf, target_buf, { filetype = "yaml" })
-```
+The host language is detected from the actual target name and shebang. By default, vimoi parses
+complete rendered output and maps colors back to literal template text. Unexecuted branches use
+`Comment`; existing colors remain during edits or temporary template errors.
 
-The source is rendered as a chezmoi template using the configured template data and
-gets the `gotmpl` filetype. Optional `filetype` sets the host language for source
-highlighting and the target's filetype; omit it to use the target's current filetype,
-falling back to detection from its name and contents. `0` means the current buffer;
-source and target must be different loaded buffers.
+| `highlight.mode` | Behavior |
+| --- | --- |
+| `"rendered"` (default) | Map host colors from rendered output; covers branches executed with current data |
+| `"injection"` | Parse host fragments directly in the template; incomplete syntax may highlight inaccurately |
+| `"disabled"` | Disable host highlighting, preserving gotmpl action highlighting |
 
-The view supports the same hunk operations and `:VimoiReAdd` as a template file diff.
-It uses current buffer contents, leaves buffer names intact, and never validates
-against `chezmoi cat`, even when `diff.validate = true`. Closing or replacing either
-window ends the view. No files are saved automatically.
+Enabled host modes fall back to Vim syntax when the host parser is missing.
+`highlight.template_bg` borrows `NormalFloat` by default; use another highlight group, a color,
+or `{ dark = "#123456", light = "#E4E9F4" }` to customize it.
 
-## Use as a chezmoi diff / merge interface
-
-Open a managed source or target in Neovim and run `:VimoiDiff` to compare and merge
-changes manually, without changing your chezmoi configuration. Templates compare rendered
-output with the actual file while keeping the source editable. See the tutorials above
-for individual hunks and bulk write-back. Changes to dynamic output still require manual
-template editing.
-
-### Open from `chezmoi merge`
-
-Load vimoi and complete setup at Neovim startup, for example with `lazy = false`
-as shown in the installation section. Choose the version for your config file.
-
-**For `~/.config/chezmoi/chezmoi.toml`, edited directly:**
-
-```toml
-[merge]
-command = "nvim"
-args = [
-    "-c",
-    "lua require('vimoi.api').diff_files(vim.fn.argv(0), vim.fn.argv(1))",
-    "--",
-    "{{ .Source }}",
-    "{{ .Destination }}",
-]
-```
-
-**For `.chezmoi.toml.tmpl` in your source directory:**
-
-```gotmpl
-[merge]
-command = "nvim"
-args = [
-    "-c",
-    "lua require('vimoi.api').diff_files(vim.fn.argv(0), vim.fn.argv(1))",
-    "--",
-    "{{ "{{ .Source }}" }}",
-    "{{ "{{ .Destination }}" }}",
-]
-```
-
-The `.tmpl` version emits literal `{{ .Source }}` and `{{ .Destination }}` placeholders
-for chezmoi to expand when merge runs. Do not put this escaped version directly in `.toml`.
-
-```sh
-chezmoi merge ~/.bashrc
-```
-
-This opens a two-window comparison of the source and actual target. For templates, the
-plugin renders the source itself, so `.Target` is omitted. Template sources use `gotmpl`,
-with host colors controlled by the plugin's highlighting mode; the target keeps its filetype.
-Use `do` / `dp` for individual hunks or `:VimoiReAdd` for bulk static changes.
-Run `:write` in each buffer whose changes you want to keep, then exit with `:qa`.
-
-If you use `chezmoi --config /path/to/chezmoi.toml`, also set Neovim's
-`chezmoi_config_path` to that path.
-See the [chezmoi merge reference](https://www.chezmoi.io/reference/commands/merge/) for the path arguments.
-
-### `chezmoi diff` limitation
-
-For now, keep your existing `chezmoi diff` configuration and use `:VimoiDiff` inside Neovim.
-chezmoi's external diff interface provides `.Destination` and the rendered `.Target`,
-without directly providing `.Source`. The merge configuration above cannot be reused
-as-is to compare and write back template source through that interface.
-See the [chezmoi diff guide](https://www.chezmoi.io/user-guide/tools/diff/) for details.
-
-## Configuration and default mappings
-
-The complete defaults are shown below. Only specify the options you want to change:
+Template diagnostics run as you edit without opening diff or preview. Host diagnostics reuse
+existing configuration: enable the server with `vim.lsp.enable()` or configure
+`require("lint").linters_by_ft`, without listing checkers again in vimoi.
+The plugin checks rendered output and maps errors back to source. Static text gets precise locations;
+dynamic output points to its producing template region, and ambiguous output locations are skipped.
+Messages use `[gotmpl]` or host labels such as `[host:lua]` and `[host:yaml]`.
 
 ```lua
 require("vimoi").setup({
-  chezmoi_executable = "chezmoi", -- Can also be an executable wrapper
-  chezmoi_config_path = nil, -- Optional chezmoi configuration file path
-  split = "vertical", -- Or "horizontal"
-  watch = { buffer_write_fallback = "auto" },
-  diff = { validate = true },
-  completion = { enabled = true },
-  diagnostics = { enabled = true, host = true },
-  highlight = {
-    mode = "rendered",
-    template_bg = "NormalFloat",
-  },
-  keymaps = {
-    diff = "<leader>cd",
-    preview = "<leader>cp",
-    toggle = "<leader>ct",
-    invalidate_cache = "<leader>cr",
-    readd = "<leader>ca",
-    cancel_command = "<leader>cx",
-    goto_file = "gf",
-    goto_file_line = "gF",
-    diff_get = "do",
-    diff_put = "dp",
-    fold_open = "zo",
-    fold_close = "zc",
-    fold_toggle = "za",
-    fold_open_recursive = "zO",
-    fold_close_recursive = "zC",
-    fold_toggle_recursive = "zA",
-    fold_open_all = "zR",
-    fold_close_all = "zM",
-  },
+  diagnostics = { enabled = true, host = false }, -- Keep template diagnostics only
 })
 ```
 
-Global defaults are `<leader>cd` for diff, `<leader>cp` for preview, `<leader>ct` to toggle,
-`<leader>ca` for ReAdd, `<leader>cr` to refresh caches, and `<leader>cx` to cancel commands.
-`gf` / `gF` are enabled only in templates and symlink sources. Template diff hunk and fold
-mappings are active only while the corresponding window is focused.
+`diagnostics.enabled = false` disables diagnostics; customize their display with `vim.diagnostic.config()`.
+Host checks use an unsaved output buffer, and nvim-lint integration supports stdin linters only.
+Rules tied to exact filenames, such as some YAML schema associations, may need adjustment.
+Loop text uses its first execution's colors; `define` / `block` bodies have no host-color projection,
+so use injection to highlight them. See `:help vimoi-highlighting` and `:help vimoi-setup` for details.
 
-Set a mapping to a string to change it, or to `false` or an empty string to disable it.
-Set `keymaps = false` to disable all mappings:
-
-```lua
-require("vimoi").setup({ keymaps = { diff = "<leader>hd", readd = false } })
-```
-
-`chezmoi_config_path` supports `~` and relative paths, resolved against the working directory
-at setup time. `$` is kept literally. Pass environment variables explicitly, for example
-`chezmoi_config_path = vim.env.MY_CHEZMOI_CONFIG` after setting that variable.
-
-Executable/config paths, watch options, and keymaps are fixed after the first successful
-setup; restart Neovim to change them. Other options can be updated by calling setup again;
-omitted updatable options revert to defaults.
-`highlight.template_bg` uses the theme’s `NormalFloat` background by default, keeping template
-actions separate from diff colors. Use another highlight group such as `"StatusLine"`, a color
-such as `"#123456"`, or `{ dark = "#123456", light = "#E4E9F4" }` to customize it.
-Only the background is borrowed; syntax foreground colors are preserved. Switching themes
-refreshes it automatically.
-
-## Template diagnostics and highlighting
-
-Template diagnostics are enabled by default, without opening diff or preview. Edits trigger
-syntax and execution checks using native Neovim diagnostics alongside other LSP diagnostics.
-Disable them with `diagnostics = { enabled = false }` and customize their appearance with
-`vim.diagnostic.config()`.
-
-Host diagnostics automatically use the target's filetype and your existing checker
-configuration. Enable the corresponding server with `vim.lsp.enable()` as usual,
-or configure `require("lint").linters_by_ft` for nvim-lint. The plugin checks rendered
-output and maps diagnostics back to the template, preserving each provider's source,
-severity, and code. No extra checker list is needed in vimoi.
-Messages use `[gotmpl]` for template errors and `[host:lua]`, `[host:yaml]`, etc.
-for projected host diagnostics, so they remain distinguishable in any diagnostic UI.
-
-Static text gets precise source ranges; errors in dynamic output point to the producing
-template region and are marked as template-generated. Repeated source locations are
-deduplicated; output with ambiguous source locations is skipped. Only the currently
-rendered branches are checked. Set `diagnostics = { host = false }` to disable host
-checks while keeping template diagnostics.
-
-Host checks require a known host filetype and an enabled LSP or configured nvim-lint
-provider. nvim-lint integration runs stdin-capable linters only. Other checker plugins
-are not integrated. Checks use a shared, unsaved output buffer with a unique name beside the
-target (or source/current directory when no managed target is available). Project root
-discovery works normally, but rules tied to an exact filename, such as some YAML schema
-associations, may need adjustment. Preview, diff, highlighting and diagnostics share one
-output per source buffer. LSP stays attached and receives edits through `didChange`;
-old host diagnostics may briefly remain while providers update. Real targets are untouched.
-
-Diagnostics, previews, and rendered highlighting execute template functions and may invoke password helpers.
-Slow tasks can be canceled and have no default timeout.
-The host language is detected from the target name and shebang; for example,
-`dot_zshrc.tmpl` uses zsh highlighting. By default, the complete rendered output is
-parsed and its colors are mapped back to literal template text.
-
-To parse host fragments directly in the template instead:
-
-```lua
-require("vimoi").setup({ highlight = { mode = "injection" } })
-```
-
-| `highlight.mode` | Host highlighting |
-| --- | --- |
-| `"rendered"` (default) | Parse rendered output and map colors back to literal template text. Unexecuted text uses `Comment`. |
-| `"injection"` | Parse host text inside the template with Tree-sitter injections; incomplete fragments may highlight inaccurately. |
-| `"disabled"` | Disable host highlighting, including the Vim syntax fallback. |
-
-Template actions keep gotmpl highlighting in all three modes. Rendered mode works with
-diagnostics disabled and retains existing colors during edits or temporary template errors.
-Repeated loop text uses its first execution, even if later executions have different
-syntax contexts. Opaque `define`/`block` bodies have no host-color projection; use
-injection mode to highlight their contents. Before the first successful render,
-host colors may be absent. LSP semantic tokens, whole-line conceal,
-and spell navigation are not projected. If the host parser is missing, the enabled modes
-fall back to Vim syntax.
-
-## blink.cmp completion
+## Completion
 
 Completion integrates with blink.cmp only. Register the source in its configuration:
 
@@ -399,6 +321,26 @@ Multiple matches open a picker; unresolved paths fall back to native navigation.
 Managed destination paths open their source preferentially. With optional vim-matchup
 and its Tree-sitter matching enabled, `%` jumps between template control blocks.
 
+## Keymaps
+
+Set `vim.g.mapleader` before setup. These global mappings are enabled by default:
+
+| Key | Action |
+| --- | --- |
+| `<leader>cd` | Open diff |
+| `<leader>cp` | Open preview |
+| `<leader>ct` | Toggle source / target |
+| `<leader>ca` | ReAdd |
+| `<leader>cr` | Refresh caches |
+| `<leader>cx` | Cancel a task |
+
+`gf` / `gF` are enabled only in templates and symlink sources. Template diff `do` / `dp`
+and fold mappings are active only while the corresponding window is focused.
+`[c` / `]c` use native change navigation. Plain files retain native two-file diff behavior.
+
+Use `keymaps = { diff = "<leader>hd", readd = false }` to change or disable individual mappings,
+or `keymaps = false` to disable all mappings.
+
 ## Cancel tasks and refresh manually
 
 Background tasks show progress in the upper right. Run `:VimoiCancel` or `<leader>cx`;
@@ -420,32 +362,7 @@ refresh. For file systems that silently lose watcher events, set
 `false` disables this fallback; the default `"auto"` enables it as needed.
 Restart Neovim after changing the source root directory.
 
-## Known limitations
-
-- Changes to dynamic or repeated template output usually require manual source edits;
-  general reverse merging is not supported.
-- `define` and `block` bodies are opaque to source mapping. Each `template` call
-  maps its whole output to the call site; a `block` maps its initial output to the
-  whole block. Edit their bodies manually, including static text.
-- Custom template delimiters are not supported.
-- Managed template buffers render with simulated `chezmoi cat target` values for
-  `.chezmoi.sourceFile`, `.chezmoi.targetFile`, `.chezmoi.command`, and `.chezmoi.args`.
-  Templates that produce different results under `cat` and `apply` are not supported.
-  Unnamed, unmanaged, source-only, and init templates keep their native
-  `execute-template` context.
-- `diff.validate = true` (default) checks the file once when constructing its source
-  session, rendering a fixed on-disk baseline in parallel with `chezmoi cat` and
-  comparing their outputs. Buffer edits do not
-  interrupt the check; after success, rendering uses the latest buffer text without
-  further cat checks. Failure prevents construction until the file is reopened.
-  Set it to `false` to skip validation. Unmanaged/source-only/init templates skip cat.
-- Source text must not contain the reserved sentinel prefix used by the current run,
-  and dynamic output must not produce complete reserved markers. Random markers only
-  reduce accidental collision risk; see `:help vimoi-limitations` for details.
-- No automatic re-add or apply. The plugin does not replace chezmoi CLI file attribute
-  or encryption operations.
-
-## Lua API and help
+## Lua API
 
 ```lua
 local api = require("vimoi.api")
@@ -462,7 +379,49 @@ return `nil`. Write-back operations also
 return `nil` while rendering or waiting for a choice, so this does not indicate final success.
 See `:help vimoi-api` for arguments, immediate results, and other operations.
 
+`diff_buffers()` accepts two different loaded buffers, including unnamed and scratch buffers;
+`0` means the current buffer. Optional `filetype` sets the host language. It compares current
+contents and supports the same hunk operations and ReAdd. For file pairs, use
+`api.diff_files(source, target)`. See `:help vimoi-api` for complete arguments.
+
+## Compared with chezmoi-template.nvim
+
+Both support direct source editing, live preview, template and host highlighting, blink completion,
+and template navigation. Their focus differs. This comparison uses
+[chezmoi-template.nvim source](https://github.com/dpezto/chezmoi-template.nvim/tree/670ba83095ba6571f3125a5e5fd4118505a2c3c6), checked on 2026-10-25.
+
+| Feature | vimoi.nvim | chezmoi-template.nvim |
+| --- | --- | --- |
+| Compare and write back | Template-aware native diff, bidirectional hunks, static ReAdd | Preview annotations against the deployed file |
+| Host highlighting | Rendered output projection by default, optional injection | Tree-sitter injection |
+| Diagnostics | Template checks as you edit, plus LSP / nvim-lint host checks | Template execution checks on save |
+| Completion | Functions, data fields, locals, paths, block snippets; no data values | Functions, data fields with value docs, sensitive-field masking, block snippets |
+| Template formatting, target icons, transparent encryption | Not provided | Conform, mini.icons, optional decrypt/encrypt |
+| File selection and deployment | Source / target toggle; deploy with the CLI | Multiple file pickers, apply commands, apply on save by default |
+| Default mappings | Global shortcuts, can be disabled | Opt-in source-buffer mappings |
+| Neovim requirement | 0.12+ | 0.10+ |
+
+Consider it for formatting, encryption, and deployment integrations. vimoi focuses on comparing rendered
+output and bringing static changes from actual files back into templates.
+See the [implementation comparison and historical research](docs/plugin-comparison.md) (Chinese).
+
+## Scope and limitations
+
+- Changes to dynamic or repeated output usually need manual source edits. General reverse merging and automatic ReAdd are outside the scope.
+- `define` / `block` bodies have no internal source mapping, so even static text in them needs manual edits.
+- Custom template delimiters and templates producing different results under `chezmoi cat` and `apply` are unsupported.
+- `diff.validate = true` checks the on-disk baseline against `chezmoi cat` when first constructing a file's source session. Reopen the file after failure. Unnamed, unmanaged, source-only, and init templates skip this check.
+- Data and shared-template changes usually refresh automatically. Environment changes, time-sensitive functions, and undiscovered directories may need a manual refresh.
+- Formatting, icons, transparent encryption, managed-file browsing, and apply commands are not provided. Use the chezmoi CLI for file attributes and deployment.
+
+Diagnostics, previews, and rendered highlighting execute template functions and may invoke password helpers.
+Slow background tasks can be canceled and have no default timeout.
+See `:help vimoi-limitations` for rendering context, cache behavior, and reserved-marker constraints.
+
+## Health and documentation
+
 ```vim
+:checkhealth vimoi
 :help vimoi.nvim
 :set helplang=cn
 :help vimoi.nvim@en
