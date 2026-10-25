@@ -146,6 +146,9 @@ function M.snapshot(source)
     output = util.buffer_text(state.buf),
     template_tags = map.template_tags,
     literal_parts = map.literal_parts,
+    regions = map.regions,
+    output_starts = map.output_starts,
+    source_starts = map.source_starts,
     skeleton = assert(state.skeleton),
     prefix = assert(state.prefix),
     init = state.init == true,
@@ -439,8 +442,9 @@ local function check(buf, state)
   end
   local request, context_generation = {}, cli.context_generation
   state.request = request
+  -- The renderer completes prepared in place; newer edits may replace state.prepared.
   local rendered_skeleton, err = util.await(function(done)
-    state.job = source_map.trace_async(source, { init = init, buf = buf }, function(trace, err)
+    state.job = source_map.trace_async(source, { init = init, buf = buf, prepared = prepared }, function(trace, err)
       done(trace and trace.rendered_skeleton, err)
     end)
   end)
@@ -654,8 +658,8 @@ function M.setup()
     end
     if diagnostics_enabled and not diagnostics then
       require("vimoi.diagnostic").clear(source, true)
-    elseif host_enabled and not host and package.loaded["vimoi.host_diagnostic"] then
-      require("vimoi.host_diagnostic").clear(source, true)
+    elseif host_enabled and not host and package.loaded["vimoi.diagnostic"] then
+      require("vimoi.diagnostic").clear_host(source, true)
     end
     if rendered_enabled and not rendered and package.loaded["vimoi.host_highlight"] then
       require("vimoi.host_highlight").clear(source)

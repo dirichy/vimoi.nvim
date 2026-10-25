@@ -737,11 +737,11 @@ serves live consumers and once=true waits; initial=false skips cached delivery.
 Callbacks receive output/error results. The returned stop() unregisters one
 consumer; stop(true) also cancels that source's running or queued render.
 Automatic diagnostic/highlight subscriptions and their FileType/unload/config
-transitions also belong to the source session; diagnostic.lua only presents and clears results.
+transitions also belong to the source session; diagnostic.lua presents results and manages host providers.
 Host diagnostics resolve source identity through the output buffer's metadata.
 The cache key includes changedtick, endofline, source path and context generation;
 source unload releases output, and the last consumer cancels pending work.
-`host_diagnostic` owns native LSP activation, nvim-lint process cancellation and
+`diagnostic` owns native LSP activation, nvim-lint process cancellation and
 diagnostic-range projection on that buffer. source_map.restore rebuilds full
 output and byte mappings from cached skeletons without another execution.
 Ex commands are registered once during setup by the API module; loading it alone
@@ -791,17 +791,21 @@ window-local refreshes, event listeners, temporary mappings and cleanup.
 WinEnter/WinLeave install and restore mappings for the focused window, including
 when its buffer appears in another view. Loading/error decorations are window-scoped.
 One subscription receives completed session results and handles all view refreshes.
+`view.current()` retires stale bindings when resolving the active view.
 `view.is_valid()` checks registry ownership and buffer/window bindings; changing
 a buffer name does not retire its view. Deferred writes capture paths, texts and
 rendering context separately and cancel if any of those change.
-`vimoi.readd` resolves the
-source/target pair and handles ordinary text files; templates delegate to
-`gotmpl/merge.lua`. Put loads that merge module directly. Opening diff/preview
-does not load merge planning.
+`vimoi.merge` owns put/get/re-add, path resolution and ordinary-file writeback.
+Template merge planning remains lazy; opening diff/preview and ordinary-file
+re-add do not load it.
 `cli.counterpart_path()` owns the bidirectional path cache used directly by
 toggle. `cli.resolve_paths()` orders the same paths as source/target for diff and re-add.
-`merge.lua` coordinates put and template re-add: resolve placements, infer, write, and refresh;
-`merge_plan.lua` locates byte edits and escapes literal braces.
+`gotmpl/merge_plan.lua` locates byte edits and escapes literal braces.
+`diagnostic.lua` owns template and host diagnostics, including host-provider cleanup.
+Normal rendering reuses its prepared source input; session snapshots share cached
+output regions and source/output line starts with diff/merge instead of recomputing them.
+Regions follow recorded execution order. Hunk projection searches only overlapping
+regions; native diff line projection uses the cached source index.
 
                                               *vimoi.setup()*
 require("vimoi").setup({opts})

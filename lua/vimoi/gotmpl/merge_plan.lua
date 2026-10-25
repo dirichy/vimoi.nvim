@@ -153,8 +153,12 @@ local function insertion_edit(modified, trace, hunk)
   end
   local replacement_start, replacement_end =
     util.line_range(modified, util.line_starts(modified), hunk.target_start_line, hunk.target_line_count)
-  local rendered_start_byte, rendered_end_byte =
-    util.line_range(trace.output, util.line_starts(trace.output), hunk.rendered_start_line, hunk.rendered_line_count)
+  local rendered_start_byte, rendered_end_byte = util.line_range(
+    trace.output,
+    trace.output_starts or util.line_starts(trace.output),
+    hunk.rendered_start_line,
+    hunk.rendered_line_count
+  )
   return {
     start_byte = range.start_byte,
     end_byte = range.end_byte,
@@ -302,8 +306,12 @@ end
 ---@return VimoiMergeEdit[]
 ---@return boolean touches_boundary
 local function static_byte_edit_candidates(trace, modified, hunk)
-  local hunk_rendered_start_byte, hunk_rendered_end_byte =
-    util.line_range(trace.output, util.line_starts(trace.output), hunk.rendered_start_line, hunk.rendered_line_count)
+  local hunk_rendered_start_byte, hunk_rendered_end_byte = util.line_range(
+    trace.output,
+    trace.output_starts or util.line_starts(trace.output),
+    hunk.rendered_start_line,
+    hunk.rendered_line_count
+  )
   local target_start_byte, target_end_byte =
     util.line_range(modified, util.line_starts(modified), hunk.target_start_line, hunk.target_line_count)
   local before = trace.output:sub(hunk_rendered_start_byte + 1, hunk_rendered_end_byte)
@@ -385,7 +393,7 @@ local function plan_isolated_merge(modified, trace, hunk)
       if control_anchors then
         local rendered_start_byte, rendered_end_byte = util.line_range(
           trace.output,
-          util.line_starts(trace.output),
+          trace.output_starts or util.line_starts(trace.output),
           hunk.rendered_start_line,
           hunk.rendered_line_count
         )
@@ -433,8 +441,12 @@ local function plan_isolated_merge(modified, trace, hunk)
   elseif byte_edit_candidates and #byte_edit_candidates > 1 then
     choices[#choices + 1] = { hunk = hunk, candidates = byte_edit_candidates }
   else
-    local rendered_start_byte, rendered_end_byte =
-      util.line_range(trace.output, util.line_starts(trace.output), hunk.rendered_start_line, hunk.rendered_line_count)
+    local rendered_start_byte, rendered_end_byte = util.line_range(
+      trace.output,
+      trace.output_starts or util.line_starts(trace.output),
+      hunk.rendered_start_line,
+      hunk.rendered_line_count
+    )
     local target_start_byte, target_end_byte =
       util.line_range(modified, util.line_starts(modified), hunk.target_start_line, hunk.target_line_count)
     local replacement
@@ -480,7 +492,7 @@ end
 ---@return VimoiMergePlan
 local function plan_merge(trace, modified, hunks)
   local edits, choices, skipped = {}, {}, {}
-  local rendered_line_starts = util.line_starts(trace.output)
+  local rendered_line_starts = trace.output_starts or util.line_starts(trace.output)
   local target_line_starts = util.line_starts(modified)
   for _, hunk in ipairs(hunks) do
     local rendered_start_byte, rendered_end_byte =

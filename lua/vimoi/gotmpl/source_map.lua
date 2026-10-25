@@ -41,6 +41,9 @@ local cli = require("vimoi.cli")
 ---@class VimoiSourceMapTrace: VimoiPreparedTrace
 ---@field output string
 ---@field rendered_skeleton string
+---@field regions? VimoiRenderedRegion[] Shared from the session map when materializing a snapshot.
+---@field output_starts? integer[] Shared output line starts for diff calculations.
+---@field source_starts? integer[] Shared source line starts for merge locations.
 
 ---@class VimoiSyntaxEdit
 ---@field start_byte integer
@@ -438,6 +441,7 @@ end
 ---@field buf? integer
 ---@field timeout? integer
 ---@field prefix? string Captured context reused by local inference without a live buffer.
+---@field prepared? VimoiPreparedTrace Reuse session input in trace_async; restoration completes the same object.
 
 -- Replace each literal slot with its stable ID; unchanged tags/slot count reuse the rendered skeleton.
 -- Complete text results are temporary; buffer-owned caches live in gotmpl/session.lua.
@@ -640,7 +644,10 @@ end
 ---@return VimoiCommand?
 function M.trace_async(source, opts, callback)
   opts = opts or {}
-  local prepared_trace, prepare_error = M.prepare(source, opts)
+  local prepared_trace, prepare_error = opts.prepared, nil
+  if not prepared_trace then
+    prepared_trace, prepare_error = M.prepare(source, opts)
+  end
   if not prepared_trace then
     vim.schedule(function()
       callback(nil, prepare_error)
@@ -677,25 +684,20 @@ end
 ---@param trace VimoiSourceMapTrace
 ---@return VimoiRenderedRegion[]
 function M.rendered_regions(trace)
+  if trace.regions then
+    return trace.regions
+  end
+  -- restore() assigns dense IDs in output order, including zero-width slots.
   local occurrences = {}
   for _, literal_part in ipairs(trace.literal_parts) do
     for _, output_range in ipairs(literal_part.output_ranges) do
-      occurrences[#occurrences + 1] = {
+      occurrences[output_range.execution_order] = {
         output_range = output_range,
         source = literal_part.source,
         kind = #literal_part.output_ranges > 1 and "repeated" or "static",
       }
     end
   end
-  table.sort(occurrences, function(a, b)
-    if a.output_range.start_byte == b.output_range.start_byte then
-      if a.output_range.end_byte == b.output_range.end_byte then
-        return a.output_range.execution_order < b.output_range.execution_order
-      end
-      return a.output_range.end_byte < b.output_range.end_byte
-    end
-    return a.output_range.start_byte < b.output_range.start_byte
-  end)
 
   local regions = {}
   local previous_output_end = 0

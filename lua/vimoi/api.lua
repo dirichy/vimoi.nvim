@@ -50,11 +50,7 @@ end
 function M.toggle(path)
   local cli = require("vimoi.cli")
   local views = package.loaded["vimoi.gotmpl.view"]
-  local session = views and views.by_window[vim.api.nvim_get_current_win()]
-  if session and not views.is_valid(session) then
-    views.close(session)
-    session = nil
-  end
+  local session = views and views.current()
   local destination, err
   if not path and session and session.preview and vim.api.nvim_get_current_win() == session.target_win then
     destination = vim.api.nvim_buf_get_name(session.source_buf) -- A rendered scratch buffer switches back to its source.
@@ -78,13 +74,13 @@ end
 ---Put the current hunk into the other diff window, rendering template output as needed.
 ---@return boolean?
 function M.put_hunk()
-  return require("vimoi.gotmpl.merge").put_hunk()
+  return require("vimoi.merge").put_hunk()
 end
 
 ---Get the other window's hunk into the current diff window, preserving template structure.
 ---@return boolean?
 function M.get_hunk()
-  return require("vimoi.gotmpl.merge").get_hunk()
+  return require("vimoi.merge").get_hunk()
 end
 
 ---Immediate re-add summary. Internal hunk/trace fields are not part of this contract.
@@ -97,7 +93,7 @@ end
 ---@param path? string Source or target path; defaults to the current buffer.
 ---@return VimoiReAddResult? Immediate completion only; nil while rendering or a choice is pending, or on failure.
 function M.readd(path)
-  return require("vimoi.readd").readd(path)
+  return require("vimoi.merge").readd(path)
 end
 
 ---Run a source-map-aware fold command in both diff windows.

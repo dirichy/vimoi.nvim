@@ -55,6 +55,17 @@ function M.is_valid(view)
   return true
 end
 
+---Return the current valid view, retiring stale window bindings.
+---@return VimoiTemplateView?
+function M.current()
+  local view = M.by_window[vim.api.nvim_get_current_win()]
+  if view and not M.is_valid(view) then
+    M.close(view)
+    return
+  end
+  return view
+end
+
 -- Status and cursor-line decorations are ephemeral and scoped to the owning window,
 -- so a second view of the same source buffer cannot erase or inherit them.
 local status_namespace = vim.api.nvim_create_namespace("vimoi-view-status")

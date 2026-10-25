@@ -600,10 +600,10 @@ Ex 命令由 API 模块在 setup 时注册一次；仅加载模块不会注册�
 once=true 的单次等待共用一张回调表，initial=false 可跳过缓存结果的首次通知。
 callback 接收 output/error 结果；返回的 stop() 注销当前使用方，stop(true) 同时取消
 该 source 正在运行或排队的渲染。诊断/高亮的自动订阅及 FileType、卸载和配置切换也由 source session 管理，
-diagnostic.lua 只负责展示和清理诊断；宿主诊断通过 output buffer 的元数据查找 source。
+diagnostic.lua 负责诊断展示、清理及宿主 provider 管理；宿主诊断通过 output buffer 的元数据查找 source。
 缓存键包括 changedtick、endofline、source 路径和上下文版本；source 卸载时
 释放 output，最后一个使用方关闭时取消等待中的任务。
-`host_diagnostic` 负责该 buffer 的原生 LSP 激活、nvim-lint 进程取消和诊断区域投影。
+`diagnostic` 负责该 buffer 的原生 LSP 激活、nvim-lint 进程取消和诊断区域投影。
 source_map.restore 无须再次执行即可还原完整输出和 byte 映射。
 
 `require("vimoi.gotmpl.source_map")` 统一负责模板解析、哨兵渲染及源码与输出的位置映射，
@@ -637,14 +637,18 @@ source_map.restore 无须再次执行即可还原完整输出和 byte 映射。
 渲染任务、订阅和关联视图；`view.lua` 保存按窗口 ID 索引的 `by_window` 表，负责窗口
 刷新、事件监听、临时按键和关闭清理。WinEnter/WinLeave 为当前窗口安装和恢复映射，
 加载/错误提示也按窗口显示。session 完成结果与后续视图刷新共用一次订阅。
+`view.current()` 获取当前视图并清理失效绑定。
 `view.is_valid()` 检查注册关系及 buffer/window 绑定，buffer 改名不会解除视图；异步
 写回单独记录路径、文本和渲染上下文，变化时取消写入。
-`vimoi.readd` 统一解析路径并处理普通文本文件，模板委托 `gotmpl/merge.lua`；
-put 直接加载该合并模块。打开 diff/preview 不会加载合并规划。
+`vimoi.merge` 统一 put/get/re-add、路径解析和普通文本写回。
+模板合并规划保持按需加载；打开 diff/preview 或普通文件 re-add 都不会加载它。
 `cli.counterpart_path()` 统一管理双向路径缓存，toggle 直接复用；
 `cli.resolve_paths()` 将同一映射整理为 source/target 文件对，供 diff 和 re-add 使用。
-`merge.lua` 负责 put 和 template re-add 的位置选择、映射推算、
-写入及刷新流程；`merge_plan.lua` 保留字节定位和花括号转义。
+`gotmpl/merge_plan.lua` 保留字节定位和花括号转义。
+`diagnostic.lua` 统一模板和宿主诊断，包括宿主 provider 的清理。
+正常渲染复用已准备的输入；session 快照向 diff/merge 共享已缓存的输出区域及
+source/output 行索引，不再重复计算。regions 按记录的执行顺序构建，hunk 投射只查
+重叠区域；原生行号投射直接复用 source 行索引。
 
                                               *vimoi.setup()*
 require("vimoi").setup({opts})

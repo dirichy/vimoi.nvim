@@ -15,7 +15,9 @@ local diffexpr_dispatcher = "v:lua.require'vimoi.gotmpl'._diffexpr()"
 ---@type string?
 local previous_diffexpr
 
-local function source_line_range(source, ranges)
+---@param source_starts integer[]
+---@param ranges VimoiDiffRange[]
+local function source_line_range(source_starts, ranges)
   if #ranges == 0 then
     return 0, 0
   end
@@ -25,8 +27,8 @@ local function source_line_range(source, ranges)
     start_byte = math.min(start_byte, ranges[index].start_byte)
     end_byte = math.max(end_byte, ranges[index].end_byte)
   end
-  local start_row, start_col = util.byte_to_position(source, start_byte)
-  local end_row, end_col = util.byte_to_position(source, end_byte)
+  local start_row, start_col = util.byte_to_position(nil, start_byte, source_starts)
+  local end_row, end_col = util.byte_to_position(nil, end_byte, source_starts)
   if start_byte == end_byte then
     if start_col == 0 then
       return start_row, 0
@@ -37,11 +39,13 @@ local function source_line_range(source, ranges)
   return start_row + 1, math.max(1, end_exclusive - start_row)
 end
 
+---@param map VimoiOutputMap
+---@param hunks VimoiDiffHunk[]
 ---@return VimoiNativeDiffHunk[]
-local function projected_hunks(source, hunks)
+local function projected_hunks(map, hunks)
   local result = {}
   for _, hunk in ipairs(hunks) do
-    local source_start_line, source_line_count = source_line_range(source, hunk.source_ranges)
+    local source_start_line, source_line_count = source_line_range(map.source_starts, hunk.source_ranges)
     result[#result + 1] = {
       source_start_line = source_start_line,
       source_line_count = source_line_count,
@@ -153,7 +157,7 @@ end
 
 ---@param session VimoiTemplateView
 function M.update(session)
-  session.projected_hunks = projected_hunks(util.buffer_text(session.source_buf), session.hunks)
+  session.projected_hunks = projected_hunks(assert(session.map), session.hunks)
   install_diffexpr_dispatcher()
   local ok, error_message = pcall(function()
     vim.api.nvim_win_call(session.source_win, function()
@@ -193,7 +197,7 @@ end
 ---@param line integer One-based line at the time the user requested the merge.
 ---@return VimoiDiffHunk?
 function M.hunk_at(session, buf, line)
-  local projected = session.projected_hunks or projected_hunks(util.buffer_text(session.source_buf), session.hunks)
+  local projected = session.projected_hunks or projected_hunks(assert(session.map), session.hunks)
   for index, native in ipairs(projected) do
     local start = buf == session.source_buf and native.source_start_line or native.target_start_line
     local count = buf == session.source_buf and native.source_line_count or native.target_line_count

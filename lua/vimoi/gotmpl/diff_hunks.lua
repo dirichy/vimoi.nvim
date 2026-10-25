@@ -35,7 +35,7 @@ function M.compute(modified, trace)
     algorithm = "histogram",
   })
   assert(type(raw_hunks) == "table")
-  local rendered_line_starts = util.line_starts(trace.output)
+  local rendered_line_starts = trace.output_starts or util.line_starts(trace.output)
   local regions = source_map.rendered_regions(trace)
   local hunks = {}
 
@@ -45,7 +45,21 @@ function M.compute(modified, trace)
       util.line_range(trace.output, rendered_line_starts, rendered_start_line, rendered_line_count)
     local projected = {}
     local seen = {}
-    for _, region in ipairs(regions) do
+    -- Keep equal endpoints: insertions can belong to both boundary regions.
+    local first, last = 1, #regions
+    while first <= last do
+      local middle = math.floor((first + last) / 2)
+      if regions[middle].output_range.end_byte < hunk_rendered_start_byte then
+        first = middle + 1
+      else
+        last = middle - 1
+      end
+    end
+    for region_index = first, #regions do
+      local region = regions[region_index]
+      if region.output_range.start_byte > hunk_rendered_end_byte then
+        break
+      end
       if
         intersects(
           hunk_rendered_start_byte,

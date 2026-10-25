@@ -69,9 +69,15 @@ assert(
   "output retained a completed text snapshot"
 )
 assert(rawget(state.map, "source") == nil and rawget(state.map, "output") == nil, "mapping duplicated buffer text")
-local map, initial_tick = state.map, api.nvim_buf_get_changedtick(output)
+local map, initial_tick = assert(state.map), api.nvim_buf_get_changedtick(output)
 local checks = #lint_jobs
-sessions.update(source, assert(sessions.snapshot(source)))
+local snapshot = assert(sessions.snapshot(source))
+assert(
+  snapshot.regions == map.regions
+    and snapshot.output_starts == map.output_starts
+    and snapshot.source_starts == map.source_starts
+)
+sessions.update(source, snapshot)
 assert(#lint_jobs == checks and not lint_jobs[checks].cancelled, "unchanged mapping restarted host checks")
 assert(
   state.map == map and api.nvim_buf_get_changedtick(output) == initial_tick,

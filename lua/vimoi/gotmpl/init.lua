@@ -12,11 +12,8 @@ end
 ---Apply a fold command in both windows of the current diff session.
 ---@param command string
 function M.fold(command)
-  local session = views.by_window[vim.api.nvim_get_current_win()]
-  if session and not views.is_valid(session) then
-    views.close(session)
-  end
-  if not session or session.closed or session.preview then
+  local session = views.current()
+  if not session or session.preview then
     return util.notify("current buffer is not in a vimoi diff session", "diff", vim.log.levels.ERROR)
   end
   if not session.map then
@@ -106,11 +103,7 @@ function M.open(opts)
     end
   end
   ---@type VimoiTemplateView?
-  local previous = views.by_window[vim.api.nvim_get_current_win()]
-  if previous and not views.is_valid(previous) then
-    views.close(previous)
-    previous = nil
-  end
+  local previous = views.current()
   local current_path = vim.api.nvim_buf_get_name(0)
   local source_path = opts.source and util.normalize_path(opts.source)
   local target_path = opts.target and util.normalize_path(opts.target)

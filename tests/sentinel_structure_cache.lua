@@ -179,6 +179,13 @@ before = executions
 assert(run_async(source_map.trace, '{{ "dynamic" }}stale'))
 assert(executions == before + 1)
 
+-- A session can reuse its prepared input instead of parsing/decoding it twice.
+local prepared = assert(source_map.prepare('{{ "prepared" }} tail'))
+local completed = run_async(require("vimoi.util").await, function(callback)
+  source_map.trace_async(prepared.source, { prepared = prepared }, callback)
+end)
+assert(completed == prepared and completed.output == "prepared tail")
+
 -- Different init contexts must never share a rendered skeleton.
 cli.invalidate()
 assert(run_async(source_map.trace, "literal", { init = true }))

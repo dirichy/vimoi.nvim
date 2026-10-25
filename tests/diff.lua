@@ -37,3 +37,27 @@ local insertion_hunks = diff_hunks.compute("name = alice\nadded = true\ntimeout 
 assert(#insertion_hunks == 1)
 assert(insertion_hunks[1].rendered_line_count == 0)
 assert(insertion_hunks[1].target_line_count == 1)
+
+-- Sparse changes must select exact regions near the end of a larger mapping.
+local lines, expected, target = {}, {}, {}
+local source_offset = 0
+for row = 1, 100 do
+  local prefix, tag = "key" .. row .. " = old", '{{ "tail" }}'
+  lines[row] = prefix .. tag .. "\n"
+  local change = row % 10 == 0
+  target[row] = (change and prefix:gsub("old$", "new") or prefix) .. "tail\n"
+  if change then
+    expected[#expected + 1] = {
+      { start_byte = source_offset, end_byte = source_offset + #prefix, kind = "static" },
+      { start_byte = source_offset + #prefix, end_byte = source_offset + #prefix + #tag, kind = "dynamic" },
+      { start_byte = source_offset + #prefix + #tag, end_byte = source_offset + #lines[row], kind = "static" },
+    }
+  end
+  source_offset = source_offset + #lines[row]
+end
+local sparse = assert(run_async(source_map.trace, table.concat(lines)))
+local projected = diff_hunks.compute(table.concat(target), sparse)
+assert(#projected == #expected)
+for index, hunk in ipairs(projected) do
+  assert(vim.deep_equal(hunk.source_ranges, expected[index]), vim.inspect(hunk))
+end

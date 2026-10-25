@@ -130,9 +130,24 @@ for _, template in ipairs({
   '{{ range (list "a" "b") }}{{ if true }}{{ . }}{{ end }}{{ end }}',
   "{{ if true }}{{/* comment */}}{{ end }}",
   '{{ define "piece" }}X{{ end }}{{ template "piece" . }}',
+  "{{ range (list 1 2) }}{{ if eq . 2 }}second{{ end }}{{ if eq . 1 }}first{{ end }}{{ end }}",
 }) do
   local direct = vim.system({ "chezmoi", "execute-template" }, { stdin = template, text = true }):wait()
   assert(direct.code == 0, direct.stderr)
   local skeleton = assert(run_async(source_map.trace, template))
   assert(skeleton.output == direct.stdout, vim.inspect({ template, skeleton.output, direct.stdout }))
+  -- Regions must cover output in order, including empty/repeated literal slots.
+  local last, literals, expected = 0, 0, 0
+  for _, part in ipairs(skeleton.literal_parts) do
+    expected = expected + #part.output_ranges
+  end
+  for _, region in ipairs(source_map.rendered_regions(skeleton)) do
+    assert(region.output_range.start_byte == last)
+    assert(region.output_range.end_byte >= last)
+    last = region.output_range.end_byte
+    if region.kind == "static" or region.kind == "repeated" then
+      literals = literals + 1
+    end
+  end
+  assert(last == #skeleton.output and literals == expected)
 end

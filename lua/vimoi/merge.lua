@@ -1,12 +1,12 @@
--- Transfer rendered hunks to target, or map target edits back into source.
+-- Put/get hunks and re-add target changes to ordinary or template sources.
 local M = {}
 local util = require("vimoi.util")
 local job = require("vimoi.job")
 local cli = require("vimoi.cli")
+local filetype = require("vimoi.filetype")
 local views = require("vimoi.gotmpl.view")
 local native_diff = require("vimoi.gotmpl.native_diff")
 local buffer_edits = require("vimoi.gotmpl.buffer_edits")
-local merge_plan = require("vimoi.gotmpl.merge_plan")
 local source_map = require("vimoi.gotmpl.source_map")
 local sessions = require("vimoi.gotmpl.session")
 
@@ -44,7 +44,9 @@ end
 ---@param choice VimoiMergeChoice
 ---@return VimoiMergeEdit[]
 local function choice_candidates(trace, choice)
+  local merge_plan = require("vimoi.gotmpl.merge_plan")
   local candidates = {}
+  local source_starts = trace.source_starts or util.line_starts(trace.source)
   for _, edit in ipairs(choice.candidates) do
     local source, _, source_edits = merge_plan.apply_source_edits(trace, { edit })
     local predicted = source and source_map.rebuild_after_edits(trace, source, source_edits)
@@ -52,7 +54,7 @@ local function choice_candidates(trace, choice)
       .. edit.replacement
       .. trace.output:sub(edit.rendered_end_byte + 1)
     if predicted and predicted.output == expected then
-      local row, col = util.byte_to_position(trace.source, edit.start_byte)
+      local row, col = util.byte_to_position(nil, edit.start_byte, source_starts)
       if edit.end_byte > edit.start_byte then
         edit.label = ("line %d:%d  replace %q with %q"):format(
           row + 1,
@@ -61,7 +63,8 @@ local function choice_candidates(trace, choice)
           edit.replacement
         )
       else
-        local line = util.text_lines(trace.source)[row + 1] or ""
+        local first, last = util.line_range(trace.source, source_starts, row + 1, 1)
+        local line = trace.source:sub(first + 1, last):gsub("\n$", "")
         edit.label = ("line %d:%d  %s▸%s"):format(row + 1, col + 1, line:sub(1, col), line:sub(col + 1))
       end
       candidates[#candidates + 1] = edit
@@ -110,13 +113,11 @@ end
 local function merge(mode)
   local requested_buf = vim.api.nvim_get_current_buf()
   local requested_line = vim.api.nvim_win_get_cursor(0)[1]
-  local session = views.by_window[vim.api.nvim_get_current_win()]
-  if session and not views.is_valid(session) then
-    views.close(session)
-  end
-  if not session or session.closed or session.preview then
+  local session = views.current()
+  if not session or session.preview then
     return util.notify("current buffer is not in a vimoi diff session", "diff", vim.log.levels.ERROR)
   end
+  local merge_plan = require("vimoi.gotmpl.merge_plan")
   -- Resolve direction before rendering can move focus to a wait window.
   local to_target = (mode == "put" and requested_buf == session.source_buf)
     or (mode == "get" and requested_buf == session.target_buf)
@@ -179,8 +180,12 @@ local function merge(mode)
   end
   if to_target then
     local hunk = hunks[1]
-    local rendered_start, rendered_end =
-      util.line_range(trace.output, util.line_starts(trace.output), hunk.rendered_start_line, hunk.rendered_line_count)
+    local rendered_start, rendered_end = util.line_range(
+      trace.output,
+      trace.output_starts or util.line_starts(trace.output),
+      hunk.rendered_start_line,
+      hunk.rendered_line_count
+    )
     local target_start, target_end =
       util.line_range(target_text, util.line_starts(target_text), hunk.target_start_line, hunk.target_line_count)
     -- Native diff copies source lines, which contain template actions. Copy
@@ -277,10 +282,76 @@ function M.get_hunk()
   return util.async(merge, "get")
 end
 
----Re-add all target hunks in the current template diff.
+---@param path? string Source or target path; defaults to the current buffer/session.
 ---@return VimoiReAddResult?
-function M.readd()
-  return util.async(merge, "readd")
+function M.readd(path)
+  local session = views.current()
+  if path and session then
+    path = util.normalize_path(path)
+    if
+      path ~= vim.api.nvim_buf_get_name(session.source_buf) and path ~= vim.api.nvim_buf_get_name(session.target_buf)
+    then
+      session = nil
+    end
+  end
+  if session and not session.preview then
+    return util.async(merge, "readd")
+  end
+  local source, target, resolve_error =
+    cli.resolve_paths(session and vim.api.nvim_buf_get_name(session.source_buf) or path or vim.api.nvim_buf_get_name(0))
+  if not source then
+    return util.notify(assert(resolve_error), "re-add", vim.log.levels.ERROR)
+  end
+  if filetype.is_template(source) then
+    if require("vimoi.gotmpl").open({ source = source, target = target }) then
+      return util.async(merge, "readd")
+    end
+    return
+  end
+
+  -- These source files encode an operation or ciphertext, not the target's text.
+  local name = vim.fs.basename(source):gsub("^create_", "")
+  if
+    filetype.path_kind(source) == "symlink_target"
+    or name:match("^encrypted_")
+    or name:match("^modify_")
+    or name:match("^run_")
+  then
+    return util.notify(
+      "re-add supports ordinary text files and templates; this source type needs manual editing",
+      "re-add",
+      vim.log.levels.ERROR
+    )
+  end
+  local buffers = {}
+  for _, filename in ipairs({ source, target }) do
+    -- bufadd uses an exact name and retains existing unsaved buffer contents.
+    local buf = vim.fn.bufadd(filename)
+    if not vim.api.nvim_buf_is_loaded(buf) then
+      local stat = vim.uv.fs_stat(filename)
+      if not stat or stat.type ~= "file" or not vim.uv.fs_access(filename, "R") then
+        return util.notify("cannot read file: " .. filename, "re-add", vim.log.levels.ERROR)
+      end
+      vim.fn.bufload(buf)
+    end
+    if not vim.api.nvim_buf_is_loaded(buf) or vim.bo[buf].buftype ~= "" then
+      return util.notify("cannot load a file buffer: " .. filename, "re-add", vim.log.levels.ERROR)
+    end
+    buffers[#buffers + 1] = buf
+  end
+  local source_buf, target_buf = buffers[1], buffers[2]
+  if not vim.bo[source_buf].modifiable then
+    return util.notify("source buffer is not modifiable", "re-add", vim.log.levels.ERROR)
+  end
+  require("vimoi.gotmpl").open({ source = source, target = target })
+  local source_text, target_text = util.buffer_text(source_buf), util.buffer_text(target_buf)
+  local edits = buffer_edits.diff(source_text, target_text)
+  if #edits > 0 then
+    buffer_edits.apply(source_buf, source_text, target_text, edits)
+    vim.cmd("diffupdate")
+  end
+  util.notify(("re-added %d hunks to source buffer; write the source to save"):format(#edits), "re-add")
+  return { merged = #edits, skipped = 0, reasons = {} }
 end
 
 return M
