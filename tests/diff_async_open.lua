@@ -154,19 +154,19 @@ util.set_buffer_text(pair.source_buf, 'value={{ "E" }}\n')
 local validations_before = #validations
 before = #requests
 deliver(pair.request)
-assert(#validations == validations_before + 1)
+assert(#validations == validations_before)
 validations[#validations]("value=A\n")
 assert(vim.wait(1000, function()
   return #requests == before + 1
 end))
 deliver(requests[#requests])
-assert(#validations == validations_before + 1 and vim.wo[pair.source_win].diff)
+assert(#validations == validations_before and vim.wo[pair.source_win].diff)
 
 -- Closing during cat validation cancels that process and rejects its late result.
 pair = open("closed-during-validation", true)
 deliver(pair.request)
 local validation_job = validation_jobs[#validation_jobs]
-assert(require("vimoi.gotmpl.session").get(pair.source_buf).job == validation_job)
+assert(require("vimoi.gotmpl.session").get(pair.source_buf).job)
 vim.api.nvim_win_close(pair.source_win, true)
 assert(vim.wait(1000, function()
   return validation_job.cancelled

@@ -390,8 +390,9 @@ require("vimoi.api").invalidate_cache()
   和 `.chezmoi.args` 模拟 `chezmoi cat target`。在 cat 与 apply 下产生不同结果的模板
   不在支持范围内。无名、未受管理、source-only 及 init 模板保留原生 execute-template 上下文。
 - `diff.validate = true`（默认）在首次打开文件、构造 source session 时校验一次，
-  使用固定磁盘基线与 `chezmoi cat` 比较。校验不受 buffer 编辑打断；通过后渲染最新
-  buffer，不再重复 cat 校验。失败时本次构造失败，重新打开文件后才能重新校验。
+  并行执行固定磁盘基线的哨兵渲染与 `chezmoi cat`，再比较输出。校验不受 buffer
+  编辑打断；通过后渲染最新 buffer，不再重复 cat 校验。失败时本次构造失败，
+  重新打开文件后才能重新校验。
   `false` 跳过校验。未受管理、source-only 和 init 模板跳过 cat。
 - 源码不能包含本次运行使用的保留哨兵前缀，动态输出不能产生完整保留标记。
   随机标记只降低意外碰撞概率；详细约束见 `:help vimoi-limitations`。

@@ -19,12 +19,12 @@ assert(vim.wait(2000, function()
   return require("vimoi.gotmpl.session").get(session.source_buf).job ~= nil
 end, 5))
 local job = assert(require("vimoi.gotmpl.session").get(session.source_buf).job)
-assert(not job.finished)
+assert(not job.cancelled)
 api.readd()
 assert(waiting() and vim.bo.filetype == "vimoi-progress")
 vim.fn.maparg("q", "n", false, true).callback()
 assert(vim.wait(2000, function()
-  return job.finished
+  return job.cancelled == true and session.closed == true
 end, 5))
 assert(job.cancelled and session.closed and not waiting())
 assert(util.buffer_text(session.source_buf) == original)

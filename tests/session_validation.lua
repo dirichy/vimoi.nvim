@@ -73,6 +73,7 @@ await(function()
   return #baselines == 1
 end)
 assert(baselines[1].source == disk)
+assert(#cats == 1, "cat must start before baseline rendering completes")
 util.set_buffer_text(source, 'value={{ "during baseline" }}\n')
 assert(not baselines[1].command.cancelled and state.initialized == nil)
 baseline(1)
@@ -210,6 +211,87 @@ cat(6).finish(text)
 assert(joined)
 assert(received and sessions.get(source).initialized)
 api.nvim_buf_delete(source, { force = true })
+
+-- Cat can finish first; publication still waits for the matching baseline.
+source = open("cat-first")
+received = false
+sessions.register(source, function(_, err)
+  assert(not err)
+  received = true
+end, { once = true, validate = true, target = "/validation/target" })
+cat(7).finish("value=disk\n")
+assert(not received and sessions.get(source).initialized == nil)
+baseline(7)
+assert(received and sessions.get(source).initialized)
+api.nvim_buf_delete(source, { force = true })
+
+-- A single cancellation owns both processes, including late completions.
+source = open("cancel-both")
+state = sessions.get(source)
+stop = sessions.register(source, function()
+  error("cancelled construction delivered")
+end, { validate = true, target = "/validation/target" })
+pending = cat(8)
+assert(#baselines == 8)
+stop(true)
+assert(pending.command.cancelled and baselines[8].command.cancelled)
+baseline(8)
+pending.finish("value=disk\n")
+assert(state.initialized == nil and state.map == nil)
+api.nvim_buf_delete(source, { force = true })
+
+-- Cancelling either process through its native command UI also stops its peer.
+for index, side in ipairs({ "cat", "baseline" }) do
+  local count = 8 + index
+  source = open("cancel-" .. side)
+  local cancellation
+  sessions.register(source, function(_, err)
+    cancellation = err
+  end, { once = true, validate = true, target = "/validation/target" })
+  pending = cat(count)
+  local request = baselines[count]
+  if side == "cat" then
+    pending.command.cancel()
+    pending.finish(nil, "command cancelled")
+  else
+    request.command.cancel()
+    request.finish(nil, "command cancelled")
+  end
+  await(function()
+    return cancellation ~= nil
+  end)
+  assert(cancellation == "command cancelled")
+  assert(pending.command.cancelled and request.command.cancelled)
+  assert(sessions.get(source).initialized == nil)
+  api.nvim_buf_delete(source, { force = true })
+end
+
+-- Errors retire the peer immediately instead of waiting for a password helper.
+for index, side in ipairs({ "cat", "baseline" }) do
+  local count = 10 + index
+  source = open("error-" .. side)
+  local failure
+  sessions.register(source, function(_, err)
+    failure = err
+  end, { once = true, validate = true, target = "/validation/target" })
+  pending = cat(count)
+  local request = baselines[count]
+  if side == "cat" then
+    pending.finish(nil, "cat failed")
+  else
+    request.finish(nil, "baseline failed")
+  end
+  await(function()
+    return failure ~= nil
+  end)
+  assert(failure == side .. " failed" and sessions.get(source).initialized == false)
+  assert(pending.command.cancelled and request.command.cancelled)
+  -- A cancelled peer may still report an already queued successful result.
+  pending.finish("value=disk\n")
+  baseline(count)
+  assert(sessions.get(source).initialized == false)
+  api.nvim_buf_delete(source, { force = true })
+end
 cli.run = run
 vim.fn.delete(root, "rf")
 print(

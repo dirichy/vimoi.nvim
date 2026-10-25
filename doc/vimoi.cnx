@@ -143,8 +143,9 @@ source root 和 init 模板/config 的对应关系只在 `setup()` 时初始化�
     true     默认值。首次打开文件、构造 session 时校验一次。
     false    跳过校验。
 
-构造时对固定的磁盘 source 基线执行哨兵渲染，与 `chezmoi cat` 比较。buffer 内容修改
-不会取消或重启校验。构造成功前不发布 output 或 map；通过后才渲染最新 buffer。
+构造时并行执行 `chezmoi cat` 与固定磁盘 source 基线的哨兵渲染，再比较输出。
+buffer 内容修改不会取消或重启校验。取消或失败会停止另一条任务。
+构造成功前不发布 output 或 map；通过后才渲染最新 buffer。
 之后的编辑、改名和上下文刷新不重复 cat 校验。preview、高亮、诊断、diff 和 merge
 共用构造状态。校验失败会记录为本次构造失败，继续编辑或保存不会重试；卸载并重新
 打开文件后重新构造，也可以显式关闭校验。关闭 source 或主动取消仍会停止任务。
@@ -731,8 +732,10 @@ require("vimoi.api").cancel_command()
 集成用途的函数直接从所属模块调用：
 `vimoi.blink` 提供 blink.cmp source 及候选生成，目前仅集成 blink.cmp。
 `require("vimoi.goto").resolve(buf, row, col, line)` 只解析路径，
-不打开文件。调试时可读取 `require("vimoi.gotmpl.session").last_profile` 查看最近一次
-模板视图的打开耗时（`mode` 为 "diff" 或 "preview"）。这些不属于上面的用户操作 API。
+不打开文件。调试时可读取 `require("vimoi.gotmpl.view").last_profile` 查看最近一次
+模板视图的打开耗时（`mode` 为 "diff" 或 "preview"）。并行构造时，`validation_ms`
+只计骨架渲染后继续等待 cat 的时间，重叠时间归入 `render_ms`。
+这些不属于上面的用户操作 API。
 
 ==============================================================================
 已知限制                                                *vimoi-limitations*

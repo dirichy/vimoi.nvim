@@ -52,8 +52,8 @@ local cli = require("vimoi.cli")
 ---@field target_path? string Managed target corresponding to source_path.
 ---@field initialized? boolean Nil while constructing; false caches construction failure, true enables rendering.
 ---@field validation_started? integer Start time of the last cat validation.
----@field validation_ms? number Time spent on the last cat validation.
----@field job? VimoiCommand
+---@field validation_ms? number Extra cat wait after baseline rendering; parallel time is counted as rendering.
+---@field job? { cancel: fun(), cancelled?: boolean }
 ---@field source_path? string Source path used for native host root discovery.
 
 ---@type table<integer, VimoiSourceSession>
@@ -280,35 +280,73 @@ local function construct(source, state)
       local target = assert(state.validation_target or state.target_path)
       local source_path = api.nvim_buf_get_name(source)
       local baseline, err = util.read_file(source_path)
-      local trace
+      local trace, actual
       if baseline then
-        trace, err = util.await(function(done)
-          state.job = renderer.trace_async(baseline, { prefix = renderer.context_prefix(source, false) }, done)
+        state.validation_started = vim.uv.hrtime()
+        trace, err, actual = util.await(function(done)
+          local jobs, remaining, settled = {}, 2, false
+          local render_error, cat_error, rendered_at, validated_at
+          local construction = { cancelled = false }
+          state.job = construction
+          function construction.cancel()
+            if settled then
+              return
+            end
+            settled, construction.cancelled = true, true
+            for _, job in pairs(jobs) do
+              job.cancel()
+            end
+            done(nil, "command cancelled")
+          end
+          local function finish()
+            if settled then
+              return
+            end
+            for _, job in pairs(jobs) do
+              if job.cancelled then
+                return construction.cancel()
+              end
+            end
+            remaining = remaining - 1
+            local error = render_error or cat_error
+            if remaining > 0 and not error then
+              return
+            end
+            settled = true
+            if error then
+              for _, job in pairs(jobs) do
+                job.cancel()
+              end
+            else
+              state.validation_ms = math.max(0, validated_at - rendered_at) / 1e6
+            end
+            done(trace, error, actual)
+          end
+          -- Start cat first; its process runs while the skeleton is prepared/rendered.
+          jobs[1] = cli.run({ "cat", target }, {
+            text = false,
+            callback = function(output, error)
+              actual, cat_error, validated_at = output, error, vim.uv.hrtime()
+              finish()
+            end,
+          })
+          if not settled then
+            jobs[2] = renderer.trace_async(
+              baseline,
+              { prefix = renderer.context_prefix(source, false) },
+              function(result, error)
+                trace, render_error, rendered_at = result, error, vim.uv.hrtime()
+                finish()
+              end
+            )
+          end
         end)
       end
       if buffers[source] ~= state or state.request ~= request then
         return
       end
-      if state.job and state.job.cancelled then
-        cancel(source, state)
-        return
-      end
-      if trace then
-        state.validation_started = vim.uv.hrtime()
-        local actual
-        actual, err = util.await(function(done)
-          state.job = cli.run({ "cat", target }, {
-            text = false,
-            callback = done,
-          })
-        end)
-        if buffers[source] ~= state or state.request ~= request then
-          return
-        end
-        state.validation_ms = (vim.uv.hrtime() - state.validation_started) / 1e6
-        if actual and actual ~= trace.output then
-          err = "sentinel rendering differs from `chezmoi cat`; this template uses an unsupported render context"
-        end
+      if trace and actual and actual ~= trace.output then
+        err = "sentinel rendering differs from `chezmoi cat`; this template uses an unsupported render context"
       end
       if state.job and state.job.cancelled then
         cancel(source, state)

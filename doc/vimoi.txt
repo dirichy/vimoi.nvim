@@ -169,8 +169,9 @@ Changes to `background` or the colorscheme refresh the selected color.
     true     Default. Validate once when the file's session is first constructed.
     false    Skip validation.
 
-The constructor renders a fixed on-disk source baseline with sentinels and compares
-its output with `chezmoi cat`. Buffer edits cannot cancel or restart this check.
+The constructor starts `chezmoi cat` and sentinel rendering of a fixed on-disk
+source baseline in parallel, then compares their outputs. Buffer edits cannot
+cancel or restart this check. Cancellation or failure stops the other task too.
 No output or map is published until construction succeeds. It then renders the
 latest buffer text; subsequent edits, renames and context refreshes do not repeat
 cat validation. Preview, highlighting, diagnostics, diff and merge share this state.
@@ -900,8 +901,10 @@ Integration-specific functions are available directly from their modules:
 `vimoi.blink` provides the blink.cmp source, including candidate generation;
 blink.cmp is the only supported completion integration.
 `require("vimoi.goto").resolve(buf, row, col, line)` resolves paths
-without opening them. For debugging, `require("vimoi.gotmpl.session").last_profile`
+without opening them. For debugging, `require("vimoi.gotmpl.view").last_profile`
 holds the latest template-view opening timings (`mode` is "diff" or "preview").
+With parallel construction, `validation_ms` counts only the extra cat wait after
+baseline rendering; overlapping time is included in `render_ms`.
 These are not part of the user-action API above.
 
 ==============================================================================

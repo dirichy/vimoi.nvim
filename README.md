@@ -434,7 +434,8 @@ Restart Neovim after changing the source root directory.
   Unnamed, unmanaged, source-only, and init templates keep their native
   `execute-template` context.
 - `diff.validate = true` (default) checks the file once when constructing its source
-  session, comparing a fixed on-disk baseline with `chezmoi cat`. Buffer edits do not
+  session, rendering a fixed on-disk baseline in parallel with `chezmoi cat` and
+  comparing their outputs. Buffer edits do not
   interrupt the check; after success, rendering uses the latest buffer text without
   further cat checks. Failure prevents construction until the file is reopened.
   Set it to `false` to skip validation. Unmanaged/source-only/init templates skip cat.
