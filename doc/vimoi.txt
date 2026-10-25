@@ -248,6 +248,10 @@ render results replace diagnostics and start checks, canceling the prior lint
 jobs. An unchanged mapping keeps its current checks.
 Changing host filetype or disabling host diagnostics detaches LSP clients
 without deleting the shared output.
+Deleting or unloading the rendered buffer is allowed. The source session retains
+its skeleton cache and validation state; remaining consumers recreate the output.
+With no consumers, it stays unloaded until the next preview/diff or automatic
+consumer requests it. Deleting a preview does not automatically reopen its view.
 
 The renderer reuses the same skeleton and completed CLI cache as diff/preview.
 Concurrent cached requests for the same skeleton/init mode/timeout share one

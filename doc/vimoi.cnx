@@ -202,6 +202,9 @@ vim.api.nvim_get_namespaces()["vimoi-diagnostics"] 取得 namespace。
 不再投射新到的 provider 结果；新渲染结果再替换诊断、启动检查并取消上一轮 lint。
 映射未变时保留现有检查。切换宿主 filetype 或关闭
 宿主诊断会解除 LSP 绑定，但不删除共享 output。
+允许删除或卸载渲染 buffer；source session 保留骨架缓存及校验状态，仍有使用方时会
+重建 output。没有使用方时保持卸载，直到再次打开 preview/diff 或自动功能需要它。
+删除预览不会自动重新打开视图。
 
 诊断复用 diff/preview 的骨架及已完成 CLI 缓存；相同骨架/init 模式/timeout 的并发缓存
 请求共用一个进程。关闭视图或诊断只取消该使用方，最后一个使用方取消时才杀掉进程；

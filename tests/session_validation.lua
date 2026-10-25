@@ -74,6 +74,13 @@ await(function()
 end)
 assert(baselines[1].source == disk)
 assert(#cats == 1, "cat must start before baseline rendering completes")
+local discarded = state.buf
+api.nvim_buf_delete(discarded, { force = true })
+await(function()
+  return state.buf ~= discarded
+end)
+assert(not baselines[1].command.cancelled and not cats[1].command.cancelled)
+assert(#baselines == 1 and #cats == 1, "output deletion restarted session construction")
 util.set_buffer_text(source, 'value={{ "during baseline" }}\n')
 assert(not baselines[1].command.cancelled and state.initialized == nil)
 baseline(1)

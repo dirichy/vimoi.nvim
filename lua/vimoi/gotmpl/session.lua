@@ -111,6 +111,7 @@ end
 ---@return boolean
 local function current(source, state)
   return state.initialized == true
+    and api.nvim_buf_is_loaded(state.buf)
     and state.map ~= nil
     and not state.error
     and not state.request
@@ -728,6 +729,19 @@ api.nvim_create_autocmd("BufUnload", {
       cancel_request(state)
       if api.nvim_buf_is_valid(state.buf) then
         api.nvim_buf_delete(state.buf, { force = true })
+      end
+    else
+      local source = vim.b[args.buf].vimoi_output_source
+      local owner = source and buffers[source]
+      if owner and owner.buf == args.buf then
+        owner.map = nil
+        require("vimoi.diagnostic").clear(source, true)
+        -- Let :bdelete/:bwipeout finish before replacing the shared buffer.
+        vim.schedule(function()
+          if buffers[source] == owner then
+            refresh(source)
+          end
+        end)
       end
     end
   end,
