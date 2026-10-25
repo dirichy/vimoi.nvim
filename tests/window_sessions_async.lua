@@ -8,16 +8,16 @@ require("vimoi").setup({
   diagnostics = { enabled = false },
   highlight = { mode = "disabled" },
 })
-local renderer = require("vimoi.gotmpl.source_map")
+local renderer = require("vimoi.render.source_map")
 local requests = {}
-package.loaded["vimoi.gotmpl.source_map"] = setmetatable({
+package.loaded["vimoi.render.source_map"] = setmetatable({
   trace_async = function(source, opts, callback)
     requests[#requests + 1] = { source = source, opts = opts, callback = callback }
   end,
 }, { __index = renderer })
 local api = require("vimoi.api")
-local sessions = require("vimoi.gotmpl.view")
-local util = require("vimoi.util")
+local sessions = require("vimoi.compare")
+local util = require("vimoi.core.util")
 local source, target = vim.fn.tempname() .. ".tmpl", vim.fn.tempname()
 vim.fn.writefile({ 'value={{ "A" }}' }, source)
 vim.fn.writefile({ "value=B" }, target)
@@ -54,7 +54,7 @@ assert(
   "shared rendering did not complete both views"
 )
 local output = preview.target_buf
-assert(output == require("vimoi.gotmpl.session").get(first.source_buf).buf)
+assert(output == require("vimoi.render").get(first.source_buf).buf)
 sessions.close(preview)
 assert(sessions.is_valid(first) and vim.b[first.source_buf].snacks_scroll == false)
 
@@ -83,7 +83,7 @@ assert(vim.wait(1000, function()
   return not latest.loading
 end))
 assert(sessions.is_valid(latest))
-assert(assert(require("vimoi.gotmpl.session").snapshot(latest.source_buf)).output == "value=C\n")
+assert(assert(require("vimoi.render").snapshot(latest.source_buf)).output == "value=C\n")
 
 -- A second preview borrows the existing output. Closing its source window
 -- releases only that view; the active diff and its mappings remain valid.

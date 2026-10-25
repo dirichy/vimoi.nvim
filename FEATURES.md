@@ -16,13 +16,13 @@
 
 | 功能 | 当前行为与实现位置 |
 | --- | --- |
-| 模板语法与 source map | `gotmpl/source_map.lua` 收集完整 template tag 与静态槽位；记录未执行、一次执行及重复执行的位置和顺序，处理 trim 和空控制块 |
+| 模板语法与 source map | `render/source_map.lua` 收集完整 template tag 与静态槽位；记录未执行、一次执行及重复执行的位置和顺序，处理 trim 和空控制块 |
 | 两窗口、三份数据的模板 diff | 展示 Source Template 与 Modified Target；Rendered Base 在后台参与比较 |
 | 双向打开 diff | `:VimoiDiff` 支持从 source 或 target 打开，也支持显式文件对；普通文件使用原生双文件 diff |
 | 独立 source/target 导航 | `:VimoiToggle [path]` / `api.toggle(path)` 切换到另一侧；默认 `<leader>ct`，复用双向路径缓存，不渲染、apply 或自动保存 |
 | 分屏方向 | `split = "vertical"`（默认）或 `"horizontal"`；diff/preview 共用，只影响新建分屏，已有窗口继续复用 |
 | 原生 diff 展示与导航 | 投影 hunks 后复用原生高亮、filler、`[c` / `]c` 和 `foldmethod=diff` |
-| 光标、滚动与折叠同步 | 通过 source map 对齐两个窗口；session 期间协调 Snacks smooth scroll，关闭最后一个共享视图后恢复设置 |
+| 光标、滚动与折叠同步 | 通过 source map 映射两个窗口并同步逻辑行偏移；重复输出选第一次执行，不保证屏幕行精确对齐；session 期间协调 Snacks smooth scroll，关闭最后一个共享视图后恢复设置 |
 | 静态修改写回模板 | target 的 dp / `:VimoiDiffPut`，source 的 do / `:VimoiDiffGet`；支持行内多个槽位、增删改和字面 `{{` 转义 |
 | 批量 re-add | `:VimoiReAdd [path]` / `readd(path)`；普通文本文件复制 target buffer 到 source，模板仅写回可推算的静态修改；接收任一侧路径，默认当前 buffer，需要时打开 diff，不自动保存 |
 | 渲染结果写入 target hunk | source 的 dp / `:VimoiDiffPut`，target 的 do / `:VimoiDiffGet`；复制渲染结果，支持动态输出和循环，不复制模板源码 |
@@ -31,7 +31,7 @@
 | 只读预览 | `:VimoiPreview [source]`；使用未保存的 source，结果临时且只读，不写真实 target；失败时保留旧结果并标明过期 |
 | 增量更新与缓存 | 编辑 debounce；静态、trim、重复区域等修改复用结构；新 action 结构异步渲染，过期结果不写入新状态 |
 | 窗口绑定 session | 重复打开或切换 diff/preview 复用双窗口；同一 buffer 的其他窗口/tab 可有独立视图 |
-| 文件类型识别与懒加载 | source 根目录内识别模板和特殊文件；普通 managed source 按真实 target 判断类型并保留原生初始化回调。规则统一在 `filetype.lua`，不建立全部 target 的属性索引 |
+| 文件类型识别与懒加载 | source 根目录内识别模板和特殊文件；普通 managed source 按真实 target 判断类型并保留原生初始化回调。源文件规则统一在 `core/source.lua`，Neovim 检测与注册位于 `editor/filetype.lua`，不建立全部 target 的属性索引 |
 | 宿主语言高亮 | 普通模板按真实 target 路径识别宿主语言，复用 CLI 路径缓存；默认渲染高亮、可选 gotmpl injection、模板背景色、脚本 shebang 与无 parser 时的 syntax 回退，特殊文件保留自身规则 |
 | 路径跳转 | 增强 gf / gF，支持 include、includeTemplate、template、glob、ignore/remove、symlink 等；多匹配使用 picker |
 | blink.cmp 补全 | 常用模板函数、data 字段、局部变量和 chezmoi 路径；action 外有 if/ifelse/range/with/define/block/comment snippet。目前只集成 blink |
@@ -70,9 +70,9 @@
 | 文件类型及管理属性识别与缓存 | source 根目录识别、按需 source/target 路径查询和缓存；普通模板与非模板 managed source 均按真实 target 名称识别 | 尚无全部受管理文件的属性索引；仅在具体操作需要时考虑 |
 | static/dynamic/repeated/boundary/unknown 分类 | 内部区分 static、dynamic、repeated、ambiguous，写回规划检查边界并报告跳过原因 | 稳定的用户可见分类与冲突浏览；不能认为完整五类模型已实现 |
 | 边界修改交互 | 控制边界插入有 picker；静态修改可按字节拆分 | 无法安全映射到静态槽位的修改由用户手动处理；复杂动态反向合并不在计划中 |
-| 渲染上下文 | 受管理模板以骨架前缀注入 sourceFile、targetFile、command="cat" 和 cat args；严格校验可与真实 cat 对照 | cat/apply 结果不同的模板不支持；无名、未受管理/source-only 和 init 模板保留 execute-template 上下文；校验默认 true，首次构造 session 时比较固定磁盘基线；编辑不会打断校验，通过后渲染最新 buffer；false 跳过，失败需重新打开文件或关闭校验 |
+| 渲染上下文 | 受管理模板以骨架前缀注入 sourceFile、targetFile、command="cat" 和 cat args；严格校验可与真实 cat 对照 | cat/apply 结果不同的模板不支持；无名、未受管理/source-only 和 init 模板保留 execute-template 上下文；校验默认 true，首次构造 session 时比较固定磁盘基线；编辑不会打断校验，通过后渲染最新 buffer；false 跳过，失败需重新打开文件，或在配置中关闭校验并重启 |
 | 编辑 source 时保留目标语言体验 | 已有独立 Toggle、目标文件类型、宿主语言高亮、预览和 diff | source 路径上的 LSP 工作区仍未解决 |
-| 模板语法校验 | 已有独立于 diff/preview 的默认 diagnostics，支持语法与执行错误定位 | 没有额外的手动完整原文校验命令；无法定位的错误仍以通知展示，沿用哨兵限制 |
+| 模板语法校验 | 已有独立于 diff/preview 的默认 diagnostics，支持语法与执行错误定位 | 没有额外的手动完整原文校验命令；无法定位的渲染错误在第一行显示诊断并标明位置不可用，沿用哨兵限制 |
 | 外部 source 变化后刷新 | 配置、data、include 模板依赖失效后自动延迟刷新现有视图，初次渲染由 source session 调度重试 | 不是全部 source state 的索引与属性自动重扫；未监听的新目录仍需手动 invalidate/rescan |
 | 安静通知与可替换通知 | 普通通知走 `vim.notify`，支持用户替换；后台任务不抢焦点 | 任务进度由 job 自有浮窗显示，尚无替换该 UI 的配置；写回成功仍有通知 |
 | 工程质量配置与测试 | 当前功能的配置、路径/命令/缓存/写回/窗口测试、checkhealth 和中英文 help | 未来新增功能时扩展相应测试，不为已取消的自动同步规划测试 |

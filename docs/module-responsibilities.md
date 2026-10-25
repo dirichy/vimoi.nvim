@@ -1,5 +1,86 @@
 # 模块职责整理与实测
 
+## 当前结构：render 配置与模块命名
+
+`diff.validate` 和中间版本的 `session.validate` 已统一为 `render.validate`，因为构造校验
+属于共享渲染服务。旧 `diff` / `session` 配置会提示迁移错误；`api.diff` / `api.diff_files` 的单次 `validate` 参数保留，
+仍覆盖共享 source session 的构造策略。
+
+原 `lua/vimoi/gotmpl/` 同时包含渲染、窗口和写回逻辑，不能整体准确地称为 render。
+内部模块按五个主要职责归组；顶层只保留 `init.lua`、`api.lua`、`blink.lua` 和 `health.lua`
+这四个配置、用户操作及 Neovim 集成入口。
+
+| 目录 | 模块与职责 |
+| --- | --- |
+| `core/` | `cli`、`job`、`watch` 管理 chezmoi 命令、任务与监听；`source` 统一源文件规则；`util`、`buffer_edits` 提供共享工具和局部字节修改 |
+| `render/` | `init` 按 source session 管理 source 级校验、渲染、输出 buffer、防抖、缓存和订阅；`source_map` 管理模板结构、哨兵和位置映射 |
+| `compare/` | `init` 统一打开 diff/preview 并管理窗口生命周期；`diff_hunks` 计算差异块及 source 投射；`native_diff`、`sync_scroll` 处理原生 diff 适配及滚动同步 |
+| `merge/` | `init` 统一显式写回流程；`plan` 负责模板合并规划与转义 |
+| `editor/` | `filetype`、`lazyload` 管理文件类型与加载；`highlight`、`host_highlight`、`diagnostic`、`goto` 管理高亮、诊断和导航 |
+
+`render/init.lua` 是共享渲染服务入口，直接加载为 `require("vimoi.render")`；
+内部每个 source 的渲染状态仍称 session，相关类型和生命周期保持不变。
+`compare/init.lua` 合并原打开入口与视图生命周期；`merge/init.lua` 保留写回入口。
+两者直接实现逻辑，不增加转发模块。`require("vimoi.compare")` 与 `require("vimoi.merge")`
+仍直接加载各自目录下的 `init.lua`。
+`core/buffer_edits.lua` 被 session、preview 和 merge 共用，因此不归某个功能目录独占。
+目录仅用于组织代码，不改变模块加载时机、共享状态所有权或取消/清理规则。
+
+打开入口合并后曾从 24 个模块减为 23 个；文件规则独立后当前为 24 个模块。
+不保留旧内部 require 路径的兼容入口。
+
+上述职责调整阶段相对此前工作区净增 **5 行运行时代码**（7,056 → 7,061，包含空行、
+注释和类型声明，不计测试、文档）：
+
+- `core/source.lua` 集中 init 文件名、模板规则和路径语义，不初始化 Neovim filetype、
+  不加载 CLI；`editor/filetype.lua` 复用同一规则表，仅处理 Neovim 检测、注册和宿主语言。
+  CLI、render、merge、goto 直接使用规则模块。
+- 原 `view/` 改为按对照功能命名的 `compare/`：preview 对照 source 与渲染结果，
+  diff 对照 source 与 target。`compare/diff_hunks.lua` 是视图和合并共用的纯计算，
+  与窗口实现分别维护；diff/preview 继续共用窗口生命周期，不增加转发或协调模块。
+- 无法定位的渲染错误直接作为第一行诊断展示，保留原始错误并注明位置不可用。
+  重复刷新覆盖同一诊断，成功后自动清除；删除 `reported` 与 `render.report_error()`，
+  不再维护通知去重状态。
+- 自动诊断/高亮消费者的合并订阅、开关协调与清理仍留在 render。暂不新增消费者
+  调度模块，避免为了依赖分层再引入生命周期协议。
+真正的 `gotmpl` filetype、Tree-sitter parser 和 query 仍使用原名。
+这轮整理不改变渲染算法，不据此声称性能提升。
+
+## 简化配置、滚动与计时
+
+以下是独立于上述模块迁移的一轮行为调整：运行时 Lua 从 **7,061 行减少到 6,913 行**，
+净减 **148 行**，模块仍为 24 个。行数包含注释、空行和类型，不含测试、benchmark 与文档。
+
+- `setup()` 只初始化一次，重复调用明确报错，配置修改后重启。删除固定/动态配置的
+  区分、已有 session 的开关迁移和高亮模式切换时的全量刷新；初始化失败仍可重试。
+  公共 setup 使用 `util.once(initialize, { repeat_error = "..." })` 明确拒绝重复调用；省略该选项的
+  内部初始化仍保持幂等。
+- source 到重复输出固定选第一次执行。基本双向行对应、范围高亮和滚动同步保留；
+  视口只同步逻辑行偏移，不再追求精确屏幕行对齐，也不补偿多行展开的完整可见性。
+  折叠、换行和文件边界使用 Neovim 原生行为。
+- 删除 `last_profile`、cat/渲染时间戳以及打开流程中的计时参数。
+
+端到端测量现在运行：
+
+```sh
+NVIM_LOG_FILE=/tmp/vimoi-compare-benchmark.log nvim --headless -n -i NONE -u NONE -l tests/compare_benchmark.lua
+```
+
+脚本自行建立临时 source、target、chezmoi 配置及 persistent state。关闭自动诊断和
+宿主高亮，保留默认 cat 校验；分别测量 1 行、1,000 行模板的 diff 与 preview。
+每组使用独立的新 source session，预热 2 次后记录 5 次并输出 JSON 中位数及样本。
+计时从调用用户入口到视图和映射就绪，不包括 setup、源文件加载或屏幕绘制；
+通过真实渲染结果校验，轮询间隔 1ms。可用 `VIMOI_BENCH_RESULT` 指定 JSON 输出路径。
+
+这个脚本用于观察端到端 wall time；局部 CPU 和调用次数仍使用
+`tests/render_cache_benchmark.lua`，构造校验使用 `tests/session_validation_benchmark.lua`。
+脚本独立运行，比较版本时保持 fixture、配置和运行环境一致，不与测试或 LSP 并行。
+本轮不据代码删减声称运行速度提升。
+
+## 前一轮整理与性能记录
+
+以下记录对应此前从 26 个模块整理到 24 个模块的版本，不是当前命名迁移的性能对照。
+
 日期：2026-10-25；整理前基线为 `9a6c1c0`。用户操作 API 和配置保持不变。
 
 ## 保留的改动
@@ -62,7 +143,8 @@ XDG_STATE_HOME=/tmp/vimoi-render-bench-state NVIM_LOG_FILE=/tmp/vimoi-render-ben
   nvim --headless -n -i NONE -u NONE -l tests/render_cache_benchmark.lua
 ```
 
-对比基线时，用 `9a6c1c0` 的 checkout 作为 cwd，运行同一份 benchmark 脚本即可。
+复现这轮历史对照时，请使用该轮版本的 benchmark 脚本；以 `9a6c1c0` 的 checkout
+作为基线 cwd。当前脚本已迁移内部模块名称，不能直接在旧 checkout 中运行。
 
 ## 补查重复扫描
 

@@ -10,8 +10,8 @@ require("vimoi").setup({
 })
 
 local api = require("vimoi.api")
-local sessions = require("vimoi.gotmpl.view")
-local util = require("vimoi.util")
+local sessions = require("vimoi.compare")
+local util = require("vimoi.core.util")
 local function await(predicate)
   assert(vim.wait(3000, predicate, 10), "session validity test timed out")
 end

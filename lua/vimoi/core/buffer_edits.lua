@@ -1,5 +1,5 @@
 local M = {}
-local util = require("vimoi.util")
+local util = require("vimoi.core.util")
 
 ---@class VimoiBufferEdit: VimoiByteRange
 ---@field replacement string

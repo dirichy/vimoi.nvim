@@ -1,5 +1,5 @@
 ---@diagnostic disable: duplicate-set-field -- Hold shared process completions to test callback failures.
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 local original_run = cli.run
 local pending
 local processes = 0

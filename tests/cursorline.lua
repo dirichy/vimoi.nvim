@@ -1,9 +1,9 @@
 vim.opt.swapfile = false
 require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
-local api, util = vim.api, require("vimoi.util")
-local views, sessions = require("vimoi.api"), require("vimoi.gotmpl.view")
-local source_map = require("vimoi.gotmpl.source_map")
-local sync = require("vimoi.gotmpl.sync_scroll")
+local api, util = vim.api, require("vimoi.core.util")
+local views, sessions = require("vimoi.api"), require("vimoi.compare")
+local source_map = require("vimoi.render.source_map")
+local sync = require("vimoi.compare.sync_scroll")
 local await = dofile("tests/helpers/await.lua")
 
 for _, case in ipairs({
@@ -37,8 +37,7 @@ for _, case in ipairs({
   sessions.close(session)
 end
 
--- Repeated executions retain the existing nearest-occurrence behavior,
--- including when only the target cursor changes between queries.
+-- Repeated executions always use the first occurrence, independent of the target cursor.
 vim.cmd("tabnew")
 local source, target = api.nvim_get_current_buf(), api.nvim_create_buf(true, false)
 local loop = "{{ range list 1 2 3 }}\nitem={{ . }}\n{{ end }}tail\n"
@@ -50,12 +49,12 @@ local session = assert(sessions.by_window[api.nvim_get_current_win()])
 for _, target_line in ipairs({ 6, 2, 4 }) do
   api.nvim_win_set_cursor(session.target_win, { target_line, 0 })
   local first, last = sync.target_range(session, 2)
-  assert(first == target_line and last == target_line, "occurrence selection changed")
+  assert(first == 2 and last == 2, "source range did not select its first execution")
   local _, line = sync.corresponding_line(session, session.source_win, 2)
-  assert(line == target_line)
+  assert(line == 2)
 end
 sessions.close(session)
 
 print(
-  "cursorline: full action expansion, changed hunks, middle row, inactive text and nearest repeated occurrences verified"
+  "cursorline: full action expansion, changed hunks, middle row, inactive text and first repeated occurrences verified"
 )

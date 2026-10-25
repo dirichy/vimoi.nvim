@@ -19,7 +19,7 @@ vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
 require("vimoi").setup({ chezmoi_executable = wrapper })
 
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 -- Both directions must resolve independently, without a previous diff session.
 assert(cli.counterpart_path(target) == source)
 cli.invalidate()

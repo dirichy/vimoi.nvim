@@ -125,7 +125,7 @@ require("vimoi").setup({
   chezmoi_config_path = nil, -- Optional chezmoi configuration file path
   split = "vertical", -- Or "horizontal"
   watch = { buffer_write_fallback = "auto" },
-  diff = { validate = true },
+  render = { validate = true },
   completion = { enabled = true },
   diagnostics = { enabled = true, host = true },
   highlight = {
@@ -157,11 +157,14 @@ require("vimoi").setup({
 
 </details>
 
+`render.validate` controls construction checks shared by preview, highlighting, diagnostics, and diff.
+Move old `diff = { validate = ... }` or `session = { validate = ... }` settings
+to `render = { validate = ... }`; old options report a migration error.
+
 `chezmoi_config_path` selects another chezmoi configuration file. It supports `~` and relative paths,
 resolved against the working directory at setup; read environment variables explicitly with `vim.env`.
-Executable/config paths, watch options, and keymaps are fixed after the first successful setup;
-restart Neovim to change them. Other options can be updated with another setup call;
-omitted updatable options revert to defaults. See `:help vimoi-setup`.
+`setup()` initializes the plugin once. Put all options in that call; subsequent calls
+report an error. Restart Neovim after changing configuration. See `:help vimoi-setup`.
 
 ## Preview, compare, and write back
 
@@ -189,6 +192,9 @@ target. If rendering fails, the previous output is retained and marked as stale.
 Repeated diff/preview commands reuse the current window pair. Closing either window or
 replacing its buffer ends the view. Set `split = "horizontal"` for a horizontal split;
 existing windows are not rearranged.
+
+Both views synchronize corresponding lines and logical viewport offsets. Repeated
+output uses its first execution; exact screen-row alignment is not guaranteed.
 
 ### Compare and transfer a hunk
 
@@ -253,7 +259,8 @@ Enabled host modes fall back to Vim syntax when the host parser is missing.
 `highlight.template_bg` borrows `NormalFloat` by default; use another highlight group, a color,
 or `{ dark = "#123456", light = "#E4E9F4" }` to customize it.
 
-Template diagnostics run as you edit without opening diff or preview. Host diagnostics reuse
+Template diagnostics run as you edit without opening diff or preview. Rendering errors
+without a source location appear on the first line, with the original message and a location-unavailable label. Host diagnostics reuse
 existing configuration: enable the server with `vim.lsp.enable()` or configure
 `require("lint").linters_by_ft`, without listing checkers again in vimoi.
 The plugin checks rendered output and maps errors back to source. Static text gets precise locations;
@@ -410,7 +417,7 @@ See the [implementation comparison and historical research](docs/plugin-comparis
 - Changes to dynamic or repeated output usually need manual source edits. General reverse merging and automatic ReAdd are outside the scope.
 - `define` / `block` bodies have no internal source mapping, so even static text in them needs manual edits.
 - Custom template delimiters and templates producing different results under `chezmoi cat` and `apply` are unsupported.
-- `diff.validate = true` checks the on-disk baseline against `chezmoi cat` when first constructing a file's source session. Reopen the file after failure. Unnamed, unmanaged, source-only, and init templates skip this check.
+- `render.validate = true` checks the on-disk baseline against `chezmoi cat` when first constructing a file's source session. Reopen the file after failure. Unnamed, unmanaged, source-only, and init templates skip this check.
 - Data and shared-template changes usually refresh automatically. Environment changes, time-sensitive functions, and undiscovered directories may need a manual refresh.
 - Formatting, icons, transparent encryption, managed-file browsing, and apply commands are not provided. Use the chezmoi CLI for file attributes and deployment.
 

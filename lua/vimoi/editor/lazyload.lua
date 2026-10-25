@@ -18,7 +18,7 @@ local function attach_goto_keymaps(buf)
   end
 end
 
-M.setup = require("vimoi.util").once(function()
+M.setup = require("vimoi.core.util").once(function()
   local group = vim.api.nvim_create_augroup("vimoi-buffers", { clear = true })
 
   vim.api.nvim_create_autocmd("FileType", {
@@ -34,9 +34,9 @@ M.setup = require("vimoi.util").once(function()
           and vim.bo[buf].filetype == "gotmpl"
           and not vim.b[buf].vimoi_template_configured
         then
-          require("vimoi.highlight").configure_template_buffer(
+          require("vimoi.editor.highlight").configure_template_buffer(
             buf,
-            require("vimoi.filetype").host_filetype(vim.api.nvim_buf_get_name(buf), buf)
+            require("vimoi.editor.filetype").host_filetype(vim.api.nvim_buf_get_name(buf), buf)
           )
         end
       end)
@@ -46,7 +46,7 @@ M.setup = require("vimoi.util").once(function()
   vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
     group = group,
     -- These are path-aware files but are not detected as gotmpl.
-    pattern = require("vimoi.filetype").symlink_pattern,
+    pattern = require("vimoi.core.source").symlink_pattern,
     callback = function(args)
       attach_goto_keymaps(args.buf)
     end,

@@ -1,8 +1,8 @@
 -- Compare collectors without changing production code. Both variants retain
 -- the same dirty-range cache, tag merging, trim, and template-parts export.
-local util = require("vimoi.util")
-local production_parse = require("vimoi.gotmpl.source_map").parse
-local source_map_source = assert(util.read_file("lua/vimoi/gotmpl/source_map.lua"))
+local util = require("vimoi.core.util")
+local production_parse = require("vimoi.render.source_map").parse
+local source_map_source = assert(util.read_file("lua/vimoi/render/source_map.lua"))
 local collector_start = assert(source_map_source:find("local function collect_tags", 1, true))
 local collector_end = assert(source_map_source:find("\n-- Map a position", collector_start, true))
 
@@ -13,7 +13,7 @@ local query_collector = [=[
 local delimiter_query = vim.treesitter.query.parse("gotmpl", [[
   ["{{" "{{-"] @opening
 ]])
-local util = require("vimoi.util")
+local util = require("vimoi.core.util")
 local function collect_tags(node, result, range_start_byte, range_end_byte, source, buf)
   local function position(byte)
     if not buf then
@@ -110,7 +110,7 @@ end
 
 -- Reuse the incremental mutation suite, but compare every query result to the
 -- production collector as well as the suite's cold parse/snapshot assertions.
-local source_map = require("vimoi.gotmpl.source_map")
+local source_map = require("vimoi.render.source_map")
 local saved_parse = source_map.parse
 source_map.parse = check_parts
 local mutation_ok, mutation_error = pcall(dofile, "tests/source_map_incremental.lua")

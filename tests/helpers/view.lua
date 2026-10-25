@@ -3,7 +3,7 @@
 ---@param buf integer
 ---@return VimoiTemplateView?
 return function(buf)
-  local sessions = require("vimoi.gotmpl.view").by_window
+  local sessions = require("vimoi.compare").by_window
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     local session = sessions[win]
     if session and (session.source_buf == buf or session.target_buf == buf) then

@@ -28,7 +28,7 @@ assert(api.toggle() == target)
 assert(api.toggle() == source and vim.api.nvim_get_current_buf() == source_buf)
 assert(vim.bo[source_buf].modified and vim.fn.readfile(source)[1] == "return {{ 1 }}")
 assert(vim.fn.readfile(target)[1] == "return 2", "navigation applied or saved a file")
-assert(package.loaded["vimoi.gotmpl"] == nil, "navigation unnecessarily loaded the view module")
+assert(package.loaded["vimoi.compare"] == nil, "navigation unnecessarily loaded the view module")
 
 vim.cmd("VimoiToggle " .. vim.fn.fnameescape(source))
 assert(vim.api.nvim_buf_get_name(0) == target)
@@ -45,7 +45,7 @@ vim.opt.hidden = true
 
 -- A preview URI resolves through its owning source, never as a real file.
 api.preview({ source = source })
-local sessions = require("vimoi.gotmpl.view")
+local sessions = require("vimoi.compare")
 local session = assert(sessions.by_window[vim.api.nvim_get_current_win()])
 assert(vim.wait(5000, function()
   return not session.loading

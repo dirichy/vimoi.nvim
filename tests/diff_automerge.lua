@@ -1,7 +1,7 @@
 local run_async = dofile("tests/helpers/await.lua")
-local source_map = require("vimoi.gotmpl.source_map")
-local diff_hunks = require("vimoi.gotmpl.diff_hunks")
-local merge_plan = require("vimoi.gotmpl.merge_plan")
+local source_map = require("vimoi.render.source_map")
+local diff_hunks = require("vimoi.compare.diff_hunks")
+local merge_plan = require("vimoi.merge.plan")
 
 local function plan(source, modified)
   local trace, trace_error = run_async(source_map.trace, source)

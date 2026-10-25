@@ -1,8 +1,8 @@
 local run_async = dofile("tests/helpers/await.lua")
 local view_for_buffer = dofile("tests/helpers/view.lua")
 local api = require("vimoi.api")
-local util = require("vimoi.util")
-local cli = require("vimoi.cli")
+local util = require("vimoi.core.util")
+local cli = require("vimoi.core.cli")
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 local root = vim.fn.tempname() .. " chezmoi preview"
 vim.fn.mkdir(root, "p")
@@ -16,7 +16,7 @@ vim.fn.writefile({
   "exec " .. vim.fn.shellescape(fixture .. "/chezmoi-wrapper.sh") .. ' "$@"',
 }, wrapper)
 assert(vim.uv.fs_chmod(wrapper, 493))
-require("vimoi").setup({ chezmoi_executable = wrapper, diff = { validate = true } })
+require("vimoi").setup({ chezmoi_executable = wrapper, render = { validate = true } })
 vim.opt.swapfile = false
 local function executions()
   return #vim.tbl_filter(function(command)
@@ -89,7 +89,7 @@ await(function()
 end)
 vim.api.nvim_set_current_win(source_win)
 
--- Literal edits reuse the rendered structure without any process, even with diff.validate enabled.
+-- Literal edits reuse the rendered structure without any process, even with render.validate enabled.
 local before = executions()
 local changed = unsaved:gsub('"unsaved"', '"changed"')
 change(source_buf, changed)

@@ -3,8 +3,8 @@
 -- the parser and queries remain native, only the decoration destination changes.
 local M = {}
 local api = vim.api
-local util = require("vimoi.util")
-local sessions = require("vimoi.gotmpl.session")
+local util = require("vimoi.core.util")
+local sessions = require("vimoi.render")
 local namespace = api.nvim_create_namespace("vimoi-host-highlight")
 
 ---@class VimoiHostHighlight

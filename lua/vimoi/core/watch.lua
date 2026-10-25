@@ -1,5 +1,5 @@
 local M = {}
-local util = require("vimoi.util")
+local util = require("vimoi.core.util")
 
 ---@class VimoiWatchRule
 ---@field path? string
@@ -116,7 +116,7 @@ function M.refresh()
         vim.schedule(function()
           local scope_to_invalidate = pending_scope
           pending_scope = nil
-          require("vimoi.cli").invalidate(scope_to_invalidate)
+          require("vimoi.core.cli").invalidate(scope_to_invalidate)
         end)
       end)
       if started then
@@ -148,7 +148,7 @@ M.setup = util.once(function(opts)
       end
       local rule = matching_rule(path)
       if rule then
-        require("vimoi.cli").invalidate(rule.scope)
+        require("vimoi.core.cli").invalidate(rule.scope)
       end
     end,
   })

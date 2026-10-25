@@ -19,7 +19,7 @@ local defaults = {
   watch = {
     buffer_write_fallback = "auto",
   },
-  diff = {
+  render = {
     validate = true,
   },
   completion = {
@@ -49,7 +49,6 @@ local defaults = {
 }
 
 M.config = vim.deepcopy(defaults)
-local structural_config
 
 ---Configure vimoi.nvim.
 ---@class VimoiKeymaps
@@ -77,18 +76,23 @@ local structural_config
 ---@field chezmoi_config_path? string
 ---@field split? "vertical"|"horizontal" Orientation for newly created diff/preview splits.
 ---@field watch? VimoiWatchOptions
----@field diff? { validate?: boolean }
+---@field render? { validate?: boolean }
 ---@field completion? { enabled?: boolean }
 ---@field diagnostics? { enabled?: boolean, host?: boolean }
 ---@field highlight? { mode?: "injection"|"rendered"|"disabled", template_bg?: string|{ dark: string, light: string } }
 ---@field keymaps? VimoiKeymaps|false
 
 ---@param opts? VimoiConfig
-function M.setup(opts)
+M.setup = require("vimoi.core.util").once(function(opts)
   if vim.fn.has("nvim-0.12") == 0 then
     error("vimoi.nvim requires Neovim 0.12 or newer")
   end
   vim.validate("opts", opts, "table", true)
+  for _, name in ipairs({ "diff", "session" }) do
+    if opts and rawget(opts, name) ~= nil then
+      error(name .. " configuration has moved to render; use render = { validate = true/false }", 0)
+    end
+  end
   local config = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
   -- Reject bad public settings before one-time CLI/watch/keymap initialization.
   vim.validate("chezmoi_executable", config.chezmoi_executable, "string")
@@ -103,8 +107,8 @@ function M.setup(opts)
     config.highlight.mode == "injection" or config.highlight.mode == "rendered" or config.highlight.mode == "disabled",
     "highlight.mode must be injection, rendered or disabled"
   )
-  vim.validate("diff", config.diff, "table")
-  vim.validate("diff.validate", config.diff.validate, "boolean")
+  vim.validate("render", config.render, "table")
+  vim.validate("render.validate", config.render.validate, "boolean")
   vim.validate("watch", config.watch, "table")
   local fallback = config.watch.buffer_write_fallback
   assert(fallback == "auto" or type(fallback) == "boolean", "watch.buffer_write_fallback must be auto, true or false")
@@ -122,31 +126,18 @@ function M.setup(opts)
       config.keymaps[name] = false
     end
   end
-  -- These options own process identity, watchers, and installed buffer mappings.
-  -- Omitted structural settings retain their setup-time values on later calls.
-  local structural = {}
-  for _, key in ipairs({ "chezmoi_executable", "chezmoi_config_path", "watch", "keymaps" }) do
-    if structural_config and (not opts or opts[key] == nil) then
-      config[key] = vim.deepcopy(structural_config[key])
-    end
-    structural[key] = config[key]
-  end
-  if structural_config and not vim.deep_equal(structural, structural_config) then
-    error("vimoi process, watch, and keymap settings cannot change after setup; restart Neovim", 0)
-  end
-  local cli = require("vimoi.cli")
+  local cli = require("vimoi.core.cli")
   cli.setup(config.chezmoi_executable, config.chezmoi_config_path)
-  require("vimoi.watch").setup(vim.tbl_extend("force", config.watch, {
+  require("vimoi.core.watch").setup(vim.tbl_extend("force", config.watch, {
     source_root = cli.source_root,
     config_path = cli.config_path,
   }))
-  structural_config = vim.deepcopy(structural)
   M.config = config
-  require("vimoi.highlight").setup()
-  require("vimoi.filetype").setup(cli.source_root)
-  require("vimoi.lazyload").setup()
-  require("vimoi.gotmpl.session").setup()
+  require("vimoi.editor.highlight").setup()
+  require("vimoi.editor.filetype").setup(cli.source_root)
+  require("vimoi.editor.lazyload").setup()
+  require("vimoi.render").setup()
   require("vimoi.api").register()
-end
+end, { repeat_error = "vimoi is already configured; restart Neovim to change options" })
 
 return M

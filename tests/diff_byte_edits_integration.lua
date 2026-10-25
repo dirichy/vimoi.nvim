@@ -5,8 +5,8 @@ local fixture = root .. "/tests/fixtures/environment"
 local wrapper = fixture .. "/chezmoi-wrapper.sh"
 local source = fixture .. "/source/dot_byte_edits.tmpl"
 local target = vim.fn.tempname()
-local util = require("vimoi.util")
-local source_map = require("vimoi.gotmpl.source_map")
+local util = require("vimoi.core.util")
+local source_map = require("vimoi.render.source_map")
 
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"

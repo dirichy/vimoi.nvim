@@ -7,7 +7,7 @@ action 的高亮及背景，不关闭诊断或 source map。
 
 ## 渲染与生命周期
 
-`gotmpl/session.lua` 按 source/context 管理异步渲染和 120ms debounce，视图、高亮和诊断复用同一计算链。
+`render/init.lua` 按 source/context 管理异步渲染和 120ms debounce，视图、高亮和诊断复用同一计算链。
 诊断发布和渲染高亮分别由开关控制。静态文本修改复用骨架渲染结果，重新恢复当前原文及映射。
 
 每个 source buffer 对应唯一的只读 output buffer，preview 直接展示它，diff 读取它的映射及文本，

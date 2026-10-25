@@ -1,5 +1,5 @@
 ---@diagnostic disable: duplicate-set-field -- Hold picker results after navigation context changes.
-local navigation = require("vimoi.goto")
+local navigation = require("vimoi.editor.goto")
 local original_resolve, original_select = navigation.resolve, vim.ui.select
 local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")

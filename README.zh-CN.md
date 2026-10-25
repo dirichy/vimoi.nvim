@@ -122,7 +122,7 @@ require("vimoi").setup({
   chezmoi_config_path = nil, -- 可选的 chezmoi 配置文件路径
   split = "vertical", -- 或 "horizontal"
   watch = { buffer_write_fallback = "auto" },
-  diff = { validate = true },
+  render = { validate = true },
   completion = { enabled = true },
   diagnostics = { enabled = true, host = true },
   highlight = {
@@ -154,9 +154,13 @@ require("vimoi").setup({
 
 </details>
 
+`render.validate` 控制 preview、高亮、诊断和 diff 共用的 session 构造校验。
+旧配置 `diff = { validate = ... }` 或 `session = { validate = ... }`
+需改为 `render = { validate = ... }`；使用旧字段会提示迁移错误。
+
 `chezmoi_config_path` 可指定其他 chezmoi 配置文件，支持 `~` 和相对路径；相对路径以 setup 时的工作目录为准，环境变量需通过 `vim.env` 显式读取。
-进程/config 路径、watch 和 keymaps 在首次成功 setup 后固定，修改后需重启 Neovim。
-其他选项可再次 setup 更新，省略的可更新选项恢复默认值。详见 `:help vimoi-setup`。
+`setup()` 只初始化一次，请在这次调用中传入全部配置；后续调用会报错。
+修改配置后重启 Neovim。详见 `:help vimoi-setup`。
 
 ## 预览、比较与写回
 
@@ -182,6 +186,8 @@ target 的模板片段。预览不会修改真实 target；渲染失败时保留
 
 重复执行 diff/preview 会复用当前窗口对。关闭或替换任一侧即可结束该视图。
 `split = "horizontal"` 可改成上下分屏；已有窗口不会重新排列。
+
+两侧按对应行和逻辑行偏移同步；重复输出固定选择第一次执行，不保证屏幕行精确对齐。
 
 ### 比较与修改一个 hunk
 
@@ -238,7 +244,8 @@ target 的模板片段。预览不会修改真实 target；渲染失败时保留
 缺少宿主 parser 时，启用宿主高亮的模式回退到 Vim syntax。
 `highlight.template_bg` 默认借用 `NormalFloat` 背景，可改为其他高亮组名、颜色或 `{ dark = "#123456", light = "#E4E9F4" }`。
 
-模板诊断默认随编辑检查，无须打开 diff 或 preview。宿主诊断复用已有配置：
+模板诊断默认随编辑检查，无须打开 diff 或 preview。无法定位到源码的渲染错误显示在第一行，
+保留原始错误文本，并注明没有对应源码位置。宿主诊断复用已有配置：
 照常用 `vim.lsp.enable()` 启用语言服务器，或配置 `require("lint").linters_by_ft`，无须在 vimoi 中再列一份检查器。
 插件检查渲染结果，把错误映射回 source；静态文本精确定位，动态输出指向产生它的模板区域，无法明确定位的输出跳过。
 消息以 `[gotmpl]` 或 `[host:lua]`、`[host:yaml]` 等区分。
@@ -379,7 +386,7 @@ api.cancel_command()        -- 取消耗时命令
 - 动态或重复输出的修改通常需手动编辑 source；不提供通用反向合并或自动 ReAdd。
 - `define` / `block` 正文不建立内部映射，其中的静态文本也需手动修改。
 - 不支持自定义模板分隔符，或在 `chezmoi cat` 与 `apply` 下生成不同结果的模板。
-- 默认 `diff.validate = true` 在文件 source session 首次构造时对照 `chezmoi cat` 校验磁盘基线；失败后需重新打开文件。无名、未受管理、source-only 和 init 模板跳过该校验。
+- 默认 `render.validate = true` 在文件 source session 首次构造时对照 `chezmoi cat` 校验磁盘基线；失败后需重新打开文件。无名、未受管理、source-only 和 init 模板跳过该校验。
 - data、共享模板等依赖变化通常自动刷新；环境、时间相关函数和未发现的目录可能需要手动刷新。
 - 未提供格式化、图标、透明加密、受管理文件浏览或 apply 命令。文件属性与部署继续使用 chezmoi CLI。
 

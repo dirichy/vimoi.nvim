@@ -1,7 +1,7 @@
 if not dofile("tests/helpers/tui.lua")("tests/cursorline_ui.lua") then
   return
 end
-local api, util = vim.api, require("vimoi.util")
+local api, util = vim.api, require("vimoi.core.util")
 api.nvim__inspect_cell(1, 0, 0) -- Enable highlight-state inspection before rendering the test.
 local function finish(err)
   vim.fn.writefile({ err or "OK" }, vim.env.VIMOI_UI_RESULT)
@@ -38,8 +38,13 @@ later(function()
   util.set_buffer_text(target_buf, "one\ntwo\nthree\ntail\n")
   vim.wo.cursorline = true
   require("vimoi.api").diff_buffers(source_buf, target_buf, { filetype = "text" })
-  local session = assert(require("vimoi.gotmpl.view").by_window[api.nvim_get_current_win()])
+  local session = assert(require("vimoi.compare").by_window[api.nvim_get_current_win()])
   local function style(win, row, col)
+    -- Inspect painting in a controlled viewport, independently of scroll placement.
+    api.nvim_win_call(win, function()
+      vim.fn.winrestview({ topline = 1 })
+    end)
+    vim.cmd("redraw")
     local pos = vim.fn.screenpos(win, row, col or 1)
     assert(pos.row > 0, "test row is off screen")
     return background(pos.row, pos.col)

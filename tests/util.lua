@@ -1,4 +1,4 @@
-local util = require("vimoi.util")
+local util = require("vimoi.core.util")
 local root = vim.fn.getcwd()
 local home = assert(vim.uv.os_homedir())
 

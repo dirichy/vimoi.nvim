@@ -1,6 +1,6 @@
 -- Process lifecycle and progress UI shared by CLI calls and render waits.
 local M = {}
-local util = require("vimoi.util")
+local util = require("vimoi.core.util")
 
 ---@class VimoiProgress
 ---@field win integer

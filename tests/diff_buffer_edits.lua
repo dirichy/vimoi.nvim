@@ -1,7 +1,7 @@
-local source_map = require("vimoi.gotmpl.source_map")
-local util = require("vimoi.util")
-local merge_plan = require("vimoi.gotmpl.merge_plan")
-local buffer_edits = require("vimoi.gotmpl.buffer_edits")
+local source_map = require("vimoi.render.source_map")
+local util = require("vimoi.core.util")
+local merge_plan = require("vimoi.merge.plan")
+local buffer_edits = require("vimoi.core.buffer_edits")
 local checked = 0
 
 local function check(source, edits)

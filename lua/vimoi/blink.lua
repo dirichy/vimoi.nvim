@@ -1,5 +1,5 @@
-local util = require("vimoi.util")
-local cli = require("vimoi.cli")
+local util = require("vimoi.core.util")
+local cli = require("vimoi.core.cli")
 
 local CompletionItemKind = vim.lsp.protocol.CompletionItemKind
 

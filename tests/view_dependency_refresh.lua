@@ -18,8 +18,8 @@ require("vimoi").setup({
   diagnostics = { enabled = false },
   watch = { buffer_write_fallback = true },
 })
-local sessions = require("vimoi.gotmpl.view")
-local util = require("vimoi.util")
+local sessions = require("vimoi.compare")
+local util = require("vimoi.core.util")
 api.preview({ source = source })
 local preview = assert(sessions.by_window[vim.api.nvim_get_current_win()])
 assert(vim.wait(5000, function()
@@ -36,7 +36,7 @@ util.set_buffer_text(diff.target_buf, "unsaved target edits\n")
 local function await(value)
   assert(
     vim.wait(5000, function()
-      local state = require("vimoi.gotmpl.session").get(preview.source_buf)
+      local state = require("vimoi.render").get(preview.source_buf)
       return state.map ~= nil
         and not state.error
         and preview.map == state.map
@@ -75,7 +75,7 @@ await("recovered")
 assert(preview.preview_error == nil)
 
 -- Closing views leaves the source renderer alive for rendered highlighting.
-require("vimoi.cli").invalidate("templates")
+require("vimoi.core.cli").invalidate("templates")
 sessions.close(preview)
 sessions.close(diff)
 vim.fn.writefile({ "closed" }, shared)

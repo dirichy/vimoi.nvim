@@ -1,11 +1,11 @@
 require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "rendered" } })
 local api = vim.api
-local util = require("vimoi.util")
-require("vimoi.host_highlight")
-local source_map = require("vimoi.gotmpl.source_map")
+local util = require("vimoi.core.util")
+require("vimoi.editor.host_highlight")
+local source_map = require("vimoi.render.source_map")
 local buf = api.nvim_create_buf(true, false)
 api.nvim_set_current_buf(buf)
-require("vimoi.highlight").configure_template_buffer(buf, "lua")
+require("vimoi.editor.highlight").configure_template_buffer(buf, "lua")
 
 local function update(text)
   util.set_buffer_text(buf, text)
@@ -16,7 +16,7 @@ local function update(text)
   assert(vim.wait(5000, function()
     return done
   end, 5))
-  require("vimoi.gotmpl.session").update(buf, assert(result, err))
+  require("vimoi.render").update(buf, assert(result, err))
 end
 
 local lines = {}
@@ -74,8 +74,8 @@ for _, text in ipairs({
   assert(vim.treesitter.get_parser(output, "lua") == parser)
   assert(not parser:parse(true)[1]:root():has_error())
 end
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
-assert(api.nvim_buf_is_valid(output), "disabling highlighting deleted the shared output")
+vim.bo[buf].filetype = "text"
+assert(api.nvim_buf_is_valid(output), "detaching highlighting deleted the shared output")
 assert(#api.nvim_buf_get_extmarks(buf, api.nvim_create_namespace("vimoi-host-highlight"), 0, -1, {}) == 0)
 api.nvim_buf_delete(buf, { force = true })
 

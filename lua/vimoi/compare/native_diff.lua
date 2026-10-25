@@ -1,7 +1,7 @@
 -- Adapt source-mapped template hunks to Neovim's native diff protocol.
 local M = {}
-local util = require("vimoi.util")
-local sync_scroll = require("vimoi.gotmpl.sync_scroll")
+local util = require("vimoi.core.util")
+local sync_scroll = require("vimoi.compare.sync_scroll")
 
 ---Line ranges use the same vim.text.diff convention as VimoiDiffHunk.
 ---@class VimoiNativeDiffHunk
@@ -11,7 +11,7 @@ local sync_scroll = require("vimoi.gotmpl.sync_scroll")
 ---@field target_line_count integer
 
 -- Delegate unrelated diff windows and restore the user's handler after the last view.
-local diffexpr_dispatcher = "v:lua.require'vimoi.gotmpl'._diffexpr()"
+local diffexpr_dispatcher = "v:lua.require'vimoi.compare'._diffexpr()"
 ---@type string?
 local previous_diffexpr
 
@@ -87,7 +87,7 @@ local function write_diff(path, output)
   vim.fn.writefile(lines, path)
 end
 
----@param sessions table<integer, VimoiTemplateView> Window registry owned by gotmpl/view.lua.
+---@param sessions table<integer, VimoiTemplateView> Window registry owned by compare/init.lua.
 function M.diffexpr(sessions)
   local original_text = util.read_file(vim.v.fname_in) or ""
   local modified_text = util.read_file(vim.v.fname_new) or ""

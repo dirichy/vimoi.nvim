@@ -3,7 +3,7 @@ local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
-local cli, util = require("vimoi.cli"), require("vimoi.util")
+local cli, util = require("vimoi.core.cli"), require("vimoi.core.util")
 local original_execute = cli.execute_template
 local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
 local requests = {}
@@ -115,11 +115,11 @@ wait_for(function()
   return #requests == 7
 end)
 
--- Disable, unload and filetype changes retire in-flight requests and clear only
+-- Detach, unload and filetype changes retire in-flight requests and clear only
 -- chezmoi's diagnostics; unrelated diagnostics remain owned by their provider.
 local other = vim.api.nvim_create_namespace("another-provider")
 vim.diagnostic.set(other, buf, { { lnum = 0, col = 0, message = "other" } })
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+vim.bo[buf].filetype = "text"
 assert(vim.wait(1000, function()
   return requests[7].job.cancelled
 end))
@@ -127,7 +127,7 @@ deliver(requests[7], "cancelled")
 assert(
   #vim.diagnostic.get(buf, { namespace = namespace }) == 0 and #vim.diagnostic.get(buf, { namespace = other }) == 1
 )
-require("vimoi").setup({ diagnostics = { enabled = true } })
+vim.bo[buf].filetype = "gotmpl"
 wait_for(function()
   return #requests == 8
 end)
@@ -146,6 +146,48 @@ end)
 vim.api.nvim_buf_delete(buf, { force = true })
 assert(requests[9].job.cancelled)
 deliver(requests[9], "unloaded")
+-- Unlocated failures remain visible on the first line, without notification spam;
+-- repeated updates replace the same diagnostic and successful rendering clears it.
+local original_notify = vim.notify
+local notifications = 0
+vim.notify = function(message, ...)
+  if message:find("credential provider unavailable", 1, true) then
+    notifications = notifications + 1
+  else
+    original_notify(message, ...)
+  end
+end
+buf = open("{{ unlocated . }}")
+wait_for(function()
+  return #requests == 10
+end)
+local external_error = "credential provider unavailable\nprovider exited with code 1"
+requests[10].job.finished = true
+requests[10].opts.callback(nil, external_error)
+local failure = vim.diagnostic.get(buf, { namespace = namespace })
+assert(#failure == 1 and failure[1].lnum == 0 and failure[1].col == 0)
+assert(failure[1].severity == vim.diagnostic.severity.ERROR and failure[1].source == "vimoi")
+assert(failure[1].message:find(external_error, 1, true), "original external error was lost")
+assert(failure[1].message:find("source location unavailable", 1, true))
+assert(notifications == 0, "unlocated errors must use diagnostics instead of notifications")
+local diagnostic = require("vimoi.editor.diagnostic")
+diagnostic.update(buf)
+diagnostic.update(buf)
+assert(#vim.diagnostic.get(buf, { namespace = namespace }) == 1 and notifications == 0)
+cli.invalidate("data")
+wait_for(function()
+  return #requests == 11
+end)
+requests[11].job.finished = true
+requests[11].opts.callback(nil, external_error)
+assert(#vim.diagnostic.get(buf, { namespace = namespace }) == 1 and notifications == 0)
+change(buf, "literal text\n")
+wait_for(function()
+  local trace = require("vimoi.render").snapshot(buf)
+  return trace and trace.output == "literal text\n" and #vim.diagnostic.get(buf, { namespace = namespace }) == 0
+end)
+vim.api.nvim_buf_delete(buf, { force = true })
+vim.notify = original_notify
 cli.execute_template = original_execute
 print(
   "async diagnostics: debounce, static edits, stale results, invalidation, cancellation, disable and detach verified"

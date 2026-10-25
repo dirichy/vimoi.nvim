@@ -10,9 +10,9 @@ vim.opt.swapfile = false
 vim.opt.hidden = true
 local api = require("vimoi.api")
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
-local util = require("vimoi.util")
+local util = require("vimoi.core.util")
 ---@diagnostic disable: duplicate-set-field -- Plain files must never use template rendering.
-local source_map = require("vimoi.gotmpl.source_map")
+local source_map = require("vimoi.render.source_map")
 source_map.trace = function()
   error("plain re-add attempted template rendering")
 end
@@ -48,7 +48,7 @@ for _, side in ipairs({ "source", "target", "explicit_source", "explicit_target"
     result = assert(api.readd(side == "explicit_source" and source or side == "explicit_target" and target or nil))
     assert(result.merged == 2 and result.skipped == 0 and #result.reasons == 0)
   end
-  assert(package.loaded["vimoi.gotmpl.merge_plan"] == nil, "plain re-add loaded template merge planning")
+  assert(package.loaded["vimoi.merge.plan"] == nil, "plain re-add loaded template merge planning")
   assert(util.buffer_text(source_buf) == after)
   assert(vim.deep_equal(vim.api.nvim_buf_get_extmark_by_id(source_buf, namespace, mark, {}), { 1, 1 }))
   assert(util.read_file(source) == before and util.read_file(target) == after, "re-add wrote to disk")

@@ -28,8 +28,8 @@ vim.fn.writefile({ "return true" }, source .. "/private_dot_config/plain.lua")
 
 local api = require("vimoi.api")
 require("vimoi").setup({ chezmoi_executable = wrapper, diagnostics = { enabled = false } })
-local filetype = require("vimoi.filetype")
-local cli = require("vimoi.cli")
+local filetype = require("vimoi.editor.filetype")
+local cli = require("vimoi.core.cli")
 
 for name, expected in pairs({
   ["dot_zshrc.tmpl"] = "zsh",

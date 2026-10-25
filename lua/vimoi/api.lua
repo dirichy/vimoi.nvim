@@ -3,15 +3,15 @@ local M = {}
 ---Discard selected cached results and rescan file watches.
 ---@param scope? VimoiCacheScope Defaults to all; data also clears templates.
 function M.invalidate_cache(scope)
-  require("vimoi.cli").invalidate(scope)
-  require("vimoi.watch").refresh()
+  require("vimoi.core.cli").invalidate(scope)
+  require("vimoi.core.watch").refresh()
 end
 
 ---Open the projected diff for the current buffer.
 ---@param opts? { source?: string, target?: string, validate?: boolean }
 ---@return nil
 function M.diff(opts)
-  require("vimoi.gotmpl").open(opts)
+  require("vimoi.compare").open(opts)
 end
 
 ---Open a projected diff for an explicit source and target pair.
@@ -20,7 +20,7 @@ end
 ---@param opts? { validate?: boolean }
 ---@return nil
 function M.diff_files(source, target, opts)
-  require("vimoi.gotmpl").open(vim.tbl_extend("force", opts or {}, { source = source, target = target }))
+  require("vimoi.compare").open(vim.tbl_extend("force", opts or {}, { source = source, target = target }))
 end
 
 ---Compare a template buffer with a target buffer, including unnamed buffers.
@@ -29,7 +29,7 @@ end
 ---@param opts? { filetype?: string }
 ---@return nil
 function M.diff_buffers(source_buf, target_buf, opts)
-  require("vimoi.gotmpl").open(vim.tbl_extend("force", opts or {}, {
+  require("vimoi.compare").open(vim.tbl_extend("force", opts or {}, {
     source_buf = source_buf,
     target_buf = target_buf,
   }))
@@ -41,15 +41,15 @@ end
 ---@param opts? VimoiPreviewOptions
 ---@return nil
 function M.preview(opts)
-  require("vimoi.gotmpl").preview(opts)
+  require("vimoi.compare").preview(opts)
 end
 
 ---Switch between a managed source and target, without rendering or saving.
 ---@param path? string Open the counterpart of this path; defaults to the current buffer.
 ---@return string?
 function M.toggle(path)
-  local cli = require("vimoi.cli")
-  local views = package.loaded["vimoi.gotmpl.view"]
+  local cli = require("vimoi.core.cli")
+  local views = package.loaded["vimoi.compare"]
   local session = views and views.current()
   local destination, err
   if not path and session and session.preview and vim.api.nvim_get_current_win() == session.target_win then
@@ -61,7 +61,7 @@ function M.toggle(path)
     end
   end
   if not destination or destination == "" then
-    return require("vimoi.util").notify(
+    return require("vimoi.core.util").notify(
       err or "current buffer has no managed counterpart",
       "toggle",
       vim.log.levels.ERROR
@@ -99,23 +99,23 @@ end
 ---Run a source-map-aware fold command in both diff windows.
 ---@param command "zo"|"zc"|"za"|"zO"|"zC"|"zA"|"zR"|"zM"
 function M.fold(command)
-  return require("vimoi.gotmpl").fold(command)
+  return require("vimoi.compare").fold(command)
 end
 
 ---Open the chezmoi-aware path under the cursor.
 ---@param opts? { line?: boolean } Set line to recognize :line[:column].
 function M.goto_file(opts)
-  return require("vimoi.goto").open(opts)
+  return require("vimoi.editor.goto").open(opts)
 end
 
 ---Cancel the only running command, or pick one when several are running.
 function M.cancel_command()
-  require("vimoi.job").cancel()
+  require("vimoi.core.job").cancel()
 end
 
 ---Register commands and global entry mappings during plugin setup.
 ---@private
-M.register = require("vimoi.util").once(function()
+M.register = require("vimoi.core.util").once(function()
   vim.api.nvim_create_user_command("VimoiToggle", function(args)
     M.toggle(args.fargs[1])
   end, {
@@ -138,7 +138,7 @@ M.register = require("vimoi.util").once(function()
     elseif #args.fargs == 2 then
       M.diff_files(args.fargs[1], args.fargs[2])
     else
-      require("vimoi.util").notify(
+      require("vimoi.core.util").notify(
         "VimoiDiff expects either no arguments or: source target",
         "diff",
         vim.log.levels.ERROR

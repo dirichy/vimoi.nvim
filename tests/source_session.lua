@@ -1,6 +1,6 @@
 -- All consumers borrow one mutable output and one current source render.
 vim.opt.swapfile = false
-local api, util = vim.api, require("vimoi.util")
+local api, util = vim.api, require("vimoi.core.util")
 local lint_jobs = {}
 package.loaded.lint = {
   linters_by_ft = { lua = { "test" } },
@@ -16,9 +16,9 @@ package.loaded.lint = {
 }
 require("vimoi").setup()
 local actions = require("vimoi.api")
-local sessions = require("vimoi.gotmpl.session")
-local views = require("vimoi.gotmpl.view")
-local cli = require("vimoi.cli")
+local sessions = require("vimoi.render")
+local views = require("vimoi.compare")
+local cli = require("vimoi.core.cli")
 local execute = cli.execute_template
 local renders = 0
 ---@diagnostic disable-next-line: duplicate-set-field -- Count shared renderer requests.
@@ -48,18 +48,6 @@ assert(
   state.automatic and vim.tbl_count(state.subscribers) == 2,
   "automatic features did not share one source subscription"
 )
-require("vimoi").setup()
-assert(vim.tbl_count(state.subscribers) == 2, "repeated setup duplicated the automatic subscription")
-require("vimoi").setup({ diagnostics = { enabled = false } })
-assert(
-  state.automatic and vim.tbl_count(state.subscribers) == 2 and lint_jobs[#lint_jobs].cancelled,
-  "disabling diagnostics released the highlight subscription"
-)
-require("vimoi").setup()
-await(function()
-  return not lint_jobs[#lint_jobs].cancelled
-end)
-assert(state.automatic and vim.tbl_count(state.subscribers) == 2)
 
 assert(
   rawget(state, "trace") == nil
@@ -148,8 +136,8 @@ await(function()
 end)
 assert(api.nvim_buf_get_changedtick(output) == tick, "source-only change rewrote identical output")
 
--- Disabling automatic providers releases their work, not a view's output.
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+-- Leaving gotmpl releases automatic providers, not a view's output.
+vim.bo[source].filetype = "text"
 assert(api.nvim_buf_is_valid(output) and lint_jobs[#lint_jobs].cancelled)
 assert(not state.automatic and vim.tbl_count(state.subscribers) == 2, "automatic cleanup released an explicit view")
 change('"2"', '"3"')

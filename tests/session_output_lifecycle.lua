@@ -14,10 +14,10 @@ package.loaded.lint = {
   end,
 }
 require("vimoi").setup()
-local api, util = vim.api, require("vimoi.util")
-local sessions, views = require("vimoi.gotmpl.session"), require("vimoi.gotmpl.view")
+local api, util = vim.api, require("vimoi.core.util")
+local sessions, views = require("vimoi.render"), require("vimoi.compare")
 local actions = require("vimoi.api")
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 local execute, renders = cli.execute_template, 0
 ---@diagnostic disable-next-line: duplicate-set-field -- Recovery should reuse the executed skeleton.
 cli.execute_template = function(...)
@@ -82,31 +82,8 @@ await(function()
 end)
 assert(util.buffer_text(state.buf) == "local value = 3\n")
 
--- With no automatic consumer left, :bdelete should stay deleted until demand returns.
-views.close(diff)
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
-actions.preview({ source = api.nvim_buf_get_name(source) })
-preview = assert(views.by_window[api.nvim_get_current_win()])
-await(function()
-  return not preview.loading
-end)
-output = state.buf
-api.nvim_set_current_win(preview.target_win)
-vim.cmd("bdelete")
-assert(preview.closed and next(state.subscribers) == nil)
-assert(not vim.wait(200, function()
-  return api.nvim_buf_is_loaded(state.buf)
-end, 5), "output with no consumers was recreated eagerly")
-api.nvim_set_current_win(preview.source_win)
-actions.preview()
-preview = assert(views.by_window[api.nvim_get_current_win()])
-await(function()
-  return not preview.loading and state.map and sessions.is_current(source, state.map)
-end)
-assert(state.buf ~= output and preview.target_buf == state.buf)
-assert(util.buffer_text(state.buf) == "local value = 3\n")
 output = state.buf
 api.nvim_buf_delete(source, { force = true })
 assert(not api.nvim_buf_is_valid(output), "source teardown leaked the recreated output")
 cli.execute_template = execute
-print("output deletion: native delete/unload/wipe, automatic/lazy recovery, shared diff and skeleton reuse verified")
+print("output deletion: native delete/unload/wipe, automatic recovery, shared diff and skeleton reuse verified")

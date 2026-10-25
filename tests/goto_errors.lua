@@ -2,8 +2,8 @@ local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
-local cli = require("vimoi.cli")
-local navigation = require("vimoi.goto")
+local cli = require("vimoi.core.cli")
+local navigation = require("vimoi.editor.goto")
 local target = vim.fn.tempname()
 vim.fn.writefile({ "target" }, target)
 local buf = vim.api.nvim_create_buf(false, true)

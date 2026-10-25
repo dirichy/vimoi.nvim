@@ -6,10 +6,10 @@ local api = require("vimoi.api")
 require("vimoi").setup({
   chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
   diagnostics = { enabled = false },
-  diff = { validate = true },
+  render = { validate = true },
 })
-local sessions = require("vimoi.gotmpl.view")
-local util = require("vimoi.util")
+local sessions = require("vimoi.compare")
+local util = require("vimoi.core.util")
 local source = vim.api.nvim_create_buf(true, false)
 local target = vim.api.nvim_create_buf(true, false)
 util.set_buffer_text(source, 'local value = {{ "1" }}\nlocal count = 2\n')
@@ -42,9 +42,7 @@ assert(vim.b[source].vimoi_template_filetype == "lua")
 assert(assert(vim.treesitter.get_parser(source, "gotmpl")):parse(true))
 assert(not vim.treesitter.get_parser(source, "gotmpl"):children().lua, "default rendered mode enabled source injection")
 assert(session.session.validate == false, "buffer diff must not validate against a disk path")
-assert(
-  assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == "local value = 1\nlocal count = 2\n"
-)
+assert(assert(require("vimoi.render").snapshot(session.source_buf)).output == "local value = 1\nlocal count = 2\n")
 assert(vim.wo[session.source_win].diff and vim.wo[session.target_win].diff)
 
 -- Repeating either entry point reuses the exact buffer identities from either side.
@@ -68,7 +66,7 @@ assert(util.buffer_text(target) == "local value = 1\nlocal count = 3\n")
 util.set_buffer_text(source, 'local value = {{ "1" }}\nlocal count = 4\n')
 vim.api.nvim_exec_autocmds("TextChanged", { buffer = source })
 assert(vim.wait(5000, function()
-  local trace = require("vimoi.gotmpl.session").snapshot(session.source_buf)
+  local trace = require("vimoi.render").snapshot(session.source_buf)
   return trace ~= nil and trace.output == "local value = 1\nlocal count = 4\n"
 end, 10))
 vim.api.nvim_set_current_win(session.source_win)
@@ -104,7 +102,7 @@ assert(session.source_buf == named_source and session.target_buf == named_target
 assert(vim.bo[named_target].filetype == "toml")
 assert(vim.b[named_source].vimoi_template_filetype == "toml")
 assert(session.session.validate == false)
-assert(assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == "enabled = true\n")
+assert(assert(require("vimoi.render").snapshot(session.source_buf)).output == "enabled = true\n")
 
 -- Both buffers can be hidden and have neither names nor filetypes.
 vim.cmd("tabnew")
@@ -119,7 +117,7 @@ assert(session.source_buf == untyped_source and session.target_buf == untyped_ta
 assert(session.source_buf ~= unrelated and session.target_buf ~= unrelated)
 assert(vim.bo[untyped_source].filetype == "gotmpl")
 assert(vim.bo[untyped_target].filetype == "")
-assert(assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == "value=A\n")
+assert(assert(require("vimoi.render").snapshot(session.source_buf)).output == "value=A\n")
 assert(util.buffer_text(unrelated) == "\n", "opening a buffer pair modified unrelated content")
 
 vim.api.nvim_set_current_win(session.target_win)

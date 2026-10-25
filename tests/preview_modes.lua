@@ -1,6 +1,6 @@
 local view_for_buffer = dofile("tests/helpers/view.lua")
 local api = require("vimoi.api")
-local util = require("vimoi.util")
+local util = require("vimoi.core.util")
 local root = vim.fn.getcwd()
 local fixture = root .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
@@ -65,7 +65,7 @@ vim.api.nvim_win_close(vim.fn.bufwinid(other_output), true)
 local init_fixture = root .. "/tests/fixtures/init"
 vim.env.VIMOI_TEST_CONFIG = init_fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = init_fixture .. "/source"
-require("vimoi.cli").invalidate()
+require("vimoi.core.cli").invalidate()
 local init_source = init_fixture .. "/source/.chezmoi.toml.tmpl"
 api.preview({ source = init_source })
 local init_buf = vim.fn.bufnr(init_source)

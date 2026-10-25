@@ -9,13 +9,13 @@ local wrapper = fixture .. "/chezmoi-wrapper.sh"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = wrapper, diff = { validate = false } })
+require("vimoi").setup({ chezmoi_executable = wrapper, render = { validate = false } })
 
-local util = require("vimoi.util")
+local util = require("vimoi.core.util")
 local original_source = assert(util.read_file(source_path))
 local changed_source =
   assert(original_source:gsub("keep_a = true\n", "keep_a = true\n{{ if false }}\nhidden = true\n{{ end }}\n", 1))
-local expected = assert(run_async(require("vimoi.gotmpl.source_map").trace, changed_source)).output
+local expected = assert(run_async(require("vimoi.render.source_map").trace, changed_source)).output
 vim.fn.writefile(util.text_lines(expected), target_path)
 require("vimoi.api").diff_files(source_path, target_path)
 dofile("tests/helpers/diff.lua")()
@@ -23,7 +23,7 @@ dofile("tests/helpers/diff.lua")()
 local source_buf = vim.fn.bufnr(source_path)
 local target_buf = vim.fn.bufnr(target_path)
 local source_win = vim.fn.bufwinid(source_buf)
-local source_map = require("vimoi.gotmpl.source_map")
+local source_map = require("vimoi.render.source_map")
 local trace_async = source_map.trace_async
 local rendered = false
 source_map.trace_async = function(source, opts, callback)

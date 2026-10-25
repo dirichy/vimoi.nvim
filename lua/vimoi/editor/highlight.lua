@@ -1,5 +1,4 @@
 local M = {}
-local mode
 
 local function apply()
   local background = require("vimoi").config.highlight.template_bg
@@ -19,7 +18,7 @@ local function apply()
   vim.api.nvim_set_hl(0, "VimoiTemplateAction", { bg = background, ctermbg = ctermbg, fg = statement.fg })
 end
 
-local initialize = require("vimoi.util").once(function()
+local initialize = require("vimoi.core.util").once(function()
   vim.treesitter.query.add_directive("vimoi-target-language!", function(_, _, source, _, metadata)
     if type(source) ~= "number" or not vim.api.nvim_buf_is_valid(source) then
       return
@@ -59,20 +58,6 @@ end
 function M.setup()
   initialize()
   apply()
-  -- Injection queries depend on the rendering mode as well as the host language.
-  local requested = require("vimoi").config.highlight.mode
-  if mode ~= requested then
-    mode = requested
-    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.api.nvim_buf_is_loaded(buf) and vim.b[buf].vimoi_template_configured then
-        local parser = vim.treesitter.get_parser(buf, "gotmpl")
-        if parser then
-          parser:invalidate()
-        end
-        configure_syntax(buf)
-      end
-    end
-  end
 end
 
 ---@param buf integer

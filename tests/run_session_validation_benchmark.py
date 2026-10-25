@@ -23,8 +23,20 @@ results = {name: {'serial': [], 'parallel': []} for name in cases}
 with tempfile.TemporaryDirectory(prefix='vimoi-cat-bench-') as temp:
     root = Path(temp)
     baseline = root / 'serial.lua'
-    baseline.write_bytes(subprocess.check_output(
-        ['git', 'show', args.baseline_ref + ':lua/vimoi/gotmpl/session.lua'], cwd=workspace))
+    # Historical serial commits predate the module/config rename; adapt names only.
+    serial = subprocess.check_output(
+        ['git', 'show', args.baseline_ref + ':lua/vimoi/gotmpl/session.lua'],
+        cwd=workspace, text=True)
+    serial = (serial.replace('vimoi.gotmpl.buffer_edits', 'vimoi.core.buffer_edits')
+              .replace('vimoi.gotmpl.source_map', 'vimoi.render.source_map')
+              .replace('vimoi.gotmpl.view', 'vimoi.compare')
+              .replace('vimoi.util', 'vimoi.core.util')
+              .replace('vimoi.cli', 'vimoi.core.cli')
+              .replace('vimoi.filetype', 'vimoi.core.source')
+              .replace('vimoi.diagnostic', 'vimoi.editor.diagnostic')
+              .replace('vimoi.host_highlight', 'vimoi.editor.host_highlight')
+              .replace('config.diff.validate', 'config.render.validate'))
+    baseline.write_text(serial)
     for name, text in cases.items():
         case = root / name
         (case / 'source').mkdir(parents=True)

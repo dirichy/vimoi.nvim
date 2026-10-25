@@ -13,7 +13,7 @@ vim.system = function(args)
 end
 
 local chezmoi = require("vimoi")
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 local ok, err = pcall(chezmoi.setup, { chezmoi_executable = "fake" })
 assert(not ok and err:find("broken chezmoi config", 1, true))
 assert(cli.source_root == nil)

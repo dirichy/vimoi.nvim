@@ -1,0 +1,8 @@
+vim.api.nvim_set_hl(0, "TestTemplateSurface", { fg = "#112233", bg = "#445566", reverse = true, ctermfg = 1 })
+vim.api.nvim_set_hl(0, "TestTemplateLink", { link = "TestTemplateSurface" })
+require("vimoi").setup({ highlight = { template_bg = "TestTemplateLink" } })
+local highlight = vim.api.nvim_get_hl(0, { name = "VimoiTemplateAction", link = false })
+assert(highlight.bg == 0x112233 and highlight.ctermbg == 1)
+vim.api.nvim_set_hl(0, "TestTemplateSurface", { fg = "#112233" })
+vim.api.nvim_exec_autocmds("ColorScheme", { pattern = "test-theme" })
+assert(vim.api.nvim_get_hl(0, { name = "VimoiTemplateAction", link = false }).bg == nil)

@@ -1,8 +1,8 @@
 local M = {}
-local util = require("vimoi.util")
+local util = require("vimoi.core.util")
 local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
 
-local sessions = require("vimoi.gotmpl.session")
+local sessions = require("vimoi.render")
 
 local host_namespace = vim.api.nvim_create_namespace("vimoi-host-diagnostics")
 
@@ -308,12 +308,14 @@ function M.update(buf)
     syntax_errors(state.root, diagnostics)
   elseif state.error then
     local diagnostic = state.error_tags and render_error(buf, state)
-    if diagnostic then
-      diagnostics[1] = diagnostic
-    elseif not state.reported then
-      state.reported = true
-      util.notify(state.error, "diagnostic", vim.log.levels.WARN)
-    end
+    diagnostics[1] = diagnostic
+      or {
+        lnum = 0,
+        col = 0,
+        severity = vim.diagnostic.severity.ERROR,
+        source = "vimoi",
+        message = "[gotmpl] Render failed (source location unavailable): " .. state.error,
+      }
   end
   vim.diagnostic.set(namespace, buf, diagnostics)
   if config.host and not state.error and state.map then

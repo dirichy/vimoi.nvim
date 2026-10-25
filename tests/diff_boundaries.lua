@@ -2,9 +2,9 @@ local waiting = dofile("tests/helpers/waiting.lua")
 ---@diagnostic disable: duplicate-set-field -- Observe placement choices and reject accidental renders.
 vim.opt.swapfile = false
 require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
-local api, util = require("vimoi.api"), require("vimoi.util")
-local sessions = require("vimoi.gotmpl.view")
-local source_map = require("vimoi.gotmpl.source_map")
+local api, util = require("vimoi.api"), require("vimoi.core.util")
+local sessions = require("vimoi.compare")
+local source_map = require("vimoi.render.source_map")
 local await = dofile("tests/helpers/await.lua")
 local select, trace, trace_async = vim.ui.select, source_map.trace, source_map.trace_async
 local block = "xxx\n{{- if true }}\naaa\n{{- end }}\nyyy\n"

@@ -4,13 +4,13 @@ local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 local api = require("vimoi.api")
-local util = require("vimoi.util")
-local cli = require("vimoi.cli")
+local util = require("vimoi.core.util")
+local cli = require("vimoi.core.cli")
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 vim.opt.swapfile = false
 
 -- A test-only module facade holds async requests; production receives no injected callbacks.
-local real_renderer = require("vimoi.gotmpl.source_map")
+local real_renderer = require("vimoi.render.source_map")
 local requests, hold_requests = {}, true
 -- Invalidation refreshes older tabs too; each assertion follows its own buffer.
 local requests_by_buffer = {}
@@ -28,7 +28,7 @@ local renderer = setmetatable({
     end
   end,
 }, { __index = real_renderer })
-package.loaded["vimoi.gotmpl.source_map"] = renderer
+package.loaded["vimoi.render.source_map"] = renderer
 local root = vim.fn.tempname() .. " preview async"
 vim.fn.mkdir(root, "p")
 local function await(predicate)

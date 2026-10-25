@@ -6,7 +6,7 @@ vim.g.mapleader = " "
 vim.opt.swapfile = false
 local api = require("vimoi.api")
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
-assert(package.loaded["vimoi.gotmpl"] == nil, "installing entry maps must preserve lazy loading")
+assert(package.loaded["vimoi.compare"] == nil, "installing entry maps must preserve lazy loading")
 for lhs, name in pairs({
   [" cd"] = "diff",
   [" cp"] = "preview",
@@ -26,8 +26,8 @@ for lhs, name in pairs({
   assert(called, name .. " mapping dispatched to the wrong API")
 end
 
-local util = require("vimoi.util")
-local sessions = require("vimoi.gotmpl.view")
+local util = require("vimoi.core.util")
+local sessions = require("vimoi.compare")
 local source, target = vim.fn.tempname() .. ".tmpl", vim.fn.tempname()
 vim.fn.writefile({ "value=old" }, source)
 vim.fn.writefile({ "value=new" }, target)

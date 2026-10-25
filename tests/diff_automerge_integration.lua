@@ -11,8 +11,8 @@ require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" }
 vim.opt.swapfile = false
 assert(vim.fn.exists(":VimoiReAdd") == 2)
 
-local source = assert(require("vimoi.util").read_file(source_path))
-local trace = assert(run_async(require("vimoi.gotmpl.source_map").trace, source))
+local source = assert(require("vimoi.core.util").read_file(source_path))
+local trace = assert(run_async(require("vimoi.render.source_map").trace, source))
 local target = trace.output:gsub("before = 1", "before = 2"):gsub("after = 3", "after = 4")
 -- This insertion is exactly between the if body's static node and {{ end }}.
 -- Putting it before or after the action has different future semantics.
@@ -37,15 +37,15 @@ assert(summary.reasons[1].reason:find("cancelled", 1, true), vim.inspect(summary
 assert(#offered == 2, vim.inspect(offered))
 
 local source_buf = vim.fn.bufnr(source_path)
-local merged = require("vimoi.util").buffer_text(source_buf)
+local merged = require("vimoi.core.util").buffer_text(source_buf)
 assert(merged:find("before = 2", 1, true), merged)
 assert(merged:find("after = 4", 1, true), merged)
 assert(not merged:find("boundary = manual", 1, true), merged)
 vim.api.nvim_buf_call(source_buf, function()
   vim.cmd("undo")
-  assert(require("vimoi.util").buffer_text(source_buf) == source, "one undo must revert all auto-merged hunks")
+  assert(require("vimoi.core.util").buffer_text(source_buf) == source, "one undo must revert all auto-merged hunks")
   vim.cmd("redo")
-  assert(require("vimoi.util").buffer_text(source_buf) == merged, "one redo must restore all auto-merged hunks")
+  assert(require("vimoi.core.util").buffer_text(source_buf) == merged, "one redo must restore all auto-merged hunks")
 end)
 
 -- The remaining ambiguous hunk can be placed interactively by the
@@ -66,5 +66,5 @@ vim.ui.select = function(items, _, callback)
 end
 assert(require("vimoi.api").put_hunk())
 vim.ui.select = original_select
-merged = require("vimoi.util").buffer_text(source_buf)
+merged = require("vimoi.core.util").buffer_text(source_buf)
 assert(merged:find("inside = true\nboundary = manual\n{{ end }}", 1, true), merged)

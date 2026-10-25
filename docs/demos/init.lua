@@ -108,7 +108,7 @@ vim.api.nvim_create_autocmd("WinScrolled", {
     if vim.g.vimoi_demo_stage == "" then
       return
     end
-    local views = package.loaded["vimoi.gotmpl.view"]
+    local views = package.loaded["vimoi.compare"]
     local view = views and views.current()
     if not view or view.loading or not view.map then
       return

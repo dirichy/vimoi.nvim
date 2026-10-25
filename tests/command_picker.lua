@@ -1,4 +1,4 @@
-local job = require("vimoi.job")
+local job = require("vimoi.core.job")
 local original_select = vim.ui.select
 local editor_win = vim.api.nvim_get_current_win()
 local items, picker_opts, choose

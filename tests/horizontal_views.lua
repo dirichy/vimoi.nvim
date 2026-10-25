@@ -16,7 +16,7 @@ require("vimoi").setup({
   split = "horizontal",
   diagnostics = { enabled = false },
 })
-local sessions = require("vimoi.gotmpl.view")
+local sessions = require("vimoi.compare")
 local function await()
   local session = assert(sessions.by_window[vim.api.nvim_get_current_win()])
   assert(vim.wait(5000, function()
@@ -34,18 +34,16 @@ api.preview()
 session = await()
 assert(vim.fn.winlayout()[1] == "col" and #vim.api.nvim_tabpage_list_wins(0) == 2)
 
--- Reconfiguration affects newly created splits; reusing a pair never rearranges it.
-require("vimoi").setup({ split = "vertical", diagnostics = { enabled = false } })
+-- Reopening reuses the existing pair; new tabs use the same fixed orientation.
 api.diff()
 await()
 assert(vim.fn.winlayout()[1] == "col")
 vim.cmd("tabnew")
 api.preview({ source = source })
 await()
-assert(vim.fn.winlayout()[1] == "row")
+assert(vim.fn.winlayout()[1] == "col")
 
 -- Ordinary native diff shares the same split option.
-require("vimoi").setup({ split = "horizontal", diagnostics = { enabled = false } })
 vim.cmd("tabnew")
 local plain_source, plain_target = source_root .. "/plain", target_root .. "/plain"
 vim.fn.writefile({ "before" }, plain_source)

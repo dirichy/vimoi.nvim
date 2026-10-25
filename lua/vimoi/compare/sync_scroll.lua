@@ -1,5 +1,5 @@
 local M = {}
-local util = require("vimoi.util")
+local util = require("vimoi.core.util")
 
 -- Translate between target, rendered output, and source line numbers before moving
 -- the peer window. Native scrollbind only understands equal line numbers.
@@ -99,63 +99,45 @@ local function source_to_rendered_range(session, source_line)
   local source_starts = session.map.source_starts
   local line_start_byte = source_starts[source_line] or session.map.source_size
   local line_end_byte = source_starts[source_line + 1] or session.map.source_size
-  local current_target_line = vim.api.nvim_win_get_cursor(session.target_win)[1]
-  local current_rendered_line = target_to_rendered_line(session, current_target_line)
-  local candidates = {}
   for _, literal_part in ipairs(session.map.literal_parts) do
     if line_start_byte >= literal_part.source.start_byte and line_start_byte < literal_part.source.end_byte then
       local offset = math.min(
         line_start_byte - literal_part.source.start_byte,
         literal_part.source.end_byte - literal_part.source.start_byte
       )
-      for _, output_range in ipairs(literal_part.output_ranges) do
+      local output_range = literal_part.output_ranges[1]
+      if output_range then
         local rendered_byte = math.min(output_range.start_byte + offset, output_range.end_byte)
         local row = util.byte_to_position(nil, rendered_byte, session.map.output_starts)
         local end_byte =
           math.min(output_range.end_byte, output_range.start_byte + line_end_byte - literal_part.source.start_byte)
         local end_row = util.byte_to_position(nil, math.max(rendered_byte, end_byte - 1), session.map.output_starts)
-        candidates[#candidates + 1] = { row + 1, end_row + 1 }
+        return row + 1, end_row + 1
       end
     end
   end
-  if #candidates == 0 then
-    for _, region in ipairs(session.map.regions) do
-      local source = region.source
-      if line_start_byte >= source.start_byte and line_start_byte < source.end_byte then
-        local row = util.byte_to_position(nil, region.output_range.start_byte, session.map.output_starts)
-        local last = region.output_range.end_byte
-        local end_row = last > region.output_range.start_byte
-            and util.byte_to_position(nil, last - 1, session.map.output_starts) + 1
-          or row
-        candidates[1] = { row + 1, end_row }
-        break
-      end
+  for _, region in ipairs(session.map.regions) do
+    local source = region.source
+    if line_start_byte >= source.start_byte and line_start_byte < source.end_byte then
+      local row = util.byte_to_position(nil, region.output_range.start_byte, session.map.output_starts)
+      local last = region.output_range.end_byte
+      local end_row = last > region.output_range.start_byte
+          and util.byte_to_position(nil, last - 1, session.map.output_starts) + 1
+        or row
+      return row + 1, end_row
     end
   end
-  local selected = candidates[1] or { 1, 0 }
-  for _, candidate in ipairs(candidates) do
-    if math.abs(candidate[1] - current_rendered_line) < math.abs(selected[1] - current_rendered_line) then
-      selected = candidate
-    end
-  end
-  return selected[1], selected[2]
+  return 1, 0
 end
 
--- Keep the existing occurrence choice, then project that one range to target.
+-- Use the first execution of a source range, then project it to target.
 ---@param session VimoiTemplateView
 ---@param source_line integer
 ---@return integer first One-based target row.
 ---@return integer last Less than first when the selected range has no output.
 function M.target_range(session, source_line)
-  local target_line = vim.api.nvim_win_get_cursor(session.target_win)[1]
   local cached = session.cursor_range
-  if
-    cached
-    and cached.source_line == source_line
-    and cached.target_line == target_line
-    and cached.map == session.map
-    and cached.hunks == session.hunks
-  then
+  if cached and cached.source_line == source_line and cached.map == session.map and cached.hunks == session.hunks then
     return cached.first, cached.last
   end
   local rendered_first, rendered_last = source_to_rendered_range(session, source_line)
@@ -179,7 +161,6 @@ function M.target_range(session, source_line)
   end
   session.cursor_range = {
     source_line = source_line,
-    target_line = target_line,
     map = session.map,
     hunks = session.hunks,
     first = first,
@@ -191,30 +172,6 @@ end
 local function source_to_target_line(session, source_line)
   local first, last = M.target_range(session, source_line)
   return last >= first and math.floor((first + last) / 2) or first
-end
-
-local function align_cursor_screen_row(win, line, screen_row)
-  line = math.max(1, math.min(line, vim.api.nvim_buf_line_count(vim.api.nvim_win_get_buf(win))))
-  vim.api.nvim_win_call(win, function()
-    vim.api.nvim_win_set_cursor(win, { line, 0 })
-    vim.cmd("normal! zt")
-    local ctrl_y = vim.api.nvim_replace_termcodes("<C-y>", true, false, true)
-    local ctrl_e = vim.api.nvim_replace_termcodes("<C-e>", true, false, true)
-    for _ = 1, vim.api.nvim_win_get_height(win) * 2 do
-      local current_screen_row = vim.fn.winline()
-      if current_screen_row == screen_row then
-        break
-      end
-      vim.cmd("normal! " .. (current_screen_row < screen_row and ctrl_y or ctrl_e))
-      if vim.fn.winline() == current_screen_row then
-        break
-      end
-    end
-    -- Near a file boundary, <C-e>/<C-y> may move the cursor because the
-    -- viewport cannot scroll any farther. View alignment is best effort, but
-    -- the semantic line mapping must never be changed by that adjustment.
-    vim.api.nvim_win_set_cursor(win, { line, 0 })
-  end)
 end
 
 function M.sync(session, active_win)
@@ -233,7 +190,7 @@ function M.sync(session, active_win)
   end
   session.syncing = true
   local active_line = vim.api.nvim_win_get_cursor(active_win)[1]
-  local screen_row = vim.api.nvim_win_call(active_win, vim.fn.winline)
+  local active_top = vim.api.nvim_win_call(active_win, vim.fn.winsaveview).topline
   local other_win, other_line
   if is_source then
     other_win = session.target_win
@@ -243,18 +200,12 @@ function M.sync(session, active_win)
     other_line = target_to_source_line(session, active_line)
   end
   if vim.api.nvim_win_is_valid(other_win) then
-    if is_source then
-      local first, last = M.target_range(session, active_line)
-      if last > first then
-        local height = vim.api.nvim_win_get_height(other_win)
-        if last - first + 1 <= height then
-          screen_row = math.max(other_line - first + 1, math.min(screen_row, height - (last - other_line)))
-        else
-          screen_row = math.floor((height + 1) / 2)
-        end
-      end
-    end
-    align_cursor_screen_row(other_win, other_line, screen_row)
+    other_line = math.max(1, math.min(other_line, vim.api.nvim_buf_line_count(vim.api.nvim_win_get_buf(other_win))))
+    vim.api.nvim_win_set_cursor(other_win, { other_line, 0 })
+    -- Preserve a logical line offset; folds, wrapping and file edges use native behavior.
+    vim.api.nvim_win_call(other_win, function()
+      vim.fn.winrestview({ topline = math.max(1, other_line - (active_line - active_top)) })
+    end)
     vim.api.nvim__redraw({ win = other_win, valid = false })
   end
   session.syncing = false

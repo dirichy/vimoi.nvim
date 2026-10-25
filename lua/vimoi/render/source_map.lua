@@ -1,6 +1,6 @@
 -- Map template source ranges to rendered output using sentinel markers.
 local M = {}
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 
 ---Zero-based, half-open byte offsets [start_byte, end_byte); equal ends mark an insertion anchor.
 ---@class VimoiByteRange
@@ -444,7 +444,7 @@ end
 ---@field prepared? VimoiPreparedTrace Reuse session input in trace_async; restoration completes the same object.
 
 -- Replace each literal slot with its stable ID; unchanged tags/slot count reuse the rendered skeleton.
--- Complete text results are temporary; buffer-owned caches live in gotmpl/session.lua.
+-- Complete text results are temporary; buffer-owned caches live in render/init.lua.
 ---@param source string
 ---@param opts? VimoiTraceOptions
 ---@return VimoiPreparedTrace?

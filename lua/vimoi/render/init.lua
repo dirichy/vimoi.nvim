@@ -2,9 +2,9 @@
 -- Windows remain Neovim resources; destroying a view only exits plugin mode.
 local M = {}
 local api = vim.api
-local edits = require("vimoi.gotmpl.buffer_edits")
-local util = require("vimoi.util")
-local cli = require("vimoi.cli")
+local edits = require("vimoi.core.buffer_edits")
+local util = require("vimoi.core.util")
+local cli = require("vimoi.core.cli")
 
 ---@class VimoiOutputMap
 ---@field tick integer Source buffer version represented by this map.
@@ -43,7 +43,6 @@ local cli = require("vimoi.cli")
 ---@field init? boolean
 ---@field context_generation? integer Execution cache version, including failures.
 ---@field rendered_skeleton? string Cached execution of skeleton.
----@field reported? boolean Whether the current error was reported.
 ---@field error? string Current render failure; map/output retain the last success.
 ---@field request? table Identity of the current render request.
 ---@field cancelled? boolean Explicit cancellation also blocks a queued render.
@@ -51,14 +50,12 @@ local cli = require("vimoi.cli")
 ---@field validation_target? string Explicit cat target; otherwise use the managed target.
 ---@field target_path? string Managed target corresponding to source_path.
 ---@field initialized? boolean Nil while constructing; false caches construction failure, true enables rendering.
----@field validation_started? integer Start time of the last cat validation.
----@field validation_ms? number Extra cat wait after baseline rendering; parallel time is counted as rendering.
 ---@field job? { cancel: fun(), cancelled?: boolean }
 ---@field source_path? string Source path used for native host root discovery.
 
 ---@type table<integer, VimoiSourceSession>
 local buffers = {}
-local diagnostics_enabled, host_enabled, rendered_enabled, configured_validation
+local diagnostics_enabled, rendered_enabled
 
 ---@param source integer
 ---@return VimoiSourceSession
@@ -81,7 +78,7 @@ function M.get(source)
         util.notify("rendered buffers cannot be saved", "output", vim.log.levels.ERROR)
       end,
     })
-    state = state or { subscribers = {}, views = {}, validate = require("vimoi").config.diff.validate }
+    state = state or { subscribers = {}, views = {}, validate = require("vimoi").config.render.validate }
     state.buf, state.map, state.source_path = buf, nil, nil
     buffers[source] = state
   end
@@ -99,7 +96,7 @@ function M.get(source)
     state.source_path, state.target_path = source_path, target
   end
   local target = state.validation_target or state.target_path
-  local init = require("vimoi.filetype").init_template_names[vim.fs.basename(source_path)]
+  local init = require("vimoi.core.source").init_template_names[vim.fs.basename(source_path)]
   if state.initialized == nil and (not state.validate or not target or target == "" or init) then
     state.initialized = true
   end
@@ -216,7 +213,7 @@ function M.update(source, trace)
     output_starts = util.line_starts(trace.output),
     template_tags = trace.template_tags,
     literal_parts = trace.literal_parts,
-    regions = require("vimoi.gotmpl.source_map").rendered_regions(trace),
+    regions = require("vimoi.render.source_map").rendered_regions(trace),
   }
   state.skeleton, state.prefix, state.init = trace.skeleton, trace.prefix, trace.init
   state.context_generation, state.rendered_skeleton = trace.context_generation, trace.rendered_skeleton
@@ -244,7 +241,7 @@ function M.rebuild(source)
   then
     return
   end
-  local renderer = require("vimoi.gotmpl.source_map")
+  local renderer = require("vimoi.render.source_map")
   local prepared = renderer.prepare(util.buffer_text(source), { buf = source, init = state.init })
   if not prepared or prepared.skeleton ~= state.skeleton then
     return
@@ -280,16 +277,15 @@ local function construct(source, state)
       return
     end
     util.async(function()
-      local renderer = require("vimoi.gotmpl.source_map")
+      local renderer = require("vimoi.render.source_map")
       local target = assert(state.validation_target or state.target_path)
       local source_path = api.nvim_buf_get_name(source)
       local baseline, err = util.read_file(source_path)
       local trace, actual
       if baseline then
-        state.validation_started = vim.uv.hrtime()
         trace, err, actual = util.await(function(done)
           local jobs, remaining, settled = {}, 2, false
-          local render_error, cat_error, rendered_at, validated_at
+          local render_error, cat_error
           local construction = { cancelled = false }
           state.job = construction
           function construction.cancel()
@@ -321,8 +317,6 @@ local function construct(source, state)
               for _, job in pairs(jobs) do
                 job.cancel()
               end
-            else
-              state.validation_ms = math.max(0, validated_at - rendered_at) / 1e6
             end
             done(trace, error, actual)
           end
@@ -330,7 +324,7 @@ local function construct(source, state)
           jobs[1] = cli.run({ "cat", target }, {
             text = false,
             callback = function(output, error)
-              actual, cat_error, validated_at = output, error, vim.uv.hrtime()
+              actual, cat_error = output, error
               finish()
             end,
           })
@@ -339,7 +333,7 @@ local function construct(source, state)
               baseline,
               { prefix = renderer.context_prefix(source, false) },
               function(result, error)
-                trace, render_error, rendered_at = result, error, vim.uv.hrtime()
+                trace, render_error = result, error
                 finish()
               end
             )
@@ -391,7 +385,7 @@ local function check(buf, state)
   if current(buf, state) then
     return { tick = assert(state.map).tick, eol = state.map.source_eol, cached = true }
   end
-  local source_map = require("vimoi.gotmpl.source_map")
+  local source_map = require("vimoi.render.source_map")
   local source = util.buffer_text(buf)
   local eol = vim.bo[buf].endofline
   local ok, parser = pcall(vim.treesitter.get_parser, buf, "gotmpl")
@@ -415,8 +409,8 @@ local function check(buf, state)
     state.root, state.prepared, state.rendered_skeleton, state.skeleton = root, nil, nil, nil
     return { tick = vim.api.nvim_buf_get_changedtick(buf), eol = eol, syntax = true }
   end
-  local filetype = require("vimoi.filetype")
-  local init = filetype.init_template_names[vim.fs.basename(vim.api.nvim_buf_get_name(buf))] == true
+  local source_files = require("vimoi.core.source")
+  local init = source_files.init_template_names[vim.fs.basename(vim.api.nvim_buf_get_name(buf))] == true
   local prepared, prepare_error = source_map.prepare(source, { buf = buf, init = init })
   if not prepared then
     cancel_request(state)
@@ -430,7 +424,7 @@ local function check(buf, state)
     or state.context_generation ~= cli.context_generation
   then
     cancel_request(state)
-    state.rendered_skeleton, state.error, state.reported = nil, nil, nil
+    state.rendered_skeleton, state.error = nil, nil
   end
   state.skeleton, state.prefix, state.init = prepared.skeleton, prepared.prefix, prepared.init
   state.context_generation = prepared.context_generation
@@ -500,7 +494,7 @@ function M.register(source, callback, opts)
   then
     cancel_request(state)
     if state.initialized == false then
-      state.error, state.reported = nil, nil
+      state.error = nil
     end
     state.validate, state.validation_target, state.initialized = opts.validate, opts.target, nil
   end
@@ -537,7 +531,7 @@ function M.register(source, callback, opts)
             publish(state)
           elseif not state.error then
             local trace, err =
-              require("vimoi.gotmpl.source_map").restore(assert(state.prepared), state.rendered_skeleton)
+              require("vimoi.render.source_map").restore(assert(state.prepared), state.rendered_skeleton)
             state.error = err
             if trace then
               M.update(source, trace)
@@ -601,9 +595,9 @@ local function detach_automatic(source, state)
   if state.automatic then
     state.automatic()
     state.automatic = nil
-    require("vimoi.diagnostic").clear(source, true)
-    if package.loaded["vimoi.host_highlight"] then
-      require("vimoi.host_highlight").clear(source)
+    require("vimoi.editor.diagnostic").clear(source, true)
+    if package.loaded["vimoi.editor.host_highlight"] then
+      require("vimoi.editor.host_highlight").clear(source)
     end
   end
 end
@@ -619,10 +613,10 @@ local function update_automatic(source)
         return
       end
       if diagnostics_enabled then
-        require("vimoi.diagnostic").update(source)
+        require("vimoi.editor.diagnostic").update(source)
       end
       if rendered_enabled and not rendered.error and rendered.map then
-        require("vimoi.host_highlight").update(source, rendered.map)
+        require("vimoi.editor.host_highlight").update(source, rendered.map)
       end
     end)
   elseif buffers[source] then
@@ -630,44 +624,13 @@ local function update_automatic(source)
   end
 end
 
----Apply automatic consumers without changing explicit view subscriptions.
+---Attach automatic consumers using the fixed setup configuration.
 function M.setup()
   local config = require("vimoi").config
-  local diagnostics = config.diagnostics.enabled
-  local host = diagnostics and config.diagnostics.host
-  local rendered = config.highlight.mode == "rendered"
-  local validation = config.diff.validate
-  if
-    diagnostics_enabled == diagnostics
-    and host_enabled == host
-    and rendered_enabled == rendered
-    and configured_validation == validation
-  then
-    return
-  end
-  for source, state in pairs(buffers) do
-    if configured_validation ~= validation then
-      cancel_request(state)
-      if state.initialized == false then
-        state.error, state.reported = nil, nil
-      end
-      state.validate, state.validation_target, state.initialized = validation, nil, nil
-      if state.check and next(state.subscribers) then
-        refresh(source)
-      end
-    end
-    if diagnostics_enabled and not diagnostics then
-      require("vimoi.diagnostic").clear(source, true)
-    elseif host_enabled and not host and package.loaded["vimoi.diagnostic"] then
-      require("vimoi.diagnostic").clear_host(source, true)
-    end
-    if rendered_enabled and not rendered and package.loaded["vimoi.host_highlight"] then
-      require("vimoi.host_highlight").clear(source)
-    end
-  end
-  diagnostics_enabled, host_enabled, rendered_enabled, configured_validation = diagnostics, host, rendered, validation
-  if rendered then
-    require("vimoi.host_highlight")
+  diagnostics_enabled = config.diagnostics.enabled
+  rendered_enabled = config.highlight.mode == "rendered"
+  if rendered_enabled then
+    require("vimoi.editor.host_highlight")
   end
   for _, source in ipairs(api.nvim_list_bufs()) do
     if api.nvim_buf_is_loaded(source) then
@@ -687,8 +650,8 @@ api.nvim_create_autocmd("User", {
   group = group,
   pattern = "VimoiHostFiletypeChanged",
   callback = function(args)
-    if package.loaded["vimoi.host_highlight"] then
-      require("vimoi.host_highlight").clear(args.data.buf)
+    if package.loaded["vimoi.editor.host_highlight"] then
+      require("vimoi.editor.host_highlight").clear(args.data.buf)
     end
     local state = buffers[args.data.buf]
     if state and current(args.data.buf, state) then
@@ -726,7 +689,7 @@ api.nvim_create_autocmd("BufUnload", {
     local state = buffers[args.buf]
     if state then
       for view in pairs(state.views) do
-        require("vimoi.gotmpl.view").close(view)
+        require("vimoi.compare").close(view)
       end
       detach_automatic(args.buf, state)
       buffers[args.buf] = nil
@@ -739,7 +702,7 @@ api.nvim_create_autocmd("BufUnload", {
       local owner = source and buffers[source]
       if owner and owner.buf == args.buf then
         owner.map = nil
-        require("vimoi.diagnostic").clear(source, true)
+        require("vimoi.editor.diagnostic").clear(source, true)
         -- Let :bdelete/:bwipeout finish before replacing the shared buffer.
         vim.schedule(function()
           if buffers[source] == owner then

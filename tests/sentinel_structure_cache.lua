@@ -11,12 +11,12 @@ vim.fn.writefile({
   "enabled = true",
 }, config)
 vim.fn.writefile({ "external={{ .enabled }}" }, source_root .. "/.chezmoitemplates/external")
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 cli.setup("chezmoi", config)
-local source_map = require("vimoi.gotmpl.source_map")
-local diff_hunks = require("vimoi.gotmpl.diff_hunks")
-local merge_plan = require("vimoi.gotmpl.merge_plan")
-local util = require("vimoi.util")
+local source_map = require("vimoi.render.source_map")
+local diff_hunks = require("vimoi.compare.diff_hunks")
+local merge_plan = require("vimoi.merge.plan")
+local util = require("vimoi.core.util")
 local execute = cli.execute_template
 local run = cli.run
 local executions = 0
@@ -181,7 +181,7 @@ assert(executions == before + 1)
 
 -- A session can reuse its prepared input instead of parsing/decoding it twice.
 local prepared = assert(source_map.prepare('{{ "prepared" }} tail'))
-local completed = run_async(require("vimoi.util").await, function(callback)
+local completed = run_async(require("vimoi.core.util").await, function(callback)
   source_map.trace_async(prepared.source, { prepared = prepared }, callback)
 end)
 assert(completed == prepared and completed.output == "prepared tail")

@@ -1,5 +1,5 @@
 local run_async = dofile("tests/helpers/await.lua")
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 local source_root = vim.fn.getcwd() .. "/tests/fixtures/environment/source"
 local source_file = source_root .. "/dot_diff_target.tmpl"
 local ignored_source = source_root .. "/dot_ignored"

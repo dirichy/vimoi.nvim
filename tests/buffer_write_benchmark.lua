@@ -1,8 +1,8 @@
 -- Compare the previous full-buffer setter with the production local writer.
 -- Includes normal allocation/GC, but excludes merge planning, rendering, diff, and UI.
-local util = require("vimoi.util")
-local source_map = require("vimoi.gotmpl.source_map")
-local buffer_edits = require("vimoi.gotmpl.buffer_edits")
+local util = require("vimoi.core.util")
+local source_map = require("vimoi.render.source_map")
+local buffer_edits = require("vimoi.core.buffer_edits")
 local function median(t)
   table.sort(t)
   return t[math.ceil(#t / 2)]

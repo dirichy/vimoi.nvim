@@ -1,8 +1,8 @@
 vim.opt.swapfile = false
 require("vimoi").setup({ diagnostics = { enabled = false } })
 local api = require("vimoi.api")
-local util = require("vimoi.util")
-local sessions = require("vimoi.gotmpl.view")
+local util = require("vimoi.core.util")
+local sessions = require("vimoi.compare")
 local source_text = 'name={{ "old" }}\ncount=1\n'
 local target_text = "name=old\ncount=2\n"
 

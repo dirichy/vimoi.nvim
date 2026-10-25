@@ -2,7 +2,7 @@
 if not dofile("tests/helpers/tui.lua")("tests/session_output_lifecycle_ui.lua") then
   return
 end
-local api, util = vim.api, require("vimoi.util")
+local api, util = vim.api, require("vimoi.core.util")
 local function finish(err)
   vim.fn.writefile({ err or "OK" }, vim.env.VIMOI_UI_RESULT)
   vim.cmd("qa!")
@@ -25,7 +25,7 @@ for row = 2, 120 do
 end
 util.set_buffer_text(source, table.concat(lines, "\n") .. "\n")
 require("vimoi.api").preview()
-local view = assert(require("vimoi.gotmpl.view").by_window[api.nvim_get_current_win()])
+local view = assert(require("vimoi.compare").by_window[api.nvim_get_current_win()])
 later(function()
   assert(not view.loading and view.map)
   api.nvim_set_current_win(view.target_win)
@@ -36,8 +36,8 @@ later(function()
   later(function()
     local messages = api.nvim_exec2("messages", { output = true }).output
     assert(messages == "", messages)
-    local state = require("vimoi.gotmpl.session").get(source)
-    assert(state.map and require("vimoi.gotmpl.session").is_current(source, state.map))
+    local state = require("vimoi.render").get(source)
+    assert(state.map and require("vimoi.render").is_current(source, state.map))
     finish()
   end)
 end)

@@ -1,5 +1,5 @@
-local source_map = require("vimoi.gotmpl.source_map")
-local util = require("vimoi.util")
+local source_map = require("vimoi.render.source_map")
+local util = require("vimoi.core.util")
 local buf = vim.api.nvim_create_buf(false, true)
 local checked = 0
 local previous, snapshot

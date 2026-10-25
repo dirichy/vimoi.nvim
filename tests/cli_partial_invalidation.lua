@@ -1,6 +1,6 @@
 local run_async = dofile("tests/helpers/await.lua")
 ---@diagnostic disable: duplicate-set-field -- Isolated CLI results and async completions.
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 local original_run = cli.run
 local source_root = vim.fn.getcwd() .. "/tests/fixtures/environment/source"
 local source_file = source_root .. "/dot_diff_target.tmpl"

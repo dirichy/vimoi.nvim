@@ -1,5 +1,5 @@
 local run_async = dofile("tests/helpers/await.lua")
-local source_map = require("vimoi.gotmpl.source_map")
+local source_map = require("vimoi.render.source_map")
 
 local trace, err = run_async(source_map.trace, 'hello {{ "world" }}!\n')
 assert(trace, err)

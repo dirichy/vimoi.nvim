@@ -1,5 +1,5 @@
-local cli = require("vimoi.cli")
-local watch = require("vimoi.watch")
+local cli = require("vimoi.core.cli")
+local watch = require("vimoi.core.watch")
 local test_root = vim.fn.tempname() .. " watch config"
 local source_root = test_root .. "/source"
 local include_dir = source_root .. "/includes/nested"

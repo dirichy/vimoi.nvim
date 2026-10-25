@@ -2,7 +2,7 @@
 -- data-only module would trigger its loader. Preselect by suffix/chezmoi prefix;
 -- the callback loads the single authoritative filename rules only when needed.
 local function detect(path)
-  return require("vimoi.filetype").detect(path)
+  return require("vimoi.editor.filetype").detect(path)
 end
 
 vim.filetype.add({

@@ -7,7 +7,7 @@ vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 local source = require("vimoi.blink").new()
-require("vimoi.cli").invalidate()
+require("vimoi.core.cli").invalidate()
 
 local buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_win_set_buf(0, buf)
@@ -125,7 +125,7 @@ end))
 assert(#response.items > 0)
 
 -- Cancel one pending request without suppressing another request sharing the data lookup.
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 cli.invalidate("data")
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "{{ .chezmoi.ho" })
 local cancelled_called = false

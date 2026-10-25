@@ -1,11 +1,11 @@
 -- One registry serves live consumers and one-shot render waits.
 require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
-local api, util = vim.api, require("vimoi.util")
-local renderer = require("vimoi.gotmpl.source_map")
-local sessions = require("vimoi.gotmpl.session")
+local api, util = vim.api, require("vimoi.core.util")
+local renderer = require("vimoi.render.source_map")
+local sessions = require("vimoi.render")
 local await = dofile("tests/helpers/await.lua")
 local requests = {}
-package.loaded["vimoi.gotmpl.source_map"] = setmetatable({
+package.loaded["vimoi.render.source_map"] = setmetatable({
   trace_async = function(source, opts, callback)
     local request = { source = source, opts = opts, callback = callback, cancelled = false }
     requests[#requests + 1] = request

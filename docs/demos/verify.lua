@@ -3,7 +3,7 @@ local ok, result = xpcall(function()
   local demo = vim.env.VIMOI_DEMO or "preview"
   local fixture = vim.g.vimoi_demo
   local observed = _G.vimoi_demo_observed
-  local view = require("vimoi.gotmpl.view").current()
+  local view = require("vimoi.compare").current()
   local source_buf = vim.fn.bufnr(fixture.source)
   assert(vim.api.nvim_buf_is_loaded(source_buf), "source is no longer loaded")
   local source = table.concat(vim.api.nvim_buf_get_lines(source_buf, 0, -1, false), "\n")

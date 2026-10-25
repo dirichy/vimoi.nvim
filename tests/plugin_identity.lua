@@ -28,7 +28,7 @@ local original_notify, message = vim.notify, nil
 vim.notify = function(text)
   message = text
 end
-require("vimoi.util").notify("test", "diff")
+require("vimoi.core.util").notify("test", "diff")
 vim.notify = original_notify
 assert(message == "vimoi diff: test")
 assert(vim.tbl_contains(vim.treesitter.query.list_directives(), "vimoi-target-language!"))

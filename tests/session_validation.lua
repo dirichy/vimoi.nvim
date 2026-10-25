@@ -1,12 +1,12 @@
 -- Construction validates a fixed disk baseline; edits never cancel/restart it.
 require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
-assert(require("vimoi").config.diff.validate == true)
-local api, util = vim.api, require("vimoi.util")
-local renderer = require("vimoi.gotmpl.source_map")
-local sessions, cli = require("vimoi.gotmpl.session"), require("vimoi.cli")
+assert(require("vimoi").config.render.validate == true)
+local api, util = vim.api, require("vimoi.core.util")
+local renderer = require("vimoi.render.source_map")
+local sessions, cli = require("vimoi.render"), require("vimoi.core.cli")
 local run, cats, baselines = cli.run, {}, {}
 local render_trace = dofile("tests/helpers/trace.lua")
-package.loaded["vimoi.gotmpl.source_map"] = setmetatable({
+package.loaded["vimoi.render.source_map"] = setmetatable({
   trace_async = function(source, opts, callback)
     if opts.prefix ~= nil then
       local command = { cancelled = false }
@@ -127,6 +127,12 @@ await(function()
   return failures == 1
 end)
 assert(state.initialized == false and failures == 1 and state.map == nil)
+-- Construction failures have no source AST, but still belong in diagnostics.
+require("vimoi.editor.diagnostic").update(source)
+local diagnostic_namespace = api.nvim_create_namespace("vimoi-diagnostics")
+local construction_errors = vim.diagnostic.get(source, { namespace = diagnostic_namespace })
+assert(#construction_errors == 1 and construction_errors[1].lnum == 0)
+assert(construction_errors[1].message:find(state.error, 1, true))
 util.set_buffer_text(source, 'new={{ "buffer" }}\n')
 await(function()
   return failures == 2

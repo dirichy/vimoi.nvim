@@ -1,7 +1,7 @@
 vim.opt.swapfile = false
 vim.opt.rtp:prepend(vim.fn.getcwd())
 if vim.env.VIMOI_BENCH_SESSION and vim.env.VIMOI_BENCH_SESSION ~= "" then
-  package.preload["vimoi.gotmpl.session"] = function()
+  package.preload["vimoi.render"] = function()
     return dofile(vim.env.VIMOI_BENCH_SESSION)
   end
 end
@@ -10,7 +10,7 @@ require("vimoi").setup({
   diagnostics = { enabled = false },
   highlight = { mode = "disabled" },
 })
-local sessions, cli, util = require("vimoi.gotmpl.session"), require("vimoi.cli"), require("vimoi.util")
+local sessions, cli, util = require("vimoi.render"), require("vimoi.core.cli"), require("vimoi.core.util")
 local results = {}
 for i = 1, 18 do
   cli.invalidate("templates")

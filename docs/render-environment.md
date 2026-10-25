@@ -1,7 +1,7 @@
 # Render environment compatibility
 
 > Historical investigation and design options. Managed templates inject their cat
-> context as described below. `diff.validate = true` now validates a fixed disk
+> context as described below. `render.validate = true` now validates a fixed disk
 > baseline once during source-session construction, independently of buffer edits.
 > `false` skips it. All consumers, including preview, wait for construction success.
 > Static put/re-add uses local source-map inference after that check. See

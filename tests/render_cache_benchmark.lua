@@ -11,8 +11,8 @@ require("vimoi").setup({
   diagnostics = { enabled = false },
   highlight = { mode = "disabled" },
 })
-local api, util, cli = vim.api, require("vimoi.util"), require("vimoi.cli")
-local renderer, hunks = require("vimoi.gotmpl.source_map"), require("vimoi.gotmpl.diff_hunks")
+local api, util, cli = vim.api, require("vimoi.core.util"), require("vimoi.core.cli")
+local renderer, hunks = require("vimoi.render.source_map"), require("vimoi.compare.diff_hunks")
 local await = dofile("tests/helpers/await.lua")
 local execute, prepare, restore = cli.execute_template, renderer.prepare, renderer.restore
 local calls = { prepare = 0, restore = 0 }
@@ -100,13 +100,13 @@ for _, size in ipairs({ 8, 1000 }) do
   local target_buf = api.nvim_create_buf(true, false)
   util.set_buffer_text(target_buf, modified)
   require("vimoi.api").diff_buffers(buf, target_buf)
-  local views = require("vimoi.gotmpl.view")
+  local views = require("vimoi.compare")
   local view = assert(views.by_window[api.nvim_get_current_win()])
   assert(vim.wait(5000, function()
     return not view.loading
   end, 1))
-  local native = require("vimoi.gotmpl.native_diff")
-  local planner = require("vimoi.gotmpl.merge_plan")
+  local native = require("vimoi.compare.native_diff")
+  local planner = require("vimoi.merge.plan")
   local sparse, projection, planning = {}, {}, {}
   for repeat_index = 1, 83 do
     local cpu = os.clock()

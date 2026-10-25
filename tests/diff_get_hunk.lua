@@ -5,8 +5,8 @@ vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
 local api = require("vimoi.api")
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
-local util = require("vimoi.util")
-local sessions = require("vimoi.gotmpl.view")
+local util = require("vimoi.core.util")
+local sessions = require("vimoi.compare")
 
 local function check(source_text, target_text, expected, side)
   vim.cmd("tabnew")

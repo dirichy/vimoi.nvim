@@ -1,6 +1,6 @@
 local run_async = dofile("tests/helpers/await.lua")
 ---@diagnostic disable: duplicate-set-field -- Isolated process mock and delayed async completions.
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 local original_system = vim.system
 local executions, pending = 0, {}
 local forced_result
@@ -121,11 +121,11 @@ assert(run_async(cli.execute_template, "async", { cache = true }) == "async")
 assert(executions == before)
 
 -- An invalidation updates the shared version without loading source_map.
-assert(package.loaded["vimoi.gotmpl.source_map"] == nil)
+assert(package.loaded["vimoi.render.source_map"] == nil)
 local generation = cli.context_generation
 cli.invalidate()
 assert(cli.context_generation == generation + 1)
-assert(package.loaded["vimoi.gotmpl.source_map"] == nil)
+assert(package.loaded["vimoi.render.source_map"] == nil)
 
 -- Capture an old request, invalidate, and populate the same key with new data.
 forced_result = { code = 0, stdout = "old", stderr = "" }

@@ -1,7 +1,7 @@
 local run_async = dofile("tests/helpers/await.lua")
-local source_map = require("vimoi.gotmpl.source_map")
-local merge_plan = require("vimoi.gotmpl.merge_plan")
-local cli = require("vimoi.cli")
+local source_map = require("vimoi.render.source_map")
+local merge_plan = require("vimoi.merge.plan")
+local cli = require("vimoi.core.cli")
 local checked, duplicate_ranges = 0, 0
 
 local function check(trace, edits)

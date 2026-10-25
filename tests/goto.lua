@@ -8,22 +8,22 @@ vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.env.VIMOI_TEST_DESTINATION = destination
 require("vimoi").setup({ chezmoi_executable = wrapper })
-require("vimoi.cli").invalidate()
+require("vimoi.core.cli").invalidate()
 
 local mapped_buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_win_set_buf(0, mapped_buf)
 vim.bo[mapped_buf].filetype = "gotmpl"
 vim.api.nvim_buf_set_lines(mapped_buf, 0, -1, false, { '{{ include "payload.txt" }}' })
 vim.api.nvim_win_set_cursor(0, { 1, 13 })
-assert(package.loaded["vimoi.goto"] == nil)
+assert(package.loaded["vimoi.editor.goto"] == nil)
 vim.cmd("normal gf")
-assert(package.loaded["vimoi.goto"] ~= nil, "the first gf should load goto")
+assert(package.loaded["vimoi.editor.goto"] ~= nil, "the first gf should load goto")
 assert(vim.wait(2000, function()
   return vim.api.nvim_buf_get_name(0) == fixture .. "/source/payload.txt"
 end))
 
-local goto_file = require("vimoi.goto")
-local cli = require("vimoi.cli")
+local goto_file = require("vimoi.editor.goto")
+local cli = require("vimoi.core.cli")
 ---@diagnostic disable-next-line: duplicate-set-field -- Navigation must not load template data.
 cli.data = function()
   error("navigation queried chezmoi data")

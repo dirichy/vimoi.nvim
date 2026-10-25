@@ -1,5 +1,5 @@
 local run_async = dofile("tests/helpers/await.lua")
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 local api = require("vimoi.api")
 local test_root = vim.fn.tempname() .. " chezmoi watch"
 local source_root = test_root .. "/source"
@@ -64,7 +64,7 @@ await_data("later_value", 2)
 
 -- Include edits invalidate both CLI results and a sentinel's unchanged-text
 -- fast path, without dropping unrelated data. Watch nested template folders.
-local source_map = require("vimoi.gotmpl.source_map")
+local source_map = require("vimoi.render.source_map")
 local source = '{{ includeTemplate "nested/value" . }}'
 vim.wait(80, function()
   return false

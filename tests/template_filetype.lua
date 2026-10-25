@@ -33,7 +33,8 @@ end
 assert(vim.filetype.match({ filename = source_dir .. "-other/script.sh.tmpl" }) ~= "gotmpl")
 assert(vim.filetype.match({ filename = source_dir .. "/.chezmoiexternal.ini" }) ~= "gotmpl")
 
-local filetype = require("vimoi.filetype")
+local filetype = require("vimoi.editor.filetype")
+local source_files = require("vimoi.core.source")
 local host_cases = {
   [".chezmoiignore"] = "gitignore",
   [".chezmoiignore.tmpl"] = "gitignore",
@@ -149,16 +150,16 @@ assert(not parser:children().lua)
 for _, name in ipairs({ ".chezmoiignore", ".chezmoiremove", "nested/.chezmoiignore", "nested/.chezmoiremove" }) do
   for _, suffix in ipairs({ "", ".tmpl" }) do
     local path = source_dir .. "/" .. name .. suffix
-    assert(filetype.path_kind(path) == "target_patterns", path)
+    assert(source_files.path_kind(path) == "target_patterns", path)
     assert(filetype.host_filetype(path) == "gitignore", path)
   end
 end
-local symlink_regex = vim.fn.glob2regpat(filetype.symlink_pattern)
+local symlink_regex = vim.fn.glob2regpat(source_files.symlink_pattern)
 for _, name in ipairs({ "symlink_example", "symlink_example.tmpl", "nested/symlink_example" }) do
   local path = source_dir .. "/" .. name
-  assert(filetype.path_kind(path) == "symlink_target", path)
+  assert(source_files.path_kind(path) == "symlink_target", path)
   assert(vim.fn.match(vim.fs.basename(path), symlink_regex) >= 0, "registration and navigation disagree")
 end
 for _, name in ipairs({ ".chezmoiignore.bak", ".chezmoiremove.txt", ".chezmoiignore.tmpl.bak", "not_symlink_example" }) do
-  assert(filetype.path_kind(source_dir .. "/" .. name) == nil, name)
+  assert(source_files.path_kind(source_dir .. "/" .. name) == nil, name)
 end

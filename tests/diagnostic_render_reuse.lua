@@ -6,8 +6,8 @@ vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
 local api = require("vimoi.api")
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
-local cli = require("vimoi.cli")
-local sessions = require("vimoi.gotmpl.view")
+local cli = require("vimoi.core.cli")
+local sessions = require("vimoi.compare")
 local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
 local original_run, original_execute, original_set = cli.run, cli.execute_template, vim.diagnostic.set
 local jobs, requests, publications = {}, 0, 0
@@ -47,18 +47,17 @@ local function open(value, duration)
   return session
 end
 
--- Disable diagnostics during a shared render: the view must still finish.
+-- Detach automatic consumers during a shared render: the view must still finish.
 local session = open("A", "0.8")
 assert(#jobs == 1, "view and diagnostics launched duplicate processes")
-require("vimoi").setup({ diagnostics = { enabled = false } })
+vim.bo[session.source_buf].filetype = "text"
 wait_for(function()
   return session.map ~= nil
 end)
-assert(not jobs[1].cancelled and assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == "A\n")
+assert(not jobs[1].cancelled and assert(require("vimoi.render").snapshot(session.source_buf)).output == "A\n")
 sessions.close(session)
 
 -- Closing the view must not cancel a render still needed by diagnostics.
-require("vimoi").setup({ diagnostics = { enabled = true } })
 local before = publications
 session = open("B", "0.8")
 assert(#jobs == 2)
@@ -72,14 +71,13 @@ end)
 assert(not jobs[2].cancelled and session.closed)
 assert(#vim.diagnostic.get(session.source_buf, { namespace = namespace }) == 0)
 
--- Rendered highlighting remains a consumer after diagnostics and the view
--- release the process. Disabling that final consumer must terminate it.
+-- Automatic consumers keep the render alive after the view closes; detaching
+-- the source must terminate the process when no consumer remains.
 session = open("C", "30")
 assert(#jobs == 3)
-require("vimoi").setup({ diagnostics = { enabled = false } })
 sessions.close(session)
 assert(not jobs[3].cancelled, "view/diagnostic cancellation interrupted rendered highlighting")
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+vim.bo[session.source_buf].filetype = "text"
 wait_for(function()
   return jobs[3].finished
 end)
@@ -91,7 +89,6 @@ for _, buf in ipairs(vim.api.nvim_list_bufs()) do
     vim.bo[buf].filetype = "text"
   end
 end
-require("vimoi").setup({ diagnostics = { enabled = true } })
 session = open("D", "30")
 assert(#jobs == 4)
 api.readd()

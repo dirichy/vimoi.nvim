@@ -45,8 +45,9 @@
 [格式化](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/format.lua)、
 [加密](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/encryption.lua)
 和 [CLI 调用](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/resolve.lua)；
-我们的 [公开 API](../lua/vimoi/api.lua)、[文件类型](../lua/vimoi/filetype.lua)、
-[宿主高亮](../lua/vimoi/host_highlight.lua) 和 [诊断](../lua/vimoi/diagnostic.lua)。
+我们的 [公开 API](../lua/vimoi/api.lua)、[源文件规则](../lua/vimoi/core/source.lua)、
+[文件类型](../lua/vimoi/editor/filetype.lua)、
+[宿主高亮](../lua/vimoi/editor/host_highlight.lua) 和 [诊断](../lua/vimoi/editor/diagnostic.lua)。
 
 选择上，它更适合需要格式化、加密、文件浏览和部署配套的 source 编辑流程；
 vimoi 更侧重渲染结果与实际文件的比较，以及保留模板结构的静态写回。
@@ -112,7 +113,7 @@ Snacks 版本是沿 Telescope 版本的 README 链接补充检查的。精确提
 target 的差异。我们维护模板到渲染结果的 source map，将 hunks 投影到原生 diff，支持映射后的
 双向 do/dp 和静态 re-add。本次检查的其他仓库也未发现等价的模板静态反向写回。
 实现见其 [commands.lua](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/commands.lua)
-与我们的 [gotmpl](../lua/vimoi/gotmpl/init.lua)。
+与我们的 [compare](../lua/vimoi/compare/init.lua)。
 
 **刷新与耗时任务：** 它的预览有 150ms debounce、在途请求合并、相同内容检查，渲染超过
 500ms 后会退回保存时刷新；模板执行设有 10 秒超时。我们使用结构骨架缓存、共享在途渲染，
@@ -187,7 +188,7 @@ debounce，先处理 Tree-sitter 语法错误，再执行骨架并映射位置�
 
 ## 已做的本地验证
 
-除了静态阅读，还在本项目最小 Neovim 环境中调用 `vimoi.filetype.host_filetype()`，使用空 buffer
+除了静态阅读，还在本项目最小 Neovim 环境中调用 `vimoi.editor.filetype.host_filetype()`，使用空 buffer
 比较 source 命名与实际 target 命名，得到：
 
 | 输入路径 | 结果 |

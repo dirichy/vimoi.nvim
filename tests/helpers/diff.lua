@@ -1,6 +1,6 @@
 return function()
   local win = vim.api.nvim_get_current_win()
-  local session = require("vimoi.gotmpl.view").by_window[win]
+  local session = require("vimoi.compare").by_window[win]
   assert(
     vim.wait(5000, function()
       return not session or not session.loading

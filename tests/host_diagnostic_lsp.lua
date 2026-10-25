@@ -77,12 +77,12 @@ vim.lsp.config("vimoi_test_host", {
   end,
 })
 vim.lsp.enable("vimoi_test_host")
-local util = require("vimoi.util")
+local util = require("vimoi.core.util")
 local buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_set_current_buf(buf)
 vim.api.nvim_buf_set_name(buf, root .. "/config.lua.tmpl")
 util.set_buffer_text(buf, '{{ if false }}\nskipped\n{{ end }}\nlocal n = {{ "1" }}\nprint("中文", host_error)\n')
-require("vimoi.highlight").configure_template_buffer(buf, "lua")
+require("vimoi.editor.highlight").configure_template_buffer(buf, "lua")
 local namespace = vim.api.nvim_create_namespace("vimoi-host-diagnostics")
 local function wait_for(predicate)
   assert(vim.wait(5000, predicate, 10), "native host LSP did not publish")
@@ -122,14 +122,14 @@ dispatch.notification("textDocument/publishDiagnostics", {
 })
 assert(vim.diagnostic.get(buf, { namespace = namespace })[1].message == "[host:lua] current")
 -- A failed render clears projected host errors but keeps the native client
--- attached to the last output. Disabling host checks must still detach it.
+-- attached to the last output. Leaving gotmpl must still detach it.
 util.set_buffer_text(buf, "{{ if")
 vim.api.nvim_exec_autocmds("TextChangedI", { buffer = buf })
 wait_for(function()
   return #vim.diagnostic.get(buf, { namespace = vim.api.nvim_create_namespace("vimoi-diagnostics") }) > 0
 end)
 assert(#vim.lsp.get_clients({ bufnr = attached[1].buf }) == 1)
-require("vimoi").setup({ diagnostics = { host = false } })
+vim.bo[buf].filetype = "text"
 assert(vim.api.nvim_buf_is_valid(attached[1].buf))
 assert(#vim.lsp.get_clients({ bufnr = attached[1].buf }) == 0)
 vim.lsp.enable("vimoi_test_host", false)

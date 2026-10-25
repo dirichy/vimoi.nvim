@@ -10,7 +10,7 @@ vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.env.VIMOI_TEST_DESTINATION = destination
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = wrapper, diff = { validate = false } })
+require("vimoi").setup({ chezmoi_executable = wrapper, render = { validate = false } })
 
 vim.cmd("edit " .. vim.fn.fnameescape(target))
 local target_buf = vim.api.nvim_get_current_buf()
@@ -71,9 +71,9 @@ assert(has_closed_fold(source_win))
 assert(has_closed_fold(target_win))
 
 vim.api.nvim_set_current_win(target_win)
-require("vimoi.gotmpl").fold("zR")
+require("vimoi.compare").fold("zR")
 assert(not has_closed_fold(source_win) and not has_closed_fold(target_win), "zR was not mirrored")
-require("vimoi.gotmpl").fold("zM")
+require("vimoi.compare").fold("zM")
 assert(has_closed_fold(source_win) and has_closed_fold(target_win), "zM was not mirrored")
 
 local target_fold_line = vim.api.nvim_win_call(target_win, function()
@@ -88,14 +88,14 @@ vim.api.nvim_win_set_cursor(target_win, { target_fold_line, 0 })
 vim.cmd("doautocmd CursorMoved")
 vim.wait(30)
 local source_fold_line = vim.api.nvim_win_get_cursor(source_win)[1]
-require("vimoi.gotmpl").fold("zo")
+require("vimoi.compare").fold("zo")
 assert(vim.api.nvim_win_call(target_win, function()
   return vim.fn.foldclosed(target_fold_line)
 end) == -1, "target fold did not open")
 assert(vim.api.nvim_win_call(source_win, function()
   return vim.fn.foldclosed(source_fold_line)
 end) == -1, "source fold did not open")
-require("vimoi.gotmpl").fold("zM")
+require("vimoi.compare").fold("zM")
 
 local source_has_filler = vim.api.nvim_win_call(source_win, function()
   for line = 1, vim.fn.line("$") + 1 do
@@ -153,19 +153,15 @@ vim.cmd("doautocmd CursorMoved")
 vim.wait(30)
 local mapped_source_line = vim.api.nvim_win_get_cursor(source_win)[1]
 assert(mapped_source_line >= 16 and mapped_source_line <= 22, "range occurrence mapped to " .. mapped_source_line)
-local source_screen_row = vim.api.nvim_win_call(source_win, vim.fn.winline)
-local target_screen_row = vim.api.nvim_win_call(target_win, vim.fn.winline)
-assert(
-  source_screen_row == target_screen_row,
-  ("screen rows differ: %d != %d"):format(source_screen_row, target_screen_row)
-)
 assert(vim.b[source_buf].snacks_scroll == false and vim.b[target_buf].snacks_scroll == false)
 
 vim.api.nvim_set_current_win(source_win)
 vim.api.nvim_win_set_cursor(source_win, { 18, 0 })
 vim.cmd("doautocmd CursorMoved")
 vim.wait(30)
-assert(math.abs(vim.api.nvim_win_get_cursor(target_win)[1] - 50) < 8, "source range did not keep nearest occurrence")
+local _, expected_line =
+  require("vimoi.compare.sync_scroll").corresponding_line(assert(require("vimoi.compare").current()), source_win, 18)
+assert(vim.api.nvim_win_get_cursor(target_win)[1] == expected_line, "source range did not use its first execution")
 
 local function target_line(text, after)
   local current = vim.api.nvim_buf_get_lines(target_buf, 0, -1, false)
@@ -200,7 +196,7 @@ assert(merged_source:find('log_level = "debug"', 1, true), merged_source)
 assert(merged_source:find("new_option = true", 1, true), merged_source)
 assert(not merged_source:find("feature_h = false", 1, true), merged_source)
 
-local source_map = require("vimoi.gotmpl.source_map")
+local source_map = require("vimoi.render.source_map")
 local original_trace = source_map.trace
 local original_trace_async = source_map.trace_async
 local render_count = 0
@@ -225,7 +221,7 @@ vim.wait(180)
 source_map.trace = original_trace
 source_map.trace_async = original_trace_async
 assert(render_count == 0, "editing one static segment unexpectedly rerendered the template")
-assert(vim.o.diffexpr == "v:lua.require'vimoi.gotmpl'._diffexpr()")
+assert(vim.o.diffexpr == "v:lua.require'vimoi.compare'._diffexpr()")
 template_control_highlight = vim.api.nvim_win_call(source_win, function()
   return vim.fn.synIDattr(vim.fn.diff_hlID(5, 1), "name")
 end)

@@ -1,14 +1,14 @@
 -- Put/get hunks and re-add target changes to ordinary or template sources.
 local M = {}
-local util = require("vimoi.util")
-local job = require("vimoi.job")
-local cli = require("vimoi.cli")
-local filetype = require("vimoi.filetype")
-local views = require("vimoi.gotmpl.view")
-local native_diff = require("vimoi.gotmpl.native_diff")
-local buffer_edits = require("vimoi.gotmpl.buffer_edits")
-local source_map = require("vimoi.gotmpl.source_map")
-local sessions = require("vimoi.gotmpl.session")
+local util = require("vimoi.core.util")
+local job = require("vimoi.core.job")
+local cli = require("vimoi.core.cli")
+local source_files = require("vimoi.core.source")
+local views = require("vimoi.compare")
+local native_diff = require("vimoi.compare.native_diff")
+local buffer_edits = require("vimoi.core.buffer_edits")
+local source_map = require("vimoi.render.source_map")
+local sessions = require("vimoi.render")
 
 -- This operation owns both subscriptions; the view stores no merge continuation.
 ---@param view VimoiTemplateView
@@ -44,7 +44,7 @@ end
 ---@param choice VimoiMergeChoice
 ---@return VimoiMergeEdit[]
 local function choice_candidates(trace, choice)
-  local merge_plan = require("vimoi.gotmpl.merge_plan")
+  local merge_plan = require("vimoi.merge.plan")
   local candidates = {}
   local source_starts = trace.source_starts or util.line_starts(trace.source)
   for _, edit in ipairs(choice.candidates) do
@@ -117,7 +117,7 @@ local function merge(mode)
   if not session or session.preview then
     return util.notify("current buffer is not in a vimoi diff session", "diff", vim.log.levels.ERROR)
   end
-  local merge_plan = require("vimoi.gotmpl.merge_plan")
+  local merge_plan = require("vimoi.merge.plan")
   -- Resolve direction before rendering can move focus to a wait window.
   local to_target = (mode == "put" and requested_buf == session.source_buf)
     or (mode == "get" and requested_buf == session.target_buf)
@@ -302,8 +302,8 @@ function M.readd(path)
   if not source then
     return util.notify(assert(resolve_error), "re-add", vim.log.levels.ERROR)
   end
-  if filetype.is_template(source) then
-    if require("vimoi.gotmpl").open({ source = source, target = target }) then
+  if source_files.is_template(source) then
+    if require("vimoi.compare").open({ source = source, target = target }) then
       return util.async(merge, "readd")
     end
     return
@@ -312,7 +312,7 @@ function M.readd(path)
   -- These source files encode an operation or ciphertext, not the target's text.
   local name = vim.fs.basename(source):gsub("^create_", "")
   if
-    filetype.path_kind(source) == "symlink_target"
+    source_files.path_kind(source) == "symlink_target"
     or name:match("^encrypted_")
     or name:match("^modify_")
     or name:match("^run_")
@@ -343,7 +343,7 @@ function M.readd(path)
   if not vim.bo[source_buf].modifiable then
     return util.notify("source buffer is not modifiable", "re-add", vim.log.levels.ERROR)
   end
-  require("vimoi.gotmpl").open({ source = source, target = target })
+  require("vimoi.compare").open({ source = source, target = target })
   local source_text, target_text = util.buffer_text(source_buf), util.buffer_text(target_buf)
   local edits = buffer_edits.diff(source_text, target_text)
   if #edits > 0 then

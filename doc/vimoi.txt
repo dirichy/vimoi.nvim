@@ -74,7 +74,7 @@ The available options and their defaults are: >lua
       watch = {
         buffer_write_fallback = "auto",
       },
-      diff = {
+      render = {
         validate = true,
       },
       completion = {
@@ -154,7 +154,8 @@ The source root and init-template/config mapping are initialized once by
 
 `split` selects "vertical" (default, side by side) or "horizontal" (stacked)
 for newly created diff/preview splits, including ordinary file diff. Existing
-window pairs are reused without rearranging them when the option changes.
+window pairs are reused without rearranging them. Set the orientation in the
+initial setup configuration.
 
 `highlight.template_bg` colors the entire `{{ ... }}` action without replacing
 its foreground syntax colors. The default `"NormalFloat"` borrows the theme’s
@@ -164,7 +165,12 @@ colors. Other highlight group names (such as `"StatusLine"`), single colors
 their visible background. A group without a background adds no background.
 Changes to `background` or the colorscheme refresh the selected color.
 
-`diff.validate` is a boolean controlling source-session construction:
+`render.validate` replaces the old `diff.validate` and `session.validate` options.
+Move either setting to `render = { validate = ... }`; setup rejects old fields
+with a migration error. Validation belongs to the shared source session,
+including preview, highlighting and diagnostics, rather than an individual diff.
+
+`render.validate` is a boolean controlling source-session construction:
 
     true     Default. Validate once when the file's session is first constructed.
     false    Skip validation.
@@ -176,7 +182,8 @@ No output or map is published until construction succeeds. It then renders the
 latest buffer text; subsequent edits, renames and context refreshes do not repeat
 cat validation. Preview, highlighting, diagnostics, diff and merge share this state.
 A failed check caches construction failure: editing or saving does not retry it.
-Unload/reopen the file to construct a new session, or explicitly disable validation.
+Unload/reopen the file to construct a new session, or disable validation in the
+configuration and restart Neovim.
 Checks remain cancellable; source unload and explicit cancellation stop the task.
 Unmanaged/source-only files without a cat target and init templates skip validation;
 diff_buffers uses false. Per-call diff/diff_files `validate` is also boolean and
@@ -185,10 +192,10 @@ Cat has no stdin template override. Executing the original buffer with
 execute-template can check sentinel transformations, but does not independently
 verify the real cat execution context.
 
-Internal `vimoi.job` owns process execution, progress floats and cancellation;
-`vimoi.cli` owns chezmoi arguments, output handling and caching. Shared
+Internal `vimoi.core.job` owns process execution, progress floats and cancellation;
+`vimoi.core.cli` owns chezmoi arguments, output handling and caching. Shared
 data/template requests deliver to all waiting consumers even if one callback fails; the first callback error is then propagated. Coroutine and
-general helpers remain in `vimoi.util`. Source sessions own the 120ms debounce,
+general helpers remain in `vimoi.core.util`. Source sessions own the 120ms debounce,
 asynchronous rendering and stale result retries; a newer queued edit already
 covers a retry. Navigation resolves paths synchronously and checks its window
 after picker selection. Deferred writes check their view, paths, text and rendering context
@@ -264,17 +271,17 @@ trigger a new check. Path-only invalidation does not trigger rendering.
 Go execution errors carry a one-based line and zero-based byte column. Tag
 positions in the skeleton map them back to source, including multiline tags.
 Line-only undefined-function/variable errors are located using template syntax;
-errors without a reliable source location are notified instead of attached to
-an arbitrary line. Old results are discarded after edits, context changes,
-unload, filetype changes or disabling diagnostics. Init templates use --init.
+errors without a reliable source location appear as first-line error diagnostics.
+They preserve the original message and explicitly mark the source location as
+unavailable. Repeated refreshes replace the diagnostic; successful rendering clears it. Old results are discarded after edits, context changes,
+unload or filetype changes. Init templates use --init.
 
 These checks execute user template functions and can invoke password helpers.
 They use the same cancellable background job UI and have no default timeout.
 Cancelling a check produces no diagnostic; editing or invalidation can retry it.
 Existing sentinel limitations also apply.
-The runtime enabled switch clears this namespace and releases pending checks;
-re-enabling attaches templates that are already open. Customize presentation
-with vim.diagnostic.config, using vim.api.nvim_get_namespaces()["vimoi-diagnostics"]
+Enable or disable checking in the initial setup configuration. Customize
+presentation with vim.diagnostic.config, using vim.api.nvim_get_namespaces()["vimoi-diagnostics"]
 when a namespace-specific setting is desired.
 
 Default normal-mode entry mappings:
@@ -298,10 +305,9 @@ buffer mappings, so another window of that buffer keeps its normal keys. Read-on
 `require("vimoi").setup()` is the configuration entry, also used by lazy.nvim's
 default main module. Interactive operations live in `vimoi.api`.
 
-Process/config paths, watch options, and keymaps are fixed after successful
-setup. Later setup calls retain these settings when omitted and reject changes
-before publishing a new configuration. Split orientation, completion, diagnostics, diff validation, and highlight
-options can be updated; omitted runtime options reset to defaults.
+`setup()` initializes the plugin once; all configuration remains fixed after a
+successful call. A second call reports an error before changing state. Restart
+Neovim to change options. A failed initialization may be retried.
 
 ==============================================================================
 COMMANDS                                                       *vimoi-commands*
@@ -381,8 +387,10 @@ synchronization. Buffer-local mappings are installed for:
 
 With 'cursorline' enabled and focus in source, a selected mapping spanning
 multiple target rows highlights them with CursorLine and places the target
-cursor on its middle row. Repeated output keeps the existing nearest-occurrence
-selection; separate mappings are not combined. Number-only 'cursorlineopt' and
+cursor on its middle row. Repeated output always selects the first execution;
+separate mappings are not combined. Viewports preserve a logical line offset,
+leaving folds, wrapping and file-edge limits to Neovim; exact screen-row alignment
+is not guaranteed. Number-only 'cursorlineopt' and
 Visual mode do not add target backgrounds. Action and cursor-line backgrounds
 follow Neovim's native priority; their colors are not blended. Preview uses the
 same behavior.
@@ -727,7 +735,7 @@ a runtime directive does not enable Neovim's combined-query full scan.
 Top-level setup starts the CLI
 and watches; CLI methods own query caches, including shared-template directory
 discovery.
-`gotmpl/session.lua` owns the shared output buffer, source-change debounce,
+`render/init.lua` owns the shared output buffer, source-change debounce,
 render jobs, skeleton success/failure cache and stale-result checks. It caches
 mapping ranges, line indexes, byte lengths and source/context versions together;
 views, highlighting and diagnostics borrow that mapping. Full source/output text
@@ -737,7 +745,7 @@ serves live consumers and once=true waits; initial=false skips cached delivery.
 Callbacks receive output/error results. The returned stop() unregisters one
 consumer; stop(true) also cancels that source's running or queued render.
 Automatic diagnostic/highlight subscriptions and their FileType/unload/config
-transitions also belong to the source session; diagnostic.lua presents results and manages host providers.
+transitions also belong to the source session; editor/diagnostic.lua presents results and manages host providers.
 Host diagnostics resolve source identity through the output buffer's metadata.
 The cache key includes changedtick, endofline, source path and context generation;
 source unload releases output, and the last consumer cancels pending work.
@@ -747,7 +755,7 @@ output and byte mappings from cached skeletons without another execution.
 Ex commands are registered once during setup by the API module; loading it alone
 does not register commands or load the diff and path-navigation implementations.
 
-`require("vimoi.gotmpl.source_map")` owns template parsing, sentinel rendering, and
+`require("vimoi.render.source_map")` owns template parsing, sentinel rendering, and
 source-to-output mappings, including incremental syntax and render reuse.
 It also projects literal occurrences and intervening dynamic output into rendered regions.
 Its syntax cache stores complete tag ranges, located through sibling delimiter
@@ -759,11 +767,11 @@ Opaque bodies remain unchanged in the skeleton, preserving empty-definition
 semantics. Their edits change the skeleton and require rendering again. Only
 the opening tag's left trim and closing end tag's right trim affect outer slots.
 
-Within `vimoi.gotmpl`, `native_diff` adapts mapped hunks to Neovim's diffexpr
+`vimoi.compare.native_diff` adapts mapped hunks to Neovim's diffexpr
 and manages native diff windows and synchronized folds. `buffer_edits` applies
 local byte edits, including EOF
 and undo handling, for both merging and preview refreshes. Template escaping
-remains in `merge_plan`; `gotmpl/view.lua` holds window bindings under each source session. One subscription
+remains in `merge_plan`; `compare/init.lua` holds window bindings under each source session. One subscription
 handles initial rendering and updates. Closing a view exits diff mode without
 closing its windows. Buffer renames retain views; delayed writes still check paths.
 Source unload releases its views and rendered buffer.
@@ -784,10 +792,17 @@ selection, snapshot checks, and explicit source writes for put/template re-add.
 The source map types distinguish prepared structure from a complete trace,
 which always has both output and rendered skeleton.
 
-`init.lua` resolves paths, opens windows, and dispatches user operations.
-`session.lua` owns one state per source, including the output buffer, rendering,
-subscriptions and attached views. `view.lua` keeps the `by_window` index and
-window-local refreshes, event listeners, temporary mappings and cleanup.
+Internal modules are grouped by responsibility: `core/` for shared CLI/job/watch
+and buffer utilities, `render/` for shared rendering and mapping, `compare/` for
+hunk computation and shared diff/preview windows, `merge/` for explicit writeback, and `editor/` for filetypes,
+highlighting, diagnostics and navigation. The root retains configuration, public
+API, Blink and health entrypoints.
+
+`init.lua` validates configuration and sets up the plugin. `render/init.lua` owns
+one state per source, including validation, the output buffer, rendering,
+subscriptions and attached views. `compare/init.lua` resolves paths and opens diff/preview
+windows; it also owns the `by_window` index, window-local refreshes, event listeners,
+temporary mappings and cleanup.
 WinEnter/WinLeave install and restore mappings for the focused window, including
 when its buffer appears in another view. Loading/error decorations are window-scoped.
 One subscription receives completed session results and handles all view refreshes.
@@ -800,8 +815,15 @@ Template merge planning remains lazy; opening diff/preview and ordinary-file
 re-add do not load it.
 `cli.counterpart_path()` owns the bidirectional path cache used directly by
 toggle. `cli.resolve_paths()` orders the same paths as source/target for diff and re-add.
-`gotmpl/merge_plan.lua` locates byte edits and escapes literal braces.
-`diagnostic.lua` owns template and host diagnostics, including host-provider cleanup.
+`merge/plan.lua` locates byte edits and escapes literal braces.
+`editor/diagnostic.lua` owns template and host diagnostics, including host-provider cleanup.
+`core/source.lua` owns shared source filename rules and path semantics; CLI,
+rendering and merge use them without loading editor filetype integration.
+`editor/filetype.lua` uses the same rules for Neovim detection and registration.
+`compare/diff_hunks.lua` computes mapped hunks for both views and merge planning.
+Unlocated render errors use first-line diagnostics; no notification-deduplication
+state is stored in the source session.
+Automatic diagnostic/highlight subscriptions remain coordinated by render.
 Normal rendering reuses its prepared source input; session snapshots share cached
 output regions and source/output line starts with diff/merge instead of recomputing them.
 Regions follow recorded execution order. Hunk projection searches only overlapping
@@ -846,7 +868,7 @@ require("vimoi.api").diff_buffers({source_buf}, {target_buf}, {opts})
     and scratch buffers; 0 means the current buffer. The source is always
     rendered as a chezmoi template using configured data and gets filetype
     gotmpl. No source/target path lookup or chezmoi cat validation is performed,
-    even when diff.validate is true. Buffer names are preserved.
+    even when render.validate is true. Buffer names are preserved.
     Optional `filetype` sets the source host language and target filetype.
     Otherwise use the target's current filetype, falling back to detection from
     its name and contents. Supports template hunk operations and ReAdd, with
@@ -908,11 +930,9 @@ require("vimoi.api").cancel_command()
 Integration-specific functions are available directly from their modules:
 `vimoi.blink` provides the blink.cmp source, including candidate generation;
 blink.cmp is the only supported completion integration.
-`require("vimoi.goto").resolve(buf, row, col, line)` resolves paths
-without opening them. For debugging, `require("vimoi.gotmpl.view").last_profile`
-holds the latest template-view opening timings (`mode` is "diff" or "preview").
-With parallel construction, `validation_ms` counts only the extra cat wait after
-baseline rendering; overlapping time is included in `render_ms`.
+`require("vimoi.editor.goto").resolve(buf, row, col, line)` resolves paths
+without opening them. Performance measurement lives in standalone benchmark
+scripts under tests/; view and render state contain no profiling fields.
 These are not part of the user-action API above.
 
 ==============================================================================
@@ -999,7 +1019,7 @@ commands. Complex dynamic output changes require manual source editing.
 
 `sentinel rendering differs from chezmoi cat`
     Strict validation found an environment-sensitive template. Disable
-    `diff.validate = false` only if the difference is understood, or use a plain
+    `render.validate = false` only if the difference is understood, or use a plain
     chezmoi workflow for that template.
 
 The two views scroll incorrectly

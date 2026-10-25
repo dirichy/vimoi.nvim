@@ -1,5 +1,5 @@
 ---@diagnostic disable: duplicate-set-field -- Count actual invalidations from real saves.
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 local original_invalidate = cli.invalidate
 local test_root = vim.fn.tempname() .. " watch saves"
 local source_root = test_root .. "/source"
@@ -30,7 +30,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
     saving = true
   end,
 })
-require("vimoi.watch").setup({ source_root = source_root, config_path = config_path })
+require("vimoi.core.watch").setup({ source_root = source_root, config_path = config_path })
 vim.api.nvim_create_autocmd("BufWritePost", {
   callback = function()
     buffer_saves = buffer_saves + 1

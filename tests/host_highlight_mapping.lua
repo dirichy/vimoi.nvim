@@ -1,5 +1,5 @@
 ---@diagnostic disable: duplicate-set-field -- Capture the real provider for deterministic viewport checks.
-local api, util = vim.api, require("vimoi.util")
+local api, util = vim.api, require("vimoi.core.util")
 local namespace = api.nvim_create_namespace("vimoi-host-highlight")
 local provider
 local emitted = {}
@@ -18,10 +18,10 @@ api.nvim_set_decoration_provider = function(ns, callbacks)
   end
   return original_provider(ns, callbacks)
 end
-require("vimoi.host_highlight")
+require("vimoi.editor.host_highlight")
 api.nvim_set_decoration_provider = original_provider
 require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "rendered" } })
-local source_map = require("vimoi.gotmpl.source_map")
+local source_map = require("vimoi.render.source_map")
 local await = dofile("tests/helpers/await.lua")
 local buf = api.nvim_create_buf(true, false)
 api.nvim_set_current_buf(buf)
@@ -82,9 +82,9 @@ end
 
 local function check(label, text, language)
   util.set_buffer_text(buf, text)
-  require("vimoi.highlight").configure_template_buffer(buf, language)
+  require("vimoi.editor.highlight").configure_template_buffer(buf, language)
   local trace = assert(await(source_map.trace, text, { buf = buf }))
-  require("vimoi.gotmpl.session").update(buf, trace)
+  require("vimoi.render").update(buf, trace)
   local previous = -1
   for _, part in ipairs(trace.literal_parts) do
     local occurrence = part.output_ranges[1]

@@ -11,9 +11,9 @@ require("vimoi").setup({
   highlight = { mode = "disabled" },
 })
 
-local renderer = require("vimoi.gotmpl.source_map")
+local renderer = require("vimoi.render.source_map")
 local requests, hold = {}, false
-package.loaded["vimoi.gotmpl.source_map"] = setmetatable({
+package.loaded["vimoi.render.source_map"] = setmetatable({
   trace = function()
     error("merge must not render synchronously")
   end,
@@ -26,9 +26,9 @@ package.loaded["vimoi.gotmpl.source_map"] = setmetatable({
   end,
 }, { __index = renderer })
 local api = require("vimoi.api")
-local util = require("vimoi.util")
-local sessions = require("vimoi.gotmpl.view")
-local cli = require("vimoi.cli")
+local util = require("vimoi.core.util")
+local sessions = require("vimoi.compare")
+local cli = require("vimoi.core.cli")
 local function open(source_text, target_text)
   for _, session in pairs(sessions.by_window) do
     sessions.close(session)
@@ -163,7 +163,7 @@ local before = #requests
 local result = api.readd()
 assert(result and result.merged == 1)
 assert(#requests == before and not waiting(), "static merge started a renderer")
-assert(assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == "A\n{{ literal }}\n")
+assert(assert(require("vimoi.render").snapshot(session.source_buf)).output == "A\n{{ literal }}\n")
 
 -- A genuinely stale dynamic source still renders without blocking the event loop.
 hold = false
@@ -185,4 +185,4 @@ end, 10))
 timer:stop()
 timer:close()
 assert(beats > 3, "mapping rendering blocked the event loop")
-assert(assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == "B\n{{ literal }}\n")
+assert(assert(require("vimoi.render").snapshot(session.source_buf)).output == "B\n{{ literal }}\n")

@@ -44,7 +44,7 @@ watcher 对已发现的 `.chezmoitemplates` 及其子目录使用 templates 范�
 
 ### 后续：单遍与局部 layout
 
-`lua/vimoi/gotmpl/source_map.lua` 现在通过兄弟分隔符直接收集完整标签，缓存 buffer 的原始
+`lua/vimoi/render/source_map.lua` 现在通过兄弟分隔符直接收集完整标签，缓存 buffer 的原始
 标签范围；字面文本由相邻标签的间隙推导。
 `on_changedtree` 提供语法变化范围，`on_bytes` 补充不改变树形的文本变化，并移动已有
 脏区；布局刷新时只遍历这些区域及必要的相邻完整节点。多处编辑保持独立范围，

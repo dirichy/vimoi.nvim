@@ -4,8 +4,8 @@ local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
-local util = require("vimoi.util")
-local cli = require("vimoi.cli")
+local util = require("vimoi.core.util")
+local cli = require("vimoi.core.cli")
 local host_namespace = vim.api.nvim_create_namespace("vimoi-host-diagnostics")
 local template_namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
 local provider_namespace = vim.api.nvim_create_namespace("test-host-provider")
@@ -41,7 +41,7 @@ local buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_set_current_buf(buf)
 local source = '{{ if false }}\nskipped\n{{ end }}\nlocal 键 = {{ "1" }}\nprint(host_error)\n'
 util.set_buffer_text(buf, source)
-require("vimoi.highlight").configure_template_buffer(buf, "lua")
+require("vimoi.editor.highlight").configure_template_buffer(buf, "lua")
 local function wait_for(test)
   assert(vim.wait(5000, test, 10), "host diagnostic update timed out")
 end
@@ -130,7 +130,7 @@ assert(diagnostics()[1].col == #"{{ range (list 1 2) }}")
 
 -- Host changes rerun the configured provider without executing templates again.
 local before = runs
-require("vimoi.highlight").configure_template_buffer(buf, "yaml")
+require("vimoi.editor.highlight").configure_template_buffer(buf, "yaml")
 wait_for(function()
   return #requests == 4
 end)
@@ -150,10 +150,10 @@ end)
 assert(runs == before + 1, "plain text host checks must not start a render")
 local other = vim.api.nvim_create_namespace("test-independent-provider")
 vim.diagnostic.set(other, buf, { { lnum = 0, col = 0, message = "keep" } })
-require("vimoi").setup({ diagnostics = { host = false } })
+vim.bo[buf].filetype = "text"
 assert(requests[5].cancelled and #diagnostics() == 0)
 assert(#vim.diagnostic.get(buf, { namespace = other }) == 1)
-require("vimoi").setup({ diagnostics = { host = true } })
+vim.bo[buf].filetype = "gotmpl"
 wait_for(function()
   return #requests == 6
 end)

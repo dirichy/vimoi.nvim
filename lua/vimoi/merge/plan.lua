@@ -1,6 +1,6 @@
 local M = {}
-local util = require("vimoi.util")
-local diff_hunks = require("vimoi.gotmpl.diff_hunks")
+local util = require("vimoi.core.util")
+local diff_hunks = require("vimoi.compare.diff_hunks")
 local changed_bytes = util.changed_bytes
 
 -- Merge planning locates static edits and ambiguous placements; source_map

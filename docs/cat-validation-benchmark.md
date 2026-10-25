@@ -5,13 +5,15 @@
 构造仍读取固定磁盘基线：先启动 cat，再准备和执行哨兵骨架，等两者输出后比较。
 任何一侧失败或取消都会停止另一侧；buffer 编辑不打断构造。并行任务只在构造闭包内管理，
 没有新增 session 持久状态字段或通用并行框架。运行时代码净增 38 行。
-`last_profile.validation_ms` 只记录骨架完成后额外等待 cat 的时间，重叠时间计入 `render_ms`。
+当时的内部 profile 曾拆分骨架完成后的额外 cat 等待；该计时现已移至独立 benchmark，
+运行时不再保留 `last_profile` 或计时字段。下文历史数据测量的是 session 首次发布结果的总耗时。
 
 ## 测量方法
 
 - Linux x86_64，Neovim 0.12.6，chezmoi 2.73.3；详细版本及原始样本见
   [JSON](benchmarks/cat-validation-2026-10-25.json)。
-- 两版共用当前其他模块，只替换 `gotmpl/session.lua`。使用 minimal headless 配置，
+- 两版共用当前其他模块，只替换 `render/init.lua`；脚本读取历史 `gotmpl/session.lua`
+  并仅迁移内部 require 与配置名称，不改变串行算法。使用 minimal headless 配置，
   关闭高亮和诊断，source、destination、配置及状态目录都在临时目录，不读取真实 dotfiles。
 - 每个模板、每个版本运行 3 个独立 Neovim，交替串行/并行的测量顺序。每个进程预热 3 次、
   记录 15 次，总计每格 45 个样本。计时从注册 source 到首次发布有效 output；不含 setup、

@@ -1,6 +1,6 @@
 ---@diagnostic disable: duplicate-set-field -- Count actual CLI executions independently of the oracle.
 local await = dofile("tests/helpers/await.lua")
-local util = require("vimoi.util")
+local util = require("vimoi.core.util")
 local root = vim.fn.tempname() .. ' context " 中文'
 local source_root, target_root = root .. "/source", root .. "/target"
 local managed_root = source_root .. "/nested"
@@ -32,7 +32,7 @@ require("vimoi").setup({
   diagnostics = { enabled = false },
   highlight = { mode = "disabled" },
 })
-local cli, map = require("vimoi.cli"), require("vimoi.gotmpl.source_map")
+local cli, map = require("vimoi.core.cli"), require("vimoi.render.source_map")
 assert(cli.source_root == managed_root, ".chezmoiroot must be reflected in sourceFile")
 local run, renders = cli.run, 0
 cli.run = function(args, opts)
@@ -140,12 +140,12 @@ cli.run = run
 -- preview; a preview's scratch URI must never become .chezmoi.targetFile.
 local expected = oracle("alpha")
 vim.fn.writefile(util.text_lines(expected), target_root .. "/.alpha")
-local api, sessions = require("vimoi.api"), require("vimoi.gotmpl.view")
+local api, sessions = require("vimoi.api"), require("vimoi.compare")
 api.diff_files(managed_root .. "/dot_alpha.tmpl", target_root .. "/.alpha", { validate = true })
 dofile("tests/helpers/diff.lua")()
 local session = assert(sessions.by_window[vim.api.nvim_get_current_win()])
 assert(
-  assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == expected
+  assert(require("vimoi.render").snapshot(session.source_buf)).output == expected
     and session.session.validate == true
     and session.session.initialized == true
 )
@@ -154,7 +154,7 @@ session = assert(sessions.by_window[vim.api.nvim_get_current_win()])
 assert(vim.wait(5000, function()
   return not session.loading
 end, 5))
-assert(session.preview and assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == expected)
+assert(session.preview and assert(require("vimoi.render").snapshot(session.source_buf)).output == expected)
 assert(util.buffer_text(session.target_buf) == expected)
 sessions.close(session)
 vim.api.nvim_buf_delete(first, { force = true })

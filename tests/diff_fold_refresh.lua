@@ -10,7 +10,7 @@ vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.env.VIMOI_TEST_DESTINATION = destination
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = wrapper, diff = { validate = false } })
+require("vimoi").setup({ chezmoi_executable = wrapper, render = { validate = false } })
 
 vim.cmd("edit " .. vim.fn.fnameescape(target))
 local target_buf = vim.api.nvim_get_current_buf()
@@ -42,7 +42,7 @@ vim.api.nvim_win_set_cursor(target_win, { target_fold_line, 0 })
 vim.cmd("doautocmd CursorMoved")
 vim.wait(30)
 local source_fold_line = vim.api.nvim_win_get_cursor(source_win)[1]
-require("vimoi.gotmpl").fold("zo")
+require("vimoi.compare").fold("zo")
 local function is_open(win, line)
   return vim.api.nvim_win_call(win, function()
     return vim.fn.foldclosed(line) == -1
@@ -77,7 +77,7 @@ vim.wait(250)
 assert(is_open(target_win, target_fold_line), "put forcibly closed the target fold")
 assert(is_open(source_win, source_fold_line), "put forcibly closed the source fold")
 
-require("vimoi.gotmpl").fold("zR")
+require("vimoi.compare").fold("zR")
 local target_level, source_level = vim.wo[target_win].foldlevel, vim.wo[source_win].foldlevel
 vim.api.nvim_win_set_cursor(target_win, { last_line, 0 })
 assert(require("vimoi.api").put_hunk(), "put of distant edit failed")

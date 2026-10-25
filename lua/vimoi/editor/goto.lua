@@ -1,7 +1,7 @@
 local M = {}
-local util = require("vimoi.util")
-local cli = require("vimoi.cli")
-local filetype = require("vimoi.filetype")
+local util = require("vimoi.core.util")
+local cli = require("vimoi.core.cli")
+local source_files = require("vimoi.core.source")
 
 local function is_absolute(path)
   return path:sub(1, 1) == "/" or path:match("^%a:[/\\]") ~= nil or path:match("^[/\\][/\\]") ~= nil
@@ -155,7 +155,7 @@ function M.resolve(buf, row, col, line_numbers)
     referenced_path, location = split_path_location(referenced_path)
   end
   local file_path = vim.api.nvim_buf_get_name(buf)
-  local path_kind = filetype.path_kind(file_path)
+  local path_kind = source_files.path_kind(file_path)
   if reference_type == "template" or reference_type == "includeTemplate" then
     local paths = find_template_paths(cli.source_root, referenced_path)
     return #paths > 0 and paths or nil, nil, location

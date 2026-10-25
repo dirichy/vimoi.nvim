@@ -27,11 +27,11 @@ local function check()
   health.check()
 end
 
-assert(package.loaded["vimoi.cli"] == nil)
+assert(package.loaded["vimoi.core.cli"] == nil)
 check()
 assert(has("warn", "setup() has not completed"))
-assert(package.loaded["vimoi.cli"] == nil, "health must not initialize CLI state")
-assert(package.loaded["vimoi.gotmpl"] == nil and package.loaded["vimoi.job"] == nil)
+assert(package.loaded["vimoi.core.cli"] == nil, "health must not initialize CLI state")
+assert(package.loaded["vimoi.compare"] == nil and package.loaded["vimoi.core.job"] == nil)
 
 vim.fn.has = function(feature)
   if feature == "nvim-0.12" then
@@ -48,7 +48,7 @@ vim.fn.mkdir(root, "p")
 local config_path = root .. "/config.toml"
 vim.fn.writefile({ "# config contents need not be executed by health" }, config_path)
 plugin.config.chezmoi_executable = vim.v.progpath
-package.loaded["vimoi.cli"] = { source_root = root, config_path = config_path }
+package.loaded["vimoi.core.cli"] = { source_root = root, config_path = config_path }
 check()
 assert(has("ok", "chezmoi executable:") and has("ok", "Source directory:") and has("ok", "chezmoi config file:"))
 assert(has("ok", "gotmpl parser loads successfully"))
@@ -62,13 +62,13 @@ assert(has("error", "not readable/searchable"))
 vim.uv.fs_access = original_access
 
 plugin.config.chezmoi_executable = root .. "/missing-executable"
-package.loaded["vimoi.cli"].source_root = root .. "/missing-source"
+package.loaded["vimoi.core.cli"].source_root = root .. "/missing-source"
 check()
 assert(has("error", "not found or not executable") and has("error", "Source directory does not exist"))
-package.loaded["vimoi.cli"].source_root = config_path
+package.loaded["vimoi.core.cli"].source_root = config_path
 check()
 assert(has("error", "not a directory"))
-package.loaded["vimoi.cli"].source_root = root
+package.loaded["vimoi.core.cli"].source_root = root
 
 vim.fn.delete(config_path)
 check()
@@ -76,7 +76,7 @@ assert(has("info", "a config file is optional") and not has("error", "config fil
 plugin.config.chezmoi_config_path = config_path
 check()
 assert(has("error", "Configured chezmoi config file does not exist"))
-package.loaded["vimoi.cli"].config_path = root
+package.loaded["vimoi.core.cli"].config_path = root
 check()
 assert(has("error", "not a readable file"))
 
@@ -109,13 +109,13 @@ for _ = 1, 2 do
   vim.bo[buf].filetype = "gotmpl"
   vim.b[buf].vimoi_template_filetype = "yaml"
 end
-require("vimoi.filetype").setup(root)
+require("vimoi.editor.filetype").setup(root)
 local managed_buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_buf_set_name(managed_buf, root .. "/dot_managed.yaml.tmpl")
 vim.fn.writefile({ "value: {{ 1 }}" }, vim.api.nvim_buf_get_name(managed_buf))
 vim.bo[managed_buf].filetype = "gotmpl"
 -- No configured host yet: health must not resolve its uncached managed path.
-package.loaded["vimoi.cli"].counterpart_path = function()
+package.loaded["vimoi.core.cli"].counterpart_path = function()
   error("health must not query a managed template's target path")
 end
 vim.treesitter.language.add = function(language)
@@ -146,7 +146,7 @@ assert(missing_hosts == 1)
 
 vim.health, vim.system = original_health, original_system
 vim.treesitter.language.add, vim.treesitter.query.get = original_add, original_query
-package.loaded["vimoi.cli"] = nil
+package.loaded["vimoi.core.cli"] = nil
 vim.fn.delete(root, "rf")
 -- Exercise native health discovery and report generation as well as direct calls.
 vim.cmd("checkhealth vimoi")

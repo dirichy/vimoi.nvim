@@ -22,7 +22,7 @@ function M.check()
 
   -- Loading health must not run setup, data helpers, or password prompts. Paths
   -- are available only after CLI setup succeeded; a missing config is valid.
-  local cli = package.loaded["vimoi.cli"]
+  local cli = package.loaded["vimoi.core.cli"]
   if cli and cli.source_root then
     health.ok("CLI setup completed")
     local source = cli.source_root
@@ -45,7 +45,7 @@ function M.check()
 
   local config_path = (cli and cli.config_path) or config.chezmoi_config_path
   if config_path then
-    config_path = require("vimoi.util").normalize_path(config_path)
+    config_path = require("vimoi.core.util").normalize_path(config_path)
     local stat = vim.uv.fs_stat(config_path)
     if not stat then
       if config.chezmoi_config_path then

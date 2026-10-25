@@ -1,7 +1,7 @@
 local run_async = dofile("tests/helpers/await.lua")
-local source_map = require("vimoi.gotmpl.source_map")
-local diff_hunks = require("vimoi.gotmpl.diff_hunks")
-local merge_plan = require("vimoi.gotmpl.merge_plan")
+local source_map = require("vimoi.render.source_map")
+local diff_hunks = require("vimoi.compare.diff_hunks")
+local merge_plan = require("vimoi.merge.plan")
 
 -- Production infers the new map. Independently render without the skeleton
 -- cache here so tests detect inference errors rather than reuse their result.
@@ -14,7 +14,7 @@ local function validate_edits(trace, edits)
   if not inferred then
     return nil, infer_error
   end
-  local actual, render_error = run_async(require("vimoi.cli").execute_template, candidate, { cache = false })
+  local actual, render_error = run_async(require("vimoi.core.cli").execute_template, candidate, { cache = false })
   assert(actual, render_error)
   assert(inferred.output == actual, vim.inspect({ candidate, inferred.output, actual }))
   return { source_text = candidate, source_edits = source_edits, trace = inferred }

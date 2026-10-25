@@ -23,7 +23,7 @@ vim.api.nvim_set_hl(0, "Comment", { fg = "#779988", italic = true })
 local source = '{{ "local message = \\"" }}世界{{ "\\"" }}'
 local buf = vim.api.nvim_get_current_buf()
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, { source })
-require("vimoi.highlight").configure_template_buffer(buf, "lua")
+require("vimoi.editor.highlight").configure_template_buffer(buf, "lua")
 
 -- Lua identifiers and YAML plain scalars have generic and key-specific
 -- captures at equal priority. Check actual screen colors throughout edits,
@@ -56,7 +56,7 @@ local function check_keys(index)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
     vim.api.nvim_win_set_cursor(0, { 1, 0 })
     vim.cmd("normal! zt")
-    require("vimoi.highlight").configure_template_buffer(buf, case.language)
+    require("vimoi.editor.highlight").configure_template_buffer(buf, case.language)
     vim.api.nvim_exec_autocmds("TextChanged", { buffer = buf })
     later(function()
       local samples, failures = 0, 0
@@ -119,14 +119,14 @@ check_mappings = function(index)
     finish()
     return
   end
-  local api, util = vim.api, require("vimoi.util")
+  local api, util = vim.api, require("vimoi.core.util")
   local await = dofile("tests/helpers/await.lua")
-  local source_map = require("vimoi.gotmpl.source_map")
+  local source_map = require("vimoi.render.source_map")
   api.nvim_set_current_buf(buf)
   util.set_buffer_text(buf, case[2])
-  require("vimoi.highlight").configure_template_buffer(buf, case[1])
+  require("vimoi.editor.highlight").configure_template_buffer(buf, case[1])
   local trace = assert(await(source_map.trace, case[2], { buf = buf }))
-  require("vimoi.gotmpl.session").update(buf, trace)
+  require("vimoi.render").update(buf, trace)
   local first = assert(case[2]:find("marker", 1, true)) - 1
   local output_byte
   for _, part in ipairs(trace.literal_parts) do

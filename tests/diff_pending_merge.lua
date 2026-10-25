@@ -11,10 +11,10 @@ require("vimoi").setup({
   highlight = { mode = "disabled" },
 })
 
-local real_renderer = require("vimoi.gotmpl.source_map")
+local real_renderer = require("vimoi.render.source_map")
 local requests, synchronous_renders = {}, 0
 -- Hold only initial asynchronous completions; candidate validation uses the real renderer.
-package.loaded["vimoi.gotmpl.source_map"] = setmetatable({
+package.loaded["vimoi.render.source_map"] = setmetatable({
   trace_async = function(source, opts, callback)
     requests[#requests + 1] = { source = source, opts = opts, callback = callback }
   end,
@@ -25,9 +25,9 @@ package.loaded["vimoi.gotmpl.source_map"] = setmetatable({
 }, { __index = real_renderer })
 
 local api = require("vimoi.api")
-local views = require("vimoi.gotmpl")
-local cli = require("vimoi.cli")
-local util = require("vimoi.util")
+local views = require("vimoi.compare")
+local cli = require("vimoi.core.cli")
+local util = require("vimoi.core.util")
 local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
 local original = "first=old\nkeep\nlast=old\n"
@@ -35,8 +35,8 @@ local changed = "first=new\nkeep\nlast=new\n"
 local count = 0
 
 local function open()
-  for _, session in pairs(require("vimoi.gotmpl.view").by_window) do
-    require("vimoi.gotmpl.view").close(session)
+  for _, session in pairs(require("vimoi.compare").by_window) do
+    require("vimoi.compare").close(session)
   end
   count = count + 1
   local source_path, target_path = root .. "/" .. count .. ".tmpl", root .. "/" .. count

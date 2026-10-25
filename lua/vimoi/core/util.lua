@@ -56,11 +56,15 @@ end
 
 ---Wrap initialization so it runs only once. A failed call may be retried.
 ---@param initialize fun(...)
+---@param opts? { repeat_error?: string } Report the supplied error instead of skipping repeated calls.
 ---@return fun(...)
-function M.once(initialize)
+function M.once(initialize, opts)
   local initialized = false
   return function(...)
     if initialized then
+      if opts and opts.repeat_error then
+        error(opts.repeat_error, 0)
+      end
       return
     end
     initialize(...)

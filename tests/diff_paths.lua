@@ -10,7 +10,7 @@ vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.env.VIMOI_TEST_DESTINATION = destination
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = wrapper, diff = { validate = false } })
+require("vimoi").setup({ chezmoi_executable = wrapper, render = { validate = false } })
 
 vim.cmd("edit " .. vim.fn.fnameescape(template_source))
 vim.api.nvim_buf_set_lines(0, 1, 2, false, { "timeout = 19" })
@@ -70,7 +70,7 @@ for _, name in ipairs({ ".chezmoiignore", ".chezmoiremove", ".chezmoiexternal.to
   dofile("tests/helpers/diff.lua")()
   local session = view_for_buffer(vim.fn.bufnr(source))
   assert(
-    session and assert(require("vimoi.gotmpl.session").snapshot(session.source_buf)).output == "rendered\n",
+    session and assert(require("vimoi.render").snapshot(session.source_buf)).output == "rendered\n",
     name .. " opened as plain diff"
   )
 end

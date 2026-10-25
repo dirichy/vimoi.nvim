@@ -10,16 +10,16 @@ require("vimoi").setup({
   diagnostics = { enabled = false },
   highlight = { mode = "disabled" },
 })
-local renderer = require("vimoi.gotmpl.source_map")
+local renderer = require("vimoi.render.source_map")
 local requests = {}
-package.loaded["vimoi.gotmpl.source_map"] = setmetatable({
+package.loaded["vimoi.render.source_map"] = setmetatable({
   trace_async = function(source, opts, callback)
     requests[#requests + 1] = { source = source, opts = opts, callback = callback }
   end,
 }, { __index = renderer })
 local api = require("vimoi.api")
-local util = require("vimoi.util")
-local sessions = require("vimoi.gotmpl.view")
+local util = require("vimoi.core.util")
+local sessions = require("vimoi.compare")
 local function deliver(request)
   request.callback(render_trace(renderer, request.source, request.opts))
 end
@@ -66,7 +66,7 @@ for _, side in ipairs({ "source", "target" }) do
       elseif change == "target" then
         util.set_buffer_text(session.target_buf, target_text .. "manual\n")
       elseif change == "context" then
-        require("vimoi.cli").invalidate("templates")
+        require("vimoi.core.cli").invalidate("templates")
       elseif change == "rename" then
         vim.api.nvim_buf_set_name(session.target_buf, target .. ".renamed")
       elseif change == "close" then

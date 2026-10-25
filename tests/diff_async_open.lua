@@ -11,12 +11,12 @@ require("vimoi").setup({
   highlight = { mode = "disabled" },
 })
 
-local diff = require("vimoi.gotmpl")
-local diff_hunks = require("vimoi.gotmpl.diff_hunks")
-local sessions = require("vimoi.gotmpl.view")
-local source_map = require("vimoi.gotmpl.source_map")
-local cli = require("vimoi.cli")
-local util = require("vimoi.util")
+local diff = require("vimoi.compare")
+local diff_hunks = require("vimoi.compare.diff_hunks")
+local sessions = require("vimoi.compare")
+local source_map = require("vimoi.render.source_map")
+local cli = require("vimoi.core.cli")
+local util = require("vimoi.core.util")
 local trace, trace_async, run, compute, notify =
   source_map.trace, source_map.trace_async, cli.run, diff_hunks.compute, vim.notify
 local requests, validations, validation_jobs, computed, messages = {}, {}, {}, {}, {}
@@ -166,7 +166,7 @@ assert(#validations == validations_before and vim.wo[pair.source_win].diff)
 pair = open("closed-during-validation", true)
 deliver(pair.request)
 local validation_job = validation_jobs[#validation_jobs]
-assert(require("vimoi.gotmpl.session").get(pair.source_buf).job)
+assert(require("vimoi.render").get(pair.source_buf).job)
 vim.api.nvim_win_close(pair.source_win, true)
 assert(vim.wait(1000, function()
   return validation_job.cancelled
@@ -297,7 +297,6 @@ vim.cmd("tabnew")
 user_tab, user_win = vim.api.nvim_get_current_tabpage(), vim.api.nvim_get_current_win()
 assert(vim.wo[pair.source_win].diff and computed[#computed].source == 'value={{ "D" }}\n')
 assert(vim.api.nvim_get_current_tabpage() == user_tab and vim.api.nvim_get_current_win() == user_win)
-assert(sessions.last_profile.validation_ms > 0)
 
 -- Render/validation errors leave editable windows intact and restore settings.
 pair = open("render-error")
@@ -352,10 +351,9 @@ timer:stop()
 timer:close()
 assert(beats > 3, "the real renderer blocked the editor event loop")
 assert(vim.api.nvim_get_current_tabpage() == user_tab and vim.api.nvim_get_current_win() == user_win)
-assert(sessions.last_profile and sessions.last_profile.render_ms > 0)
 print(
   ("async initial diff: race/error cases passed; slow render %.1fms, UI opened %.1fms, %d heartbeat ticks"):format(
-    sessions.last_profile.render_ms,
+    (vim.uv.hrtime() - started_at) / 1e6,
     open_ms,
     beats
   )

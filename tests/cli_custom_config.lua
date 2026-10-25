@@ -1,5 +1,5 @@
 local run_async = dofile("tests/helpers/await.lua")
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 local working_directory = vim.fn.getcwd()
 local test_root = vim.fn.tempname() .. " chezmoi config"
 local source_root = test_root .. "/source"

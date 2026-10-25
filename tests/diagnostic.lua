@@ -3,9 +3,9 @@ local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh", diff = { validate = false } })
+require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh", render = { validate = false } })
 assert(require("vimoi").config.diagnostics.enabled, "diagnostics must default to enabled")
-local cli, util = require("vimoi.cli"), require("vimoi.util")
+local cli, util = require("vimoi.core.cli"), require("vimoi.core.util")
 local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
 local runs, publications = 0, 0
 local original_run, original_set = cli.run, vim.diagnostic.set
@@ -97,13 +97,13 @@ local original_name = vim.api.nvim_buf_get_name(buf)
 vim.api.nvim_buf_set_name(buf, fixture .. "/source/dot_probe.tmpl")
 diagnostics = change("键: {{ index (list 1) 5 }}\n")
 assert(#diagnostics == 1 and diagnostics[1].lnum == 0 and diagnostics[1].col == #"键: {{ ", vim.inspect(diagnostics))
-local source_map = require("vimoi.gotmpl.source_map")
+local source_map = require("vimoi.render.source_map")
 assert(assert(source_map.prepare(util.buffer_text(buf), { buf = buf })).prefix ~= "")
 diagnostics = change("header\n{{ index (list 1) 5 }}\n")
 assert(#diagnostics == 1 and diagnostics[1].lnum == 1 and diagnostics[1].col == 3, vim.inspect(diagnostics))
 diagnostics = change("literal only\n")
 assert(#diagnostics == 0)
-assert(assert(require("vimoi.gotmpl.session").snapshot(buf)).output == "literal only\n")
+assert(assert(require("vimoi.render").snapshot(buf)).output == "literal only\n")
 vim.api.nvim_buf_set_name(buf, original_name)
 
 -- Recovery clears errors. Repeated/trimmed literal changes reuse successes.
@@ -138,30 +138,6 @@ vim.api.nvim_buf_set_name(buf, vim.fn.tempname() .. "/.chezmoi.toml.tmpl")
 diagnostics = change('{{ if false }}{{ promptStringOnce . "key" "Question" }}{{ end }}\n')
 assert(#diagnostics == 0 and last_args[2] == "--init")
 
--- Disable at runtime clears this namespace and detaches future buffers.
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
-assert(#vim.diagnostic.get(buf, { namespace = namespace }) == 0)
-before = runs
-util.set_buffer_text(buf, "{{ invalidAfterDisable . }}")
-vim.api.nvim_exec_autocmds("TextChangedI", { buffer = buf })
-processed = false
-vim.defer_fn(function()
-  processed = true
-end, 400)
-assert(vim.wait(1000, function()
-  return processed
-end, 5))
-assert(runs == before and #vim.diagnostic.get(buf, { namespace = namespace }) == 0)
-
--- Re-enable attaches buffers that were already open.
-before = publications
-require("vimoi").setup({ diagnostics = { enabled = true } })
-assert(vim.wait(5000, function()
-  return publications > before
-end, 5))
-assert(#vim.diagnostic.get(buf, { namespace = namespace }) == 1)
 vim.api.nvim_buf_delete(buf, { force = true })
 cli.run, vim.diagnostic.set = original_run, original_set
-print(
-  "diagnostics: syntax/runtime positions, UTF-8, multiline tags, cache, dependencies, init and configuration verified"
-)
+print("diagnostics: syntax/runtime positions, UTF-8, multiline tags, cache, dependencies and init verified")

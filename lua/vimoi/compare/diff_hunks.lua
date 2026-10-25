@@ -1,6 +1,6 @@
 local M = {}
-local source_map = require("vimoi.gotmpl.source_map")
-local util = require("vimoi.util")
+local source_map = require("vimoi.render.source_map")
+local util = require("vimoi.core.util")
 
 ---@class VimoiDiffRange: VimoiByteRange
 ---@field kind "static"|"repeated"|"dynamic"|"ambiguous"

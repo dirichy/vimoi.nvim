@@ -1,5 +1,5 @@
 ---@diagnostic disable: duplicate-set-field -- Fault injection for watcher allocation/start/runtime failures.
-local cli = require("vimoi.cli")
+local cli = require("vimoi.core.cli")
 local original_invalidate = cli.invalidate
 local original_new_fs_event = vim.uv.new_fs_event
 local test_root = vim.fn.tempname() .. " watcher fallback"
@@ -49,8 +49,8 @@ local function setup_mode(mode, failure)
     state.handles[#state.handles + 1] = handle
     return handle
   end
-  package.loaded["vimoi.watch"] = nil
-  local watch = require("vimoi.watch")
+  package.loaded["vimoi.core.watch"] = nil
+  local watch = require("vimoi.core.watch")
   watch.setup({ source_root = source_root, config_path = config_path, buffer_write_fallback = mode })
   return state, watch
 end

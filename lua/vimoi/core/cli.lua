@@ -1,6 +1,6 @@
 local M = {}
-local util = require("vimoi.util")
-local job = require("vimoi.job")
+local util = require("vimoi.core.util")
+local job = require("vimoi.core.job")
 
 -- The source root and init mapping are fixed at setup. Other query results
 -- stay cached until invalidated. Template output is cached only when requested;
@@ -72,7 +72,7 @@ M.setup = util.once(function(executable, config_path)
     config_path = util.normalize_path(vim.trim(config_path))
   end
   local source
-  for _, name in ipairs(vim.fn.sort(vim.tbl_keys(require("vimoi.filetype").init_template_names))) do
+  for _, name in ipairs(vim.fn.sort(vim.tbl_keys(require("vimoi.core.source").init_template_names))) do
     local candidate = vim.fs.joinpath(source_root, name)
     if vim.uv.fs_stat(candidate) then
       source = candidate

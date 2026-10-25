@@ -7,8 +7,8 @@ vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 local api = require("vimoi.api")
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
-local util = require("vimoi.util")
-local sessions = require("vimoi.gotmpl.view")
+local util = require("vimoi.core.util")
+local sessions = require("vimoi.compare")
 for _, template in ipairs({
   'name: {{ "alice" }}\nkeep: true\ntimeout: 10\n',
   'name: "{{ "alice" }}"\nkeep: true\ntimeout: 10\n',
@@ -18,7 +18,7 @@ for _, template in ipairs({
   vim.cmd("tabnew")
   local source, target = vim.fn.tempname() .. ".yaml.tmpl", vim.fn.tempname() .. ".yaml"
   vim.fn.writefile(util.text_lines(template), source)
-  local rendered = assert(run_async(require("vimoi.gotmpl.source_map").trace, template)).output
+  local rendered = assert(run_async(require("vimoi.render.source_map").trace, template)).output
   vim.fn.writefile(util.text_lines(rendered:gsub("alice", "bob"):gsub("10", "20")), target)
   api.diff_files(source, target)
   dofile("tests/helpers/diff.lua")()

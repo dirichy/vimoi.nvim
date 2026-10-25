@@ -1,5 +1,5 @@
-local job = require("vimoi.job")
-local util = require("vimoi.util")
+local job = require("vimoi.core.job")
+local util = require("vimoi.core.util")
 local original_win = vim.api.nvim_get_current_win()
 local original_buf = vim.api.nvim_get_current_buf()
 local function wait_for(test)
