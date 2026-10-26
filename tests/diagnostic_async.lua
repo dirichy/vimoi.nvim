@@ -189,6 +189,4 @@ end)
 vim.api.nvim_buf_delete(buf, { force = true })
 vim.notify = original_notify
 cli.execute_template = original_execute
-print(
-  "async diagnostics: debounce, static edits, stale results, invalidation, cancellation, disable and detach verified"
-)
+print("async diagnostics: debounce, static edits, stale results, invalidation, cancellation and detach verified")

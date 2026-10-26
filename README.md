@@ -249,6 +249,10 @@ The host language is detected from the actual target name and shebang. By defaul
 complete rendered output and maps colors back to literal template text. Unexecuted branches use
 `Comment`; existing colors remain during edits or temporary template errors.
 
+![Rendered host colors, inactive branches, and template action backgrounds](https://github.com/dirichy/vimoi.nvim/releases/download/demos/highlighting.gif)
+
+[Full-resolution highlighting demo (MP4)](https://github.com/dirichy/vimoi.nvim/releases/download/demos/highlighting.mp4)
+
 | `highlight.mode` | Behavior |
 | --- | --- |
 | `"rendered"` (default) | Map host colors from rendered output; covers branches executed with current data |
@@ -266,6 +270,10 @@ existing configuration: enable the server with `vim.lsp.enable()` or configure
 The plugin checks rendered output and maps errors back to source. Static text gets precise locations;
 dynamic output points to its producing template region, and ambiguous output locations are skipped.
 Messages use `[gotmpl]` or host labels such as `[host:lua]` and `[host:yaml]`.
+
+![Template errors and host diagnostics projected back to source, followed by repair](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diagnostics.gif)
+
+[Full-resolution diagnostics demo (MP4)](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diagnostics.mp4)
 
 ```lua
 require("vimoi").setup({
@@ -310,6 +318,10 @@ paths without displaying data values. Outside template actions, it offers `if`, 
 `range`, `with`, `define`, `block`, and `comment` snippets.
 `blocked_filetypes` prevents inappropriate parentheses from being added when accepting
 template function completions.
+
+![Real completion menus for data, functions, variables, paths, and block snippets](https://github.com/dirichy/vimoi.nvim/releases/download/demos/completion.gif)
+
+[Full-resolution completion demo (MP4)](https://github.com/dirichy/vimoi.nvim/releases/download/demos/completion.mp4)
 
 ## Path navigation
 
@@ -368,6 +380,10 @@ refresh. For file systems that silently lose watcher events, set
 `watch.buffer_write_fallback = true` to refresh when saving in the current Neovim instance.
 `false` disables this fallback; the default `"auto"` enables it as needed.
 Restart Neovim after changing the source root directory.
+
+![Existing previews refresh after shared template and configuration data changes](https://github.com/dirichy/vimoi.nvim/releases/download/demos/dependencies.gif)
+
+[Full-resolution dependency refresh demo (MP4)](https://github.com/dirichy/vimoi.nvim/releases/download/demos/dependencies.mp4)
 
 ## Lua API
 
@@ -441,9 +457,13 @@ See `:help vimoi-limitations` for rendering context, cache behavior, and reserve
 - [Preview performance comparison](docs/preview-benchmark.md) and [buffer write measurements](docs/buffer-edits.md).
 - [Re-record the README demos](docs/demos/README.md).
 
-Run tests with `python3 tests/run.py`, optionally followed by test filenames.
-Tests require Python 3, a Unix shell, and the dependencies above, and use isolated
-configuration and temporary files.
+Run the complete suite with `python3 tests/run.py`: Lua tests followed by real demo
+recordings, media conversion, and local README generation. It also requires the
+[recording dependencies](docs/demos/README.md#依赖). Use `--skip-demos` for
+Lua tests only, or pass individual Lua test filenames. Tests use isolated configuration
+and temporary files; recording can take several minutes. The full Lua suite first
+checks the parsers and highlight queries listed in [tests/parsers.txt](tests/parsers.txt),
+including injected languages. Help tests generate their own temporary tags.
 Check formatting with `stylua --check lua ftdetect tests docs/demos/init.lua`.
 LuaLS should use the real Neovim runtime library and retain all diagnostic levels.
 

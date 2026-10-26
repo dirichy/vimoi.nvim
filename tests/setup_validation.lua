@@ -2,6 +2,7 @@ local plugin = require("vimoi")
 local original = vim.deepcopy(plugin.config)
 for _, input in ipairs({
   "false",
+  '{"split":"diagonal"}',
   '{"keymaps":true}',
   '{"keymaps":{"diff":true}}',
   '{"keymaps":{"unknown":"x"}}',

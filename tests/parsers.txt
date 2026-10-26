@@ -1,0 +1,11 @@
+gotmpl
+lua
+yaml
+toml
+json
+bash
+gitignore
+html
+javascript
+markdown
+markdown_inline

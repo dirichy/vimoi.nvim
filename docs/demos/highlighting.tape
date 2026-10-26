@@ -17,17 +17,9 @@ Enter
 Type "ciwfalse"
 Escape
 Sleep 1200ms
-# Injection also colors host text in unexecuted branches.
-Type ":lua require('vimoi').setup({highlight={mode='injection'}})"
-Enter
-Sleep 1500ms
-# Template action syntax remains when host highlighting is disabled.
-Type ":lua require('vimoi').setup({highlight={mode='disabled'}})"
-Enter
-Sleep 1500ms
-Type ":lua require('vimoi').setup({highlight={mode='rendered',template_bg='Visual'}})"
-Enter
-Sleep 1500ms
+# Undo restores executed host colors while template actions retain their background.
+Type "u"
+Sleep 1200ms
 Screenshot docs/demos/output/highlighting.png
 Sleep 300ms
 Hide

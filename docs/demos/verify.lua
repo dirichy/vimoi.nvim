@@ -43,6 +43,8 @@ local ok, result = xpcall(function()
     elseif demo == "highlighting" then
       assert(require("vimoi").config.highlight.mode == "rendered")
       assert(require("vimoi").config.highlight.template_bg == "Visual")
+      assert(source:find("{{ if true }}", 1, true), "undo did not restore the highlighted branch")
+      assert(output:find("features:", 1, true), "restored branch is absent from rendered output")
     elseif demo == "preview" then
       assert(output:find("theme: dark", 1, true) and output:find("features:", 1, true))
     end

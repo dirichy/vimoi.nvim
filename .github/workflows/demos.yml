@@ -7,9 +7,12 @@ on:
     paths:
       - .github/workflows/demos.yml
       - docs/demos/**
+      - tests/**
+      - ftdetect/**
+      - README.md
+      - README.zh-CN.md
       - lua/**
       - queries/**
-      - ftdetect/**
 
 permissions:
   contents: read
@@ -97,10 +100,10 @@ jobs:
           gzip -dc "$RUNNER_TEMP/demo-downloads/tree-sitter-linux-x64.gz" > "$RUNNER_TEMP/demo-bin/tree-sitter"
           chmod +x "$RUNNER_TEMP/demo-bin/chezmoi" "$RUNNER_TEMP/demo-bin/tree-sitter"
           echo "$RUNNER_TEMP/demo-bin" >> "$GITHUB_PATH"
-      - name: Install and check parsers
+      - name: Install and check test parsers
         run: nvim --headless -n -i NONE -u NONE -l docs/demos/install-parsers.lua
-      - name: Record
-        run: python3 docs/demos/build.py
+      - name: Test and record
+        run: python3 tests/run.py
       - uses: actions/upload-artifact@v4
         with:
           name: demos
@@ -145,9 +148,7 @@ jobs:
 
       - name: Check published README media
         run: |
-          for demo in diff readd preview; do
-            for extension in gif mp4; do
-              curl --fail --silent --show-error --location --head --retry 3 \
-                "https://github.com/$GITHUB_REPOSITORY/releases/download/demos/$demo.$extension" >/dev/null
-            done
+          for media in demos/*.gif demos/*.mp4; do
+            curl --fail --silent --show-error --location --head --retry 3 \
+              "https://github.com/$GITHUB_REPOSITORY/releases/download/demos/${media##*/}" >/dev/null
           done

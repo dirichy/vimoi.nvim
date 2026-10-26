@@ -10,13 +10,16 @@ README 使用 GIF 直接展示，MP4 保留原始清晰度。录制使用独立 
 | [diff.tape](diff.tape) | 循环展开后的双向同步滚动、原生折叠、do/dp、插入位置选择与撤销 |
 | [readd.tape](readd.tape) | 双向同步滚动，批量写回静态修改并保留动态表达式 |
 | [preview.tape](preview.tape) | 未保存模板实时预览、双向同步滚动、分支切换、撤销和错误恢复 |
-| [highlighting.tape](highlighting.tape) | rendered / injection / disabled 高亮切换和模板 action 背景 |
+| [highlighting.tape](highlighting.tape) | rendered 宿主高亮、未执行分支、撤销恢复及模板 action 背景 |
 | [completion.tape](completion.tape) | 真实 blink.cmp 菜单：data、函数、局部变量、路径和块 snippet |
 | [diagnostics.tape](diagnostics.tape) | 模板语法及执行错误，nvim-lint + luac 宿主诊断及修复 |
 | [dependencies.tape](dependencies.tape) | 保存共享模板和配置数据后刷新已有预览，以及手动刷新 |
 
 buffers、cancel、navigation、plain 不再单独录制；相应功能仍由使用文档和测试覆盖。
 LSP 与 nvim-lint 的宿主诊断展示相同，这套实录使用 nvim-lint。
+
+顶部只展示 diff、静态写回和 preview 三段主演示；高亮、诊断、补全和依赖刷新放在 README
+对应功能介绍中，所有七个场景仍参与构建和发布。高亮配置在启动时一次传入，不在回放中重复 setup。
 
 ## 本地构建与查看
 
@@ -52,15 +55,22 @@ MdKite 当前不转换相对 video 路径，查看高清 MP4 时请从文件系�
 索引只展示仍有录制脚本的场景，优先采用英文 README 的 GIF 顺序，其余按名称排列。
 以前生成的旧媒体不必删除，也不会重新进入索引或后续干净的 CI 构建。
 
+默认测试入口 `python3 tests/run.py` 在全部 Lua 测试通过后运行完整构建；CI 使用同一入口。
+`python3 tests/run.py --skip-demos` 或指定 Lua 文件名只运行 Lua 测试。`build.py --check`
+只检查依赖和启动，不能替代完整回放验证；新增或修改 tape 后应运行完整测试或构建。
+
 `verify.lua` 检查真实回放结果：补全菜单、snippet、诊断、模板表达式保留及依赖刷新等。
 三段核心演示共用 [common/scroll.tape](common/scroll.tape)，验证 source 和 output 两个方向都确实带动对侧视口。
 验证失败或未运行到验证步骤时构建失败。直接运行 VHS 需自行提供 `VIMOI_DEMO` 和 `VIMOI_DEMO_RESULT`，建议统一使用构建脚本。
 
 ## 依赖
 
-Python 3、VHS、ttyd、FFmpeg（含 ffprobe）、Chromium / Google Chrome、Neovim 0.12+、chezmoi、
-gotmpl / YAML / Lua parser 及 highlights query，以及 JetBrainsMono Nerd Font Mono 字体。
-诊断场景还需要 luac。缺少工具时先安装。
+Python 3、VHS、ttyd、FFmpeg（含 ffprobe）、Chromium / Google Chrome、Neovim 0.12+、chezmoi，
+以及 JetBrainsMono Nerd Font Mono 字体。诊断场景还需要 luac。缺少工具时先安装。
+
+录制需要 gotmpl / YAML / Lua parser 及 highlights query。完整 Lua 测试所需语言统一列在
+[tests/parsers.txt](../../tests/parsers.txt)，包含 HTML/Markdown 等宿主和注入语言。CI 安装脚本与
+测试入口共用此清单，缺失时在运行测试前报错；新增语言测试时应同步更新清单。
 
 | Neovim 插件 | 场景 | 自定义路径环境变量 |
 | --- | --- | --- |
@@ -91,7 +101,7 @@ README 选择兼容性较好的 GIF；需要原始清晰度时使用 MP4。
 
 ## GitHub Actions 与发布
 
-[Record demos](../../.github/workflows/demos.yml) 在 main 的插件代码、query 或录制素材变化时运行，也可手动运行。
+[Record demos](../../.github/workflows/demos.yml) 在 main 的插件代码、query、测试、README 或录制素材变化时运行，也可手动运行。
 新增根目录 `.tape` 后会自动录制；工具和插件版本在工作流中固定。
 
 每次构建产生保留七天的 demos artifact，包含 GIF、PNG、MP4、验证 JSON 和播放索引。

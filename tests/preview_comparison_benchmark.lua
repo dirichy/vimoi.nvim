@@ -28,6 +28,7 @@ if plugin == "vimoi" then
   require("vimoi").setup({
     chezmoi_executable = root .. "/bin/chezmoi",
     diagnostics = { enabled = false },
+    highlight = { mode = "injection" }, -- Keep the source-highlighting baseline identical to upstream.
   })
 else
   assert(plugin == "chezmoi-template")

@@ -32,8 +32,17 @@ require("vimoi.core.util").notify("test", "diff")
 vim.notify = original_notify
 assert(message == "vimoi diff: test")
 assert(vim.tbl_contains(vim.treesitter.query.list_directives(), "vimoi-target-language!"))
+-- Plugin managers normally generate tags on installation; a clean checkout has none.
+local help_root = vim.fn.tempname()
+vim.fn.mkdir(help_root .. "/doc", "p")
+for _, name in ipairs({ "vimoi.txt", "vimoi.cnx" }) do
+  vim.fn.writefile(vim.fn.readfile("doc/" .. name), help_root .. "/doc/" .. name)
+end
+vim.cmd("helptags " .. vim.fn.fnameescape(help_root .. "/doc"))
+vim.opt.runtimepath:prepend(help_root)
 vim.cmd("help vimoi.nvim@en")
 assert(vim.fs.basename(vim.api.nvim_buf_get_name(0)) == "vimoi.txt")
 vim.cmd("help vimoi.nvim@cn")
 assert(vim.fs.basename(vim.api.nvim_buf_get_name(0)) == "vimoi.cnx")
+vim.fn.delete(help_root, "rf")
 print("plugin identity: vimoi API, commands, help and coexistence with another chezmoi plugin verified")

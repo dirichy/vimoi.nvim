@@ -218,7 +218,7 @@ require("vimoi").setup({
   chezmoi_executable = wrapper,
   chezmoi_config_path = config,
   diagnostics = { host = demo == "diagnostics" },
-  highlight = { mode = "rendered" },
+  highlight = { mode = "rendered", template_bg = demo == "highlighting" and "Visual" or "NormalFloat" },
 })
 vim.cmd.edit(vim.fn.fnameescape(source))
 

@@ -1,4 +1,4 @@
-"""Run Lua tests with isolated chezmoi config, destination and persistent state."""
+"""Run isolated Lua tests, then build verified demo recordings and local READMEs."""
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -7,6 +7,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 
 
@@ -61,6 +62,7 @@ def run_test(test):
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("tests", nargs="*", help="optional Lua test basenames")
 parser.add_argument("--jobs", type=int, default=4)
+parser.add_argument("--skip-demos", action="store_true", help="run Lua tests without building the demo recordings")
 args = parser.parse_args()
 if args.jobs < 1:
     parser.error("--jobs must be positive")
@@ -75,6 +77,14 @@ tests = [workspace / "tests" / name for name in args.tests] if args.tests else s
 )
 if any(not test.is_file() for test in tests):
     parser.error("a requested test file does not exist")
+if not args.tests:
+    with tempfile.TemporaryDirectory(prefix="vimoi-test-preflight-") as directory:
+        env = dict(os.environ, XDG_STATE_HOME=directory, NVIM_LOG_FILE=str(Path(directory) / "nvim.log"))
+        subprocess.run(
+            [nvim, "--headless", "-n", "-i", "NONE", "-u", "tests/minimal_init.lua",
+             "-l", "tests/helpers/check_parsers.lua"],
+            cwd=workspace, env=env, check=True,
+        )
 failures = 0
 with ThreadPoolExecutor(max_workers=args.jobs) as pool:
     for test, passed, output in pool.map(run_test, tests):
@@ -83,4 +93,7 @@ with ThreadPoolExecutor(max_workers=args.jobs) as pool:
             failures += 1
             print(output, flush=True)
 print(f"{len(tests) - failures}/{len(tests)} tests passed", flush=True)
+if not failures and not args.tests and not args.skip_demos:
+    print("Building all demo recordings and local READMEs ...", flush=True)
+    subprocess.run([sys.executable, "docs/demos/build.py"], cwd=workspace, check=True)
 raise SystemExit(1 if failures else 0)

@@ -235,6 +235,10 @@ target 的模板片段。预览不会修改真实 target；渲染失败时保留
 默认按真实 target 的名称和 shebang 识别宿主语言，解析完整渲染结果，再把颜色映射回模板静态文本。
 未执行的分支使用 `Comment`。编辑或临时模板错误期间保留已有颜色。
 
+![渲染结果高亮、未执行分支与模板 action 背景](https://github.com/dirichy/vimoi.nvim/releases/download/demos/highlighting.gif)
+
+[完整清晰度的高亮实录（MP4）](https://github.com/dirichy/vimoi.nvim/releases/download/demos/highlighting.mp4)
+
 | `highlight.mode` | 行为 |
 | --- | --- |
 | `"rendered"`（默认） | 从渲染结果映射宿主颜色；只覆盖当前数据执行的分支 |
@@ -249,6 +253,10 @@ target 的模板片段。预览不会修改真实 target；渲染失败时保留
 照常用 `vim.lsp.enable()` 启用语言服务器，或配置 `require("lint").linters_by_ft`，无须在 vimoi 中再列一份检查器。
 插件检查渲染结果，把错误映射回 source；静态文本精确定位，动态输出指向产生它的模板区域，无法明确定位的输出跳过。
 消息以 `[gotmpl]` 或 `[host:lua]`、`[host:yaml]` 等区分。
+
+![模板错误和映射回 source 的宿主诊断，以及修复过程](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diagnostics.gif)
+
+[完整清晰度的诊断实录（MP4）](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diagnostics.mp4)
 
 ```lua
 require("vimoi").setup({
@@ -292,6 +300,10 @@ require("blink.cmp").setup({
 补全模板函数、data 字段、当前 buffer 的变量和 include/template/glob 路径，不展示 data 值。
 模板 action 外提供 `if`、`ifelse`、`range`、`with`、`define`、`block`、`comment` snippet。
 `blocked_filetypes` 防止接受模板函数候选时自动添加不适用的圆括号。
+
+![真实补全菜单：data、函数、局部变量、路径与块 snippet](https://github.com/dirichy/vimoi.nvim/releases/download/demos/completion.gif)
+
+[完整清晰度的补全实录（MP4）](https://github.com/dirichy/vimoi.nvim/releases/download/demos/completion.mp4)
 
 ## 路径跳转
 
@@ -342,6 +354,10 @@ require("vimoi.api").invalidate_cache()
 某些文件系统静默丢失监听事件时，可设置 `watch.buffer_write_fallback = true`，
 让当前 Neovim 的保存触发刷新；`false` 关闭保存兜底，默认 `"auto"` 按需使用。
 更换 source 根目录后应重启 Neovim。
+
+![修改共享模板和配置数据后刷新已有预览](https://github.com/dirichy/vimoi.nvim/releases/download/demos/dependencies.gif)
+
+[完整清晰度的依赖刷新实录（MP4）](https://github.com/dirichy/vimoi.nvim/releases/download/demos/dependencies.mp4)
 
 ## Lua API
 
@@ -409,8 +425,10 @@ api.cancel_command()        -- 取消耗时命令
 - [预览性能对比](docs/preview-benchmark.md)、[局部写入实测](docs/buffer-edits.md)。
 - [重录 README 演示](docs/demos/README.md)。
 
-测试：`python3 tests/run.py`，也可追加测试文件名。需要 Python 3、Unix shell 和上述依赖，
-测试使用独立配置和临时文件。格式检查：`stylua --check lua ftdetect tests docs/demos/init.lua`。
+完整测试：`python3 tests/run.py`，依次执行 Lua 测试、真实录制、媒体转换和本地 README 构建，
+还需安装[录制依赖](docs/demos/README.md#依赖)。仅跑 Lua 使用 `--skip-demos`，也可追加单个 Lua
+测试文件名。完整 Lua 测试先检查 [tests/parsers.txt](tests/parsers.txt) 中的 parser 和高亮查询，
+包括注入语言；帮助测试自行生成临时 tags。录制可能需要几分钟，均使用独立配置及临时文件。格式检查：`stylua --check lua ftdetect tests docs/demos/init.lua`。
 LuaLS 应使用真实 Neovim runtime library，并保留全部诊断等级。
 
 ## License
