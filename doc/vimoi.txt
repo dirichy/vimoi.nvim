@@ -215,7 +215,8 @@ Neovim continues processing input. Press q, Esc, Ctrl-C or close the float to
 cancel; leaving a focused float also cancels. Cancellation terminates the process
 (and its process group on Unix) and prevents pending writes. Quick path/config
 identity queries still run directly. Put/get/re-add share this UI when waiting
-for a render. Cancelling an initial render ends its session, keeping both buffers.
+for a render. Cancelling an initial diff render ends that view, keeping both
+buffers. A canceled preview shows an error and can recover after editing.
 
                                                     *vimoi-diagnostics*
 Template diagnostics are enabled by default: >lua
@@ -937,6 +938,13 @@ These are not part of the user-action API above.
 
 ==============================================================================
 LIMITATIONS                                                *vimoi-limitations*
+
+Transparent editing of chezmoi-encrypted source files is not provided.
+For repository encryption, git-crypt is recommended: after unlocking, source
+files and templates are ordinary text for chezmoi and vimoi. The local working
+tree remains plaintext; unlock it before using these files.
+https://github.com/AGWA/git-crypt
+https://www.chezmoi.io/user-guide/encryption/transparent/
 
 The sentinel renderer does not currently support:
 

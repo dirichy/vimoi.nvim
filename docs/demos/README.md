@@ -14,19 +14,27 @@ README 使用 GIF 直接展示，MP4 保留原始清晰度。录制使用独立 
 | [completion.tape](completion.tape) | 真实 blink.cmp 菜单：data、函数、局部变量、路径和块 snippet |
 | [diagnostics.tape](diagnostics.tape) | 模板语法及执行错误，nvim-lint + luac 宿主诊断及修复 |
 | [dependencies.tape](dependencies.tape) | 保存共享模板和配置数据后刷新已有预览，以及手动刷新 |
+| [navigation.tape](navigation.tape) | source/target 切换保留未保存修改，gf 共享模板/include、gF 行号、真实 vim-matchup 的 % |
+| [plain.tape](plain.tape) | 普通 source 的目标类型识别、原生 do、未保存 target 的 ReAdd 与撤销 |
+| [buffers.tape](buffers.tape) | 两个未命名 scratch buffer 的 API、上下分屏、hunk 写回、撤销及 ReAdd |
+| [cancel.tape](cancel.tape) | 取消真实 sleep 子进程，保留 buffer，继续编辑后成功预览 |
+| [injection.tape](injection.tape) | injection 模式下切换执行分支，直接解析宿主片段 |
+| [disabled.tape](disabled.tape) | 关闭宿主颜色后保留模板 action 高亮 |
 
-buffers、cancel、navigation、plain 不再单独录制；相应功能仍由使用文档和测试覆盖。
-LSP 与 nvim-lint 的宿主诊断展示相同，这套实录使用 nvim-lint。
+README 中的主要交互功能均有对应实录；配置选项和所有路径写法不逐一单独成片。
+路径实录覆盖共享模板、include、受管理 destination 的行号定位和块匹配；glob picker、
+symlink 路径及原生跳转回退仍由测试覆盖。LSP 与 nvim-lint 的宿主诊断展示相同，
+这套实录使用真实 nvim-lint；chezmoi merge 外部编辑器流程不另录。
 
-顶部只展示 diff、静态写回和 preview 三段主演示；高亮、诊断、补全和依赖刷新放在 README
-对应功能介绍中，所有七个场景仍参与构建和发布。高亮配置在启动时一次传入，不在回放中重复 setup。
+顶部只展示 diff、静态写回和 preview 三段主演示；其余实录放在 README
+对应功能介绍中，另外两种高亮模式提供 MP4 链接；全部十三个场景参与构建和发布。高亮配置在启动时一次传入，不在回放中重复 setup。
 
 ## 本地构建与查看
 
 从仓库根目录运行：
 
 ```sh
-# 构建全部七段：录制、回放验证、GIF 转换、播放索引和本地 README。
+# 构建全部十三段：录制、回放验证、GIF 转换、播放索引和本地 README。
 python3 docs/demos/build.py
 
 # 只重录指定场景。
@@ -59,7 +67,7 @@ MdKite 当前不转换相对 video 路径，查看高清 MP4 时请从文件系�
 `python3 tests/run.py --skip-demos` 或指定 Lua 文件名只运行 Lua 测试。`build.py --check`
 只检查依赖和启动，不能替代完整回放验证；新增或修改 tape 后应运行完整测试或构建。
 
-`verify.lua` 检查真实回放结果：补全菜单、snippet、诊断、模板表达式保留及依赖刷新等。
+`verify.lua` 检查真实回放结果：补全菜单、snippet、诊断、模板表达式保留、依赖刷新、跳转记录、未保存修改、上下分屏和真实任务取消等。
 三段核心演示共用 [common/scroll.tape](common/scroll.tape)，验证 source 和 output 两个方向都确实带动对侧视口。
 验证失败或未运行到验证步骤时构建失败。直接运行 VHS 需自行提供 `VIMOI_DEMO` 和 `VIMOI_DEMO_RESULT`，建议统一使用构建脚本。
 
@@ -78,10 +86,11 @@ Python 3、VHS、ttyd、FFmpeg（含 ffprobe）、Chromium / Google Chrome、Neo
 | NStefan002/screenkey.nvim | 全部 | `VIMOI_DEMO_SCREENKEY` |
 | Saghen/blink.cmp | completion；Lua matcher | `VIMOI_DEMO_BLINK` |
 | mfussenegger/nvim-lint | diagnostics；luac provider | `VIMOI_DEMO_LINT` |
+| andymass/vim-matchup | navigation；真实 % 块匹配 | `VIMOI_DEMO_MATCHUP` |
 
 默认从 `stdpath("data") .. "/lazy/<插件名>"` 加载插件。字体匹配检查：
 `fc-match 'JetBrainsMono Nerd Font Mono'`。VHS 的 ttyd / Chromium 需要允许监听本地端口的环境。
-`init.lua` 退出时清理临时 source、target 和状态；只有依赖刷新场景会保存临时文件。
+`init.lua` 退出时清理临时 source、target 和状态；回放中只有依赖刷新场景会保存临时文件。
 
 ## 样式、画质和节奏
 

@@ -5,13 +5,22 @@ local demo = vim.env.VIMOI_DEMO or "preview"
 local deps = {
   blink = "blink.cmp",
   lint = "nvim-lint",
+  matchup = "vim-matchup",
 }
 for key, directory in pairs(deps) do
   local path = vim.env["VIMOI_DEMO_" .. key:upper()] or vim.fn.stdpath("data") .. "/lazy/" .. directory
-  if (key == "blink" and demo == "completion") or (key == "lint" and demo == "diagnostics") then
+  if
+    (key == "blink" and demo == "completion")
+    or (key == "lint" and demo == "diagnostics")
+    or (key == "matchup" and demo == "navigation")
+  then
     assert(vim.fn.isdirectory(path) == 1, "missing demo dependency: " .. path)
     vim.opt.runtimepath:prepend(path)
   end
+end
+if demo == "navigation" then
+  vim.g.matchup_treesitter_enabled = true
+  vim.g.matchup_matchparen_offscreen = { method = "status_manual" }
 end
 vim.cmd("filetype plugin indent on")
 vim.cmd("syntax enable")
@@ -79,13 +88,19 @@ local titles = {
   diagnostics = "Template / host diagnostics",
   highlighting = "Host highlighting",
   dependencies = "Dependency refresh",
+  navigation = "Source / target, gf / gF and %",
+  plain = "Plain files: native diff and write-back",
+  buffers = "Unnamed buffers / horizontal diff",
+  cancel = "Cancel slow work and keep editing",
+  injection = "Injection highlighting / both branches",
+  disabled = "Template highlighting / host colors disabled",
 }
 vim.g.vimoi_demo_stage = ""
 vim.opt.statusline = " vimoi.nvim / %{g:vimoi_demo_stage == '' ? "
   .. vim.fn.string((assert(titles[demo], "unknown demo: " .. demo)))
   .. " : g:vimoi_demo_stage} %= %m %l:%c "
 
-local observed = { diagnostics = {}, completion_menus = 0, host_lines = {}, scroll = {} }
+local observed = { diagnostics = {}, completion_menus = 0, host_lines = {}, scroll = {}, visits = {}, matches = {} }
 -- Observe real UI events; verify.lua reads the accumulated evidence after playback.
 vim.api.nvim_create_autocmd("DiagnosticChanged", {
   callback = function(args)
@@ -124,8 +139,19 @@ vim.api.nvim_create_autocmd("WinScrolled", {
     }
   end,
 })
+vim.api.nvim_create_autocmd({ "BufEnter", "CursorMoved" }, {
+  callback = function(args)
+    local name = vim.api.nvim_buf_get_name(args.buf)
+    observed.visits[name] = true
+    if demo == "navigation" and vim.g.vimoi_demo_stage == "Match template blocks with %" then
+      observed.matches[vim.api.nvim_win_get_cursor(0)[1]] = true
+    end
+  end,
+})
 -- g: tables are copied by the API; retain the live observations for verification.
 _G.vimoi_demo_observed = observed
+---@type { cancelled: boolean }?
+_G.vimoi_demo_cancel_job = nil
 local source_root, target_root = root .. "/source", root .. "/target"
 vim.fn.mkdir(source_root, "p")
 vim.fn.mkdir(target_root, "p")
@@ -155,7 +181,7 @@ vim.fn.writefile({
 }, wrapper)
 assert(vim.uv.fs_chmod(wrapper, 493))
 local source = source_root .. "/app.yaml.tmpl"
-local fixture = { config = config }
+local fixture = { config = config, source_root = source_root, target_root = target_root }
 
 local template_fixture = demo == "diff" and "diff.yaml.tmpl" or "app.yaml.tmpl"
 vim.fn.writefile(vim.fn.readfile("docs/demos/" .. template_fixture), source)
@@ -208,6 +234,41 @@ elseif demo == "diagnostics" then
   }, source)
   require("lint").linters_by_ft = { lua = { "luac" } }
   vim.diagnostic.config({ virtual_text = true, signs = false, update_in_insert = false })
+elseif demo == "navigation" then
+  vim.fn.mkdir(source_root .. "/.chezmoitemplates", "p")
+  vim.fn.writefile(
+    { "# Shared settings", "theme: shared", "enabled: true" },
+    source_root .. "/.chezmoitemplates/settings.yaml"
+  )
+  vim.fn.writefile({ "# Notes", "one", "two", "three", "four" }, source_root .. "/notes.txt")
+  vim.fn.writefile({ "# Notes", "one", "two", "three", "four" }, target_root .. "/notes.txt")
+  vim.fn.writefile({
+    "# Follow shared templates with gf",
+    '{{ template "settings.yaml" . }}',
+    "",
+    "# Follow source includes with gf",
+    '{{ include "notes.txt" }}',
+    "",
+    "# Follow a managed destination and line with gF",
+    "# " .. target_root .. "/notes.txt:4",
+    "",
+    "{{ if true }}",
+    "enabled: true",
+    "{{ else }}",
+    "enabled: false",
+    "{{ end }}",
+  }, source)
+  vim.fn.writefile({ "# Deployed settings", "theme: deployed" }, target_root .. "/app.yaml")
+elseif demo == "plain" then
+  source = source_root .. "/dot_zshrc"
+  vim.fn.writefile({ "# Plain source: detected as zsh", "export EDITOR=nvim", "export PAGER=less" }, source)
+  vim.fn.writefile(
+    { "# Plain source: detected as zsh", "export EDITOR=vim", "export PAGER=more" },
+    target_root .. "/.zshrc"
+  )
+elseif demo == "cancel" then
+  -- The tape adds a real slow function after the normal disk baseline is ready.
+  vim.fn.writefile({ "# Cancel a slow template function", "theme: light" }, source)
 elseif demo == "dependencies" then
   vim.fn.mkdir(source_root .. "/.chezmoitemplates", "p")
   vim.fn.writefile({ "theme: light" }, source_root .. "/.chezmoitemplates/settings.yaml")
@@ -217,9 +278,21 @@ fixture.source = source
 require("vimoi").setup({
   chezmoi_executable = wrapper,
   chezmoi_config_path = config,
-  diagnostics = { host = demo == "diagnostics" },
-  highlight = { mode = "rendered", template_bg = demo == "highlighting" and "Visual" or "NormalFloat" },
+  split = demo == "buffers" and "horizontal" or "vertical",
+  diagnostics = { host = demo == "diagnostics", enabled = demo ~= "cancel" },
+  highlight = {
+    mode = (demo == "injection" or demo == "disabled") and demo or "rendered",
+    template_bg = demo == "highlighting" and "Visual" or "NormalFloat",
+  },
 })
-vim.cmd.edit(vim.fn.fnameescape(source))
+if demo == "buffers" then
+  fixture.source_buf = vim.api.nvim_create_buf(true, true)
+  fixture.target_buf = vim.api.nvim_create_buf(true, true)
+  vim.api.nvim_buf_set_lines(fixture.source_buf, 0, -1, false, { "name: {{ .name | quote }}", "theme: light" })
+  vim.api.nvim_buf_set_lines(fixture.target_buf, 0, -1, false, { 'name: "workstation"', "theme: dark" })
+  vim.api.nvim_set_current_buf(fixture.source_buf)
+else
+  vim.cmd.edit(vim.fn.fnameescape(source))
+end
 
 vim.g.vimoi_demo = fixture

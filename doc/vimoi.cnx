@@ -176,7 +176,8 @@ view 只通知关闭状态，不保存 merge 的继续执行或取消句柄。
 进度浮窗；需要等待结果时，异步进程配合聚焦浮窗暂停调用流程，Neovim 仍正常处理输入。
 在浮窗按 q、Esc、Ctrl-C 或关窗会取消；离开聚焦浮窗也会取消。取消会结束进程（Unix
 下包括同一进程组的子进程），阻止待处理的写回。路径和配置路径查询等快速命令仍直接
-执行。put/get/re-add 等待渲染复用相同浮窗；取消初次渲染会结束 session，保留 buffer。
+执行。put/get/re-add 等待渲染复用相同浮窗；取消 diff 初次渲染会结束该视图，保留 buffer。
+取消 preview 时显示错误，修改后可以恢复预览。
 
                                                     *vimoi-diagnostics*
 模板诊断默认启用，可通过配置关闭： >lua
@@ -758,6 +759,12 @@ require("vimoi.api").cancel_command()
 
 ==============================================================================
 已知限制                                                *vimoi-limitations*
+
+不提供 chezmoi 加密 source 的透明编辑。若只需保护仓库内容，更推荐 git-crypt：
+解锁后的 source 和模板是普通文本，可直接使用 chezmoi 和 vimoi。本地工作区以
+明文落盘，新机器需先解锁再使用这些文件。
+https://github.com/AGWA/git-crypt
+https://www.chezmoi.io/user-guide/encryption/transparent/
 
 哨兵渲染目前不支持：
 

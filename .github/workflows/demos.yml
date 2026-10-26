@@ -34,6 +34,7 @@ jobs:
       VIMOI_DEMO_TOKYONIGHT: ${{ github.workspace }}/.demo-deps/tokyonight.nvim
       VIMOI_DEMO_SCREENKEY: ${{ github.workspace }}/.demo-deps/screenkey.nvim
       VIMOI_DEMO_BLINK: ${{ github.workspace }}/.demo-deps/blink.cmp
+      VIMOI_DEMO_MATCHUP: ${{ github.workspace }}/.demo-deps/vim-matchup
       VIMOI_DEMO_LINT: ${{ github.workspace }}/.demo-deps/nvim-lint
       NVIM_LOG_FILE: ${{ github.workspace }}/.demo-deps/nvim.log
     steps:
@@ -63,6 +64,11 @@ jobs:
           repository: mfussenegger/nvim-lint
           ref: 3d55c8f67c6ae5c15e1042571e107c7a3d5c5f4e
           path: .demo-deps/nvim-lint
+      - uses: actions/checkout@v4
+        with:
+          repository: andymass/vim-matchup
+          ref: 0106b1afd4a2f7e1098037b5ceb161bab7471088
+          path: .demo-deps/vim-matchup
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
