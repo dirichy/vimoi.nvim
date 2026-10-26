@@ -185,7 +185,8 @@ provides `%` for template blocks. See `:help vimoi-navigation` for path rules.
 
 ## Cancel tasks and refresh
 
-Slow tasks show progress and can be canceled with `:VimoiCancel` or `<leader>cx`.
+Background tasks show progress after 200ms; editing updates are debounced by 200ms.
+Cancel running tasks with `:VimoiCancel` or `<leader>cx`, even before progress appears.
 In a focused waiting float, use `q`, `Esc`, or `Ctrl-C`. Canceled pending write-back does not continue.
 
 ![Cancel a real slow render, continue editing, and open a working preview](https://github.com/dirichy/vimoi.nvim/releases/download/demos/cancel.gif)

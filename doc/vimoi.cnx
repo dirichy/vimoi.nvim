@@ -162,7 +162,7 @@ cat 无法通过 stdin 覆盖模板正文。把 buffer 原文交给 execute-temp
 内部 `vimoi.core.job` 管理进程执行、进度浮窗和取消选择；`vimoi.core.cli` 负责 chezmoi
 参数、输出处理和缓存。共享 data/模板请求会向所有等待者交付结果，再抛出首个回调异常，
 避免一个消费者出错卡住其他消费者。协程及通用工具保留在 `vimoi.core.util`，用户操作仍通过 `vimoi.api`。
-source session 统一处理 120ms 防抖、异步渲染和过期结果重试；已有新编辑排队时
+source session 统一处理 200ms 防抖、异步渲染和过期结果重试；已有新编辑排队时
 沿用该次防抖。路径跳转同步解析路径，在 picker 选择后检查窗口；异步写回在渲染等待或位置选择
 结束后检查视图、路径、文本和渲染上下文。
 
@@ -172,8 +172,9 @@ merge 使用一条协程流程：等待共享 session 结果、规划、按需�
 merge 的注册闭包持有 source 订阅和临时 VimoiViewClosed 监听，完成或取消时统一清理；
 view 只通知关闭状态，不保存 merge 的继续执行或取消句柄。
 
-`data`、`cat` 和用户模板渲染没有默认超时，允许等待密码输入。后台调用在右上角显示不抢焦点的
-进度浮窗；需要等待结果时，异步进程配合聚焦浮窗暂停调用流程，Neovim 仍正常处理输入。
+`data`、`cat` 和用户模板渲染没有默认超时，允许等待密码输入。后台调用持续 200ms 后才在
+右上角显示不抢焦点的进度浮窗，更快完成的任务不显示；浮窗出现前也可用 :VimoiCancel 取消。
+需要等待结果时立即显示聚焦浮窗，异步进程暂停调用流程，Neovim 仍正常处理输入。
 在浮窗按 q、Esc、Ctrl-C 或关窗会取消；离开聚焦浮窗也会取消。取消会结束进程（Unix
 下包括同一进程组的子进程），阻止待处理的写回。路径和配置路径查询等快速命令仍直接
 执行。put/get/re-add 等待渲染复用相同浮窗；取消 diff 初次渲染会结束该视图，保留 buffer。
@@ -183,7 +184,7 @@ view 只通知关闭状态，不保存 merge 的继续执行或取消句柄。
 模板诊断默认启用，可通过配置关闭： >lua
     require("vimoi").setup({ diagnostics = { enabled = false } })
 <
-`vimoi-diagnostics` namespace 展示 gotmpl 语法错误和异步哨兵渲染错误。编辑后等待 120ms
+`vimoi-diagnostics` namespace 展示 gotmpl 语法错误和异步哨兵渲染错误。编辑后等待 200ms
 检查，包括原生补全菜单显示时的编辑，无须打开 diff/preview，也不清除其他 LSP
 的诊断。`vimoi-host-diagnostics` namespace 默认启用，按高亮已识别的宿主 filetype
 （包括 diff_buffers 的覆盖值）检查完整渲染结果，再映射回源码。照常配置
@@ -356,7 +357,7 @@ source map 统一使用相邻模板标签（`template_tags`）之间的字面文
 受管理 target 的模板片段；不会保存、re-add 或 apply。Init 模板和 diff 一样使用
 `execute-template --init`。
 
-预览复用 diff 的异步渲染、120ms debounce、增量语法/结构缓存和 source map 光标与
+预览复用 diff 的异步渲染、200ms debounce、增量语法/结构缓存和 source map 光标与
 viewport 同步；静态编辑复用已渲染结构。不启用 diff 高亮、filler、diff 折叠或合并映射。
 切换模式或结束 session 时会恢复被 diff 临时覆盖的原有映射。
 

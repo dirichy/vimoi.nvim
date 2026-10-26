@@ -197,7 +197,7 @@ verify the real cat execution context.
 Internal `vimoi.core.job` owns process execution, progress floats and cancellation;
 `vimoi.core.cli` owns chezmoi arguments, output handling and caching. Shared
 data/template requests deliver to all waiting consumers even if one callback fails; the first callback error is then propagated. Coroutine and
-general helpers remain in `vimoi.core.util`. Source sessions own the 120ms debounce,
+general helpers remain in `vimoi.core.util`. Source sessions own the 200ms debounce,
 asynchronous rendering and stale result retries; a newer queued edit already
 covers a retry. Navigation resolves paths synchronously and checks its window
 after picker selection. Deferred writes check their view, paths, text and rendering context
@@ -211,8 +211,9 @@ listener. Views report closure and retain no merge continuation.
 Use `vimoi.api` for user operations.
 
 `data`, `cat`, and user-template rendering have no default timeout, allowing
-password prompts to wait. Background calls show progress floats at the top right without taking
-focus. Calls that need the result suspend in a coroutine behind a focused float;
+password prompts to wait. Background calls show progress floats at the top right
+without taking focus only after 200ms; faster calls show no float.
+Use :VimoiCancel even before a float appears. Calls that need the result suspend in a coroutine behind a focused float;
 Neovim continues processing input. Press q, Esc, Ctrl-C or close the float to
 cancel; leaving a focused float also cancels. Cancellation terminates the process
 (and its process group on Unix) and prevents pending writes. Quick path/config
@@ -225,7 +226,7 @@ Template diagnostics are enabled by default: >lua
     require("vimoi").setup({ diagnostics = { enabled = false } })
 <
 The `vimoi-diagnostics` namespace reports gotmpl syntax errors and errors from
-asynchronous sentinel-template rendering. Checks run 120ms after edits, without
+asynchronous sentinel-template rendering. Checks run 200ms after edits, without
 opening a diff or preview. Edits while the native completion menu is visible also
 trigger checks. The `vimoi-host-diagnostics` namespace additionally projects
 diagnostics from rendered output back to source. Host checks are enabled by
@@ -459,7 +460,7 @@ right displays its rendered output with the host filetype. Unnamed buffers and
 template fragments without a managed target are supported. No save, re-add, or
 apply is performed. Init templates use `execute-template --init`, as in diff.
 
-Preview shares diff's asynchronous rendering, 120ms debounce, incremental
+Preview shares diff's asynchronous rendering, 200ms debounce, incremental
 syntax/structure caches, and source-map-aware cursor/viewport synchronization.
 Literal edits reuse rendered structures. It does not enable diff highlighting,
 filler lines, diff folds, or merge mappings. Original mappings temporarily
@@ -1042,7 +1043,7 @@ traversed. Setup-time source-root and init mappings are not recomputed.
 The same invalidation clears rendered structure caches. Undetected changes to
 data, other included files, environment, or time-sensitive functions may leave cached
 dynamic output stale. Literal text is restored locally; updates are debounced
-by 120ms; unchanged source/context versions reuse the current output and mapping.
+by 200ms; unchanged source/context versions reuse the current output and mapping.
 
 ==============================================================================
 TROUBLESHOOTING                                    *vimoi-troubleshooting*

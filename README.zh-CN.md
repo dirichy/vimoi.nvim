@@ -180,7 +180,8 @@ require("vimoi").setup({
 
 ## 取消任务与刷新
 
-耗时任务显示进度，可用 `:VimoiCancel` 或 `<leader>cx` 取消。
+后台任务持续 200ms 后显示进度；编辑更新采用 200ms 防抖。
+进度显示前也可用 `:VimoiCancel` 或 `<leader>cx` 取消任务。
 聚焦的等待浮窗中也可按 `q`、`Esc` 或 `Ctrl-C`。取消待处理的写回后不会继续修改文件。
 
 ![取消真实的耗时渲染后继续编辑并重新预览](https://github.com/dirichy/vimoi.nvim/releases/download/demos/cancel.gif)

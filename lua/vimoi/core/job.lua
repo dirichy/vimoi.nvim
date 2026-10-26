@@ -3,8 +3,8 @@ local M = {}
 local util = require("vimoi.core.util")
 
 ---@class VimoiProgress
----@field win integer
----@field buf integer
+---@field win? integer Present once the progress window is shown.
+---@field buf? integer
 ---@field active boolean
 ---@field mode "notify"|"modal"
 ---@field finish fun(): boolean Close and report whether a modal wait kept focus.
@@ -17,7 +17,7 @@ local notifications = {}
 local function arrange_notifications()
   local index = 0
   for _, progress in ipairs(notifications) do
-    if progress.active and progress.mode == "notify" then
+    if progress.active and progress.mode == "notify" and progress.win then
       vim.api.nvim_win_set_config(progress.win, {
         relative = "editor",
         row = 1 + index * 5,
@@ -34,28 +34,19 @@ end
 ---@param on_cancel function
 ---@return VimoiProgress
 function M.progress(message, mode, on_cancel)
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.bo[buf].bufhidden = "wipe"
-  vim.bo[buf].filetype = "vimoi-progress"
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { message, "", "q / Esc / Ctrl-C: cancel" })
-  vim.bo[buf].modifiable = false
+  local buf, win, group, timer
+  local progress = { active = true, mode = mode }
   local width = math.max(1, math.min(54, vim.o.columns - 4))
-  local win = vim.api.nvim_open_win(buf, mode == "modal", {
-    relative = "editor",
-    style = "minimal",
-    border = "rounded",
-    title = " vimoi ",
-    width = width,
-    height = 3,
-    row = mode == "modal" and math.max(0, math.floor((vim.o.lines - 5) / 2)) or 1,
-    col = mode == "modal" and math.max(0, math.floor((vim.o.columns - width) / 2))
-      or math.max(0, vim.o.columns - width - 2),
-  })
-  local progress = { win = win, buf = buf, active = true, mode = mode }
-  local group = vim.api.nvim_create_augroup("vimoi-progress-" .. buf, { clear = true })
   local accepted = false
   local function close()
-    pcall(vim.api.nvim_del_augroup_by_id, group)
+    if timer then
+      timer:stop()
+      timer:close()
+      timer = nil
+    end
+    if group then
+      pcall(vim.api.nvim_del_augroup_by_id, group)
+    end
     for index, item in ipairs(notifications) do
       if item == progress then
         table.remove(notifications, index)
@@ -64,7 +55,7 @@ function M.progress(message, mode, on_cancel)
     end
     -- WinLeave/BufLeave callbacks run before the window transition finishes.
     vim.schedule(function()
-      if vim.api.nvim_win_is_valid(win) then
+      if win and vim.api.nvim_win_is_valid(win) then
         vim.api.nvim_win_close(win, true)
       end
       arrange_notifications()
@@ -73,11 +64,13 @@ function M.progress(message, mode, on_cancel)
   function progress.finish()
     if progress.active then
       accepted = progress.mode == "notify"
-        or (vim.api.nvim_get_current_win() == win and vim.api.nvim_win_get_buf(win) == buf)
+        or (win ~= nil and vim.api.nvim_get_current_win() == win and vim.api.nvim_win_get_buf(win) == buf)
       progress.active = false
       -- Successful continuation must run back in the original editing window.
-      pcall(vim.api.nvim_del_augroup_by_id, group)
-      if vim.api.nvim_win_is_valid(win) then
+      if group then
+        pcall(vim.api.nvim_del_augroup_by_id, group)
+      end
+      if win and vim.api.nvim_win_is_valid(win) then
         vim.api.nvim_win_close(win, true)
       end
       close()
@@ -92,11 +85,49 @@ function M.progress(message, mode, on_cancel)
     close()
     on_cancel()
   end
+  local function show()
+    if not progress.active or win then
+      return
+    end
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].bufhidden = "wipe"
+    vim.bo[buf].filetype = "vimoi-progress"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { message, "", "q / Esc / Ctrl-C: cancel" })
+    vim.bo[buf].modifiable = false
+    win = vim.api.nvim_open_win(buf, progress.mode == "modal", {
+      relative = "editor",
+      style = "minimal",
+      border = "rounded",
+      title = " vimoi ",
+      width = width,
+      height = 3,
+      row = progress.mode == "modal" and math.max(0, math.floor((vim.o.lines - 5) / 2)) or 1,
+      col = progress.mode == "modal" and math.max(0, math.floor((vim.o.columns - width) / 2))
+        or math.max(0, vim.o.columns - width - 2),
+    })
+    progress.win, progress.buf = win, buf
+    group = vim.api.nvim_create_augroup("vimoi-progress-" .. buf, { clear = true })
+    for _, key in ipairs({ "q", "<Esc>", "<C-c>" }) do
+      vim.keymap.set("n", key, progress.cancel, { buffer = buf, desc = "Cancel chezmoi command" })
+    end
+    vim.api.nvim_create_autocmd({ "WinLeave", "BufLeave" }, {
+      group = group,
+      buffer = buf,
+      callback = function()
+        if progress.mode == "modal" then
+          progress.cancel()
+        end
+      end,
+    })
+    vim.api.nvim_create_autocmd("WinClosed", { group = group, pattern = tostring(win), callback = progress.cancel })
+    arrange_notifications()
+  end
   function progress.focus()
     if not progress.active then
       return
     end
     progress.mode = "modal"
+    show()
     vim.api.nvim_win_set_config(win, {
       relative = "editor",
       row = math.max(0, math.floor((vim.o.lines - 5) / 2)),
@@ -105,22 +136,14 @@ function M.progress(message, mode, on_cancel)
     vim.api.nvim_set_current_win(win)
     arrange_notifications()
   end
-  for _, key in ipairs({ "q", "<Esc>", "<C-c>" }) do
-    vim.keymap.set("n", key, progress.cancel, { buffer = buf, desc = "Cancel chezmoi command" })
-  end
-  vim.api.nvim_create_autocmd({ "WinLeave", "BufLeave" }, {
-    group = group,
-    buffer = buf,
-    callback = function()
-      if progress.mode == "modal" then
-        progress.cancel()
-      end
-    end,
-  })
-  vim.api.nvim_create_autocmd("WinClosed", { group = group, pattern = tostring(win), callback = progress.cancel })
   if mode == "notify" then
     notifications[#notifications + 1] = progress
-    arrange_notifications()
+    timer = vim.defer_fn(function()
+      timer = nil
+      show()
+    end, 200)
+  else
+    show()
   end
   return progress
 end

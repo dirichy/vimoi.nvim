@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--checkout", type=Path, required=True)
 parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--repeats", type=int, default=3)
-parser.add_argument("--match-debounce", action="store_true", help="set upstream debounce to vimoi's 120ms")
+parser.add_argument("--match-debounce", action="store_true", help="set upstream debounce to vimoi's 200ms")
 args = parser.parse_args()
 checkout = args.checkout.resolve()
 workspace = Path(__file__).resolve().parent.parent

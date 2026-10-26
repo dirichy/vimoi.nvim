@@ -543,7 +543,7 @@ function M.register(source, callback, opts)
             publish(state)
           end
         end)
-      end, 120)
+      end, 200)
     end
     api.nvim_buf_attach(source, false, {
       on_lines = function()

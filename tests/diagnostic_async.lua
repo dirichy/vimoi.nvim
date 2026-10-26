@@ -35,7 +35,15 @@ end
 
 -- Fast structural edits are debounced; only the final skeleton starts a job.
 local buf = open("{{ initial . }}")
+vim.wait(140, function()
+  return #requests > 0
+end, 5)
+assert(#requests == 0, "render started before the editing pause")
 change(buf, "{{ intermediate . }}")
+vim.wait(140, function()
+  return #requests > 0
+end, 5)
+assert(#requests == 0, "continued editing did not reset the debounce")
 change(buf, "{{ final . }}")
 wait_for(function()
   return #requests == 1

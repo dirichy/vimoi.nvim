@@ -40,7 +40,7 @@ else
     apply = { on_save = false },
     format = { enabled = false },
     icons = { enabled = false },
-    preview = vim.env.VIMOI_BENCH_MATCH_DEBOUNCE == "1" and { debounce = 120 } or {},
+    preview = vim.env.VIMOI_BENCH_MATCH_DEBOUNCE == "1" and { debounce = 200 } or {},
   })
 end
 vim.cmd("edit " .. vim.fn.fnameescape(source_path))

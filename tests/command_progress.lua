@@ -15,6 +15,56 @@ end
 assert(job.run({ "printf", "quick" }, { label = "quick", text = true }).stdout == "quick")
 assert(float_count() == 0 and vim.api.nvim_get_current_win() == original_win)
 
+-- Fast background work must finish without ever opening a progress window.
+local opened = 0
+local window_group = vim.api.nvim_create_augroup("vimoi-test-progress", { clear = true })
+vim.api.nvim_create_autocmd("WinNew", {
+  group = window_group,
+  callback = function()
+    opened = opened + 1
+  end,
+})
+local quick = job.run({ "printf", "quick" }, {
+  label = "quick background",
+  mode = "notify",
+  callback = function(value)
+    assert(value.code == 0 and value.stdout == "quick")
+  end,
+})
+wait_for(function()
+  return quick.finished
+end)
+assert(opened == 0, "fast background command flashed a window")
+vim.api.nvim_del_augroup_by_id(window_group)
+
+-- Pending notifications can finish, cancel, or become modal before the delay.
+local pending = job.progress("finished early", "notify", function()
+  error("finished work was cancelled")
+end)
+assert(float_count() == 0)
+assert(pending.finish())
+local cancelled = 0
+local retired = job.progress("cancelled early", "notify", function()
+  cancelled = cancelled + 1
+end)
+retired.cancel()
+retired.cancel()
+assert(cancelled == 1 and not retired.finish())
+local promoted = job.progress("focus early", "notify", function()
+  error("promoted work was cancelled")
+end)
+promoted.focus()
+assert(float_count() == 1 and vim.api.nvim_get_current_win() == promoted.win)
+assert(promoted.finish())
+local elapsed = false
+vim.defer_fn(function()
+  elapsed = true
+end, 250)
+wait_for(function()
+  return elapsed
+end)
+assert(float_count() == 0, "retired notification appeared after its delay")
+
 -- Waiting for an existing shared result owns only a modal UI and its subscription.
 for _, mode in ipairs({ "inline", "complete", "cancel", "detach" }) do
   local finish, cancel_wait, stopped, completed, value
@@ -110,7 +160,11 @@ local command = job.run({ "sh", "-c", 'sleep 30 & echo $! > "$1"; wait', "test",
     result = value
   end,
 })
-assert(vim.api.nvim_get_current_win() == original_win and float_count() == 1)
+assert(vim.api.nvim_get_current_win() == original_win and float_count() == 0)
+wait_for(function()
+  return float_count() == 1
+end)
+assert(vim.api.nvim_get_current_win() == original_win)
 wait_for(function()
   return vim.uv.fs_stat(pid_file) ~= nil
 end)
