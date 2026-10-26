@@ -7,6 +7,8 @@ for _, input in ipairs({
   '{"keymaps":{"diff":true}}',
   '{"keymaps":{"unknown":"x"}}',
   '{"completion":false}',
+  '{"completion":{"mask":"yes"}}',
+  '{"completion":{"mask":{}}}',
   '{"diagnostics":{"enabled":"yes"}}',
   '{"diagnostics":{"host":"yes"}}',
   '{"highlight":false}',
@@ -42,6 +44,13 @@ end
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
-plugin.setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+plugin.setup({
+  chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
+  completion = {
+    mask = function(key)
+      return key == "chezmoi.os"
+    end,
+  },
+})
 assert(vim.fn.exists(":VimoiToggle") == 2, "valid setup could not recover after invalid input")
 print("setup validation: invalid public settings fail before side effects and valid setup can retry")

@@ -136,8 +136,26 @@ require("blink.cmp").setup({
 })
 ```
 
-补全函数、data 字段、局部变量、路径和模板块 snippet，不展示 data 值。
+补全函数、data 字段、局部变量、路径和模板块 snippet。
 `blocked_filetypes` 防止补全模板函数时自动添加圆括号。
+
+在 vimoi 的 setup 选项中控制值的遮盖：
+
+```lua
+require("vimoi").setup({
+  completion = {
+    mask = function(key)
+      return key:lower():match("password") ~= nil or key:lower():match("token") ~= nil
+    end,
+  },
+})
+```
+
+`completion.mask` 默认 `true`，遮盖所有值；设为 `false` 展示所有值。函数收到
+不带前导点的完整字段路径（如 `account.token`），返回 `true` 时遮盖该值。
+被遮盖的值在值说明中显示为 `[ masked]`，对象预览中也一样；遮盖父字段也会遮盖其全部后代。
+字段补全和类型仍保留。列表路径使用从 1 开始的索引，如 `accounts.1.token`。
+预览会限制大小并截断；按字段名遮盖只覆盖函数匹配到的路径。
 
 ![真实补全菜单：data、函数、局部变量、路径与块 snippet](https://github.com/dirichy/vimoi.nvim/releases/download/demos/completion.gif)
 
@@ -190,7 +208,7 @@ data、配置和已发现的共享模板变化后自动刷新。若结果未更�
 | 比较与写回 | 模板感知的原生 diff、双向 hunk、静态 ReAdd | 预览中标出相对已部署文件的差异 |
 | 宿主高亮 | 默认映射渲染结果，也可 injection | Tree-sitter injection |
 | 诊断 | 编辑时模板检查，以及 LSP / nvim-lint 宿主检查 | 保存时模板执行检查 |
-| 补全 | 函数、data 字段、局部变量、路径和块片段；不显示 data 值 | 函数、data 字段与值说明、敏感字段遮盖、块片段 |
+| 补全 | 函数、data 字段、局部变量、路径和块片段；可选 data 值说明与过滤 | 函数、data 字段与值说明、敏感字段遮盖、块片段 |
 | 模板格式化、目标图标、透明加密 | 未提供 | Conform、mini.icons、可选加解密 |
 | 文件选择与部署 | source / target 切换，部署使用 CLI | 多种文件 picker、apply 命令，默认保存后 apply |
 | 默认键位 | 全局快捷键，可关闭 | 可选的 source buffer 局部键位 |

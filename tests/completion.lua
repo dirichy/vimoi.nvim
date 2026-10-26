@@ -47,6 +47,68 @@ assert(labels('{{ include ".')[".chezmoitemplates/"].kind == Kind.Folder)
 assert(labels('{{ template "sni').snippet.kind == Kind.File)
 assert(vim.tbl_isempty(labels("plain text")))
 
+-- Value docs reuse data, filter full paths (including ancestors), and never mutate it.
+local cli = require("vimoi.core.cli")
+local data_async = cli.data_async
+local config = require("vimoi").config.completion
+local data = {
+  account = { user = "alice", password = "secret", nested = { token = "private" } },
+  enabled = false,
+  count = 42,
+  nothing = vim.NIL,
+  list = { "one", "two" },
+  accounts = { { user = "bob", password = "list-secret" } },
+  empty = vim.empty_dict(),
+  long = string.rep("密", 250),
+}
+local original_data = vim.deepcopy(data)
+local function load_data(callback)
+  callback(data)
+end
+cli.data_async = load_data
+assert(labels("{{ .acc").account.documentation.value == '"[ masked]"')
+config.mask = false
+local function doc(expression, key)
+  local item = assert(labels(expression)[key])
+  assert(item.documentation.kind == "plaintext")
+  return vim.json.decode(item.documentation.value)
+end
+assert(doc("{{ .account.us", "user") == "alice")
+assert(doc("{{ .en", "enabled") == false)
+assert(doc("{{ .co", "count") == 42)
+assert(doc("{{ .no", "nothing") == vim.NIL)
+assert(vim.deep_equal(doc("{{ .li", "list"), data.list))
+assert(vim.deep_equal(doc("{{ .em", "empty"), data.empty))
+assert(doc("{{ .lo", "long") == string.rep("密", 200) .. "…")
+local function mask_value(key)
+  return key == "account.password" or key == "account.nested" or key == "accounts.1.password"
+end
+config.mask = mask_value
+local account_doc = doc("{{ .acc", "account")
+assert(account_doc.user == "alice" and account_doc.password == "[ masked]")
+assert(account_doc.nested == "[ masked]")
+local accounts_doc = doc("{{ .accounts", "accounts")
+assert(accounts_doc[1].user == "bob" and accounts_doc[1].password == "[ masked]")
+assert(doc("{{ .account.pass", "password") == "[ masked]")
+assert(doc("{{ .account.nested.to", "token") == "[ masked]")
+local function mask_values()
+  return true
+end
+config.mask = mask_values
+assert(labels("{{ .acc").account.documentation.value == '"[ masked]"')
+config.mask = false
+data.large = {}
+for i = 1, 100 do
+  data.large[i] = i
+end
+local large_doc = doc("{{ .lar", "large")
+assert(#large_doc == 40 and large_doc[40] == "…")
+data.large = nil
+assert(vim.deep_equal(data, original_data), "value docs mutated shared data")
+config.mask = true
+assert(labels("{{ .acc").account.documentation.value == '"[ masked]"')
+cli.data_async = data_async
+
 -- Outside actions, complete whole blocks as native LSP snippets.
 local snippet_items = labels("")
 for _, name in ipairs({ "if", "ifelse", "range", "with", "define", "block", "comment" }) do
@@ -125,7 +187,6 @@ end))
 assert(#response.items > 0)
 
 -- Cancel one pending request without suppressing another request sharing the data lookup.
-local cli = require("vimoi.core.cli")
 cli.invalidate("data")
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "{{ .chezmoi.ho" })
 local cancelled_called = false

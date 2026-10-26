@@ -341,12 +341,46 @@ local function variable_completions(buf, root, cursor_byte, row, prefix, start_c
   return items
 end
 
+-- Copy only the displayed portion; filtering must not mutate the shared data cache.
+local function data_value_preview(value, key, policy, depth, budget)
+  budget.remaining = budget.remaining - 1
+  if policy == true or (type(policy) == "function" and policy(key)) then
+    return "[ masked]"
+  end
+  if type(value) == "string" then
+    local text = vim.fn.strcharpart(value, 0, 200)
+    return #text < #value and text .. "…" or value
+  end
+  if type(value) ~= "table" then
+    return value
+  end
+  if depth == 4 then
+    return "…"
+  end
+  local list = vim.islist(value)
+  local preview = list and {} or vim.empty_dict()
+  for child_key, child in (list and ipairs or pairs)(value) do
+    if budget.remaining <= 0 then
+      preview[list and (#preview + 1) or "…"] = "…"
+      break
+    end
+    preview[child_key] = data_value_preview(child, key .. "." .. child_key, policy, depth + 1, budget)
+  end
+  return preview
+end
+
 local function data_field_completions(data, expression, row, col)
   local field_path = vim.split(expression:sub(2), ".", { plain = true, trimempty = false })
   local prefix = table.remove(field_path) or ""
   local data_scope = data
+  local policy = require("vimoi").config.completion.mask
+  local path = ""
   for _, part in ipairs(field_path) do
     data_scope = type(data_scope) == "table" and data_scope[part] or nil
+    path = path == "" and part or path .. "." .. part
+    if type(policy) == "function" and policy(path) then
+      policy = true
+    end
   end
   if type(data_scope) ~= "table" then
     return {}
@@ -355,8 +389,14 @@ local function data_field_completions(data, expression, row, col)
   for key, value in pairs(data_scope) do
     if type(key) == "string" and key:sub(1, #prefix) == prefix then
       local value_type = vim.islist(value) and "list" or type(value)
-      items[#items + 1] =
+      local item =
         completion_item(key, CompletionItemKind.Field, "chezmoi data · " .. value_type, row, col - #prefix, col)
+      local key_path = path == "" and key or path .. "." .. key
+      item.documentation = {
+        kind = "plaintext",
+        value = vim.json.encode(data_value_preview(value, key_path, policy, 0, { remaining = 40 })),
+      }
+      items[#items + 1] = item
     end
   end
   table.sort(items, function(a, b)

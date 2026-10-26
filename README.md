@@ -138,8 +138,28 @@ require("blink.cmp").setup({
 })
 ```
 
-Completes functions, data fields, local variables, paths, and block snippets without showing data values.
+Completes functions, data fields, local variables, paths, and block snippets.
 `blocked_filetypes` prevents automatic parentheses on template function completions.
+
+Control value masking in vimoi's setup options:
+
+```lua
+require("vimoi").setup({
+  completion = {
+    mask = function(key)
+      return key:lower():match("password") ~= nil or key:lower():match("token") ~= nil
+    end,
+  },
+})
+```
+
+`completion.mask` defaults to `true`, masking all values; `false` shows all
+values. A function receives the full field path without a leading dot (for
+example `account.token`) and returns `true` to mask it. Masked values show
+`[ masked]` in value documentation, including inside object previews. Masking a
+parent also masks all its descendants. Lists use one-based paths such as
+`accounts.1.token`. Previews are bounded and truncated; field-name masking only
+covers paths matched by your function.
 
 ![Real completion menus for data, functions, variables, paths, and block snippets](https://github.com/dirichy/vimoi.nvim/releases/download/demos/completion.gif)
 
@@ -194,7 +214,7 @@ and template navigation. Their focus differs. This comparison uses
 | Compare and write back | Template-aware native diff, bidirectional hunks, static ReAdd | Preview annotations against the deployed file |
 | Host highlighting | Rendered output projection by default, optional injection | Tree-sitter injection |
 | Diagnostics | Template checks as you edit, plus LSP / nvim-lint host checks | Template execution checks on save |
-| Completion | Functions, data fields, locals, paths, block snippets; no data values | Functions, data fields with value docs, sensitive-field masking, block snippets |
+| Completion | Functions, data fields, locals, paths, block snippets; optional filtered data value docs | Functions, data fields with value docs, sensitive-field masking, block snippets |
 | Template formatting, target icons, transparent encryption | Not provided | Conform, mini.icons, optional decrypt/encrypt |
 | File selection and deployment | Source / target toggle; deploy with the CLI | Multiple file pickers, apply commands, apply on save by default |
 | Default mappings | Global shortcuts, can be disabled | Opt-in source-buffer mappings |

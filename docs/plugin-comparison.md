@@ -16,6 +16,7 @@
 [`670ba83`](https://github.com/dpezto/chezmoi-template.nvim/tree/670ba83095ba6571f3125a5e5fd4118505a2c3c6)。
 逐项核对 README、默认配置和相关实现；本轮没有运行第三方插件，也没有新增性能测量。
 下表反映当前 vimoi；后续章节保留 2026-10-22 的历史快照，不能将其中的旧缺口当作当前状态。
+已补 `completion.mask` 值说明与按完整字段路径遮盖，默认全部遮盖。
 
 | 功能 | 当前 vimoi.nvim | chezmoi-template.nvim |
 | --- | --- | --- |
@@ -27,7 +28,7 @@
 | 无名 buffer 比较 | `diff_buffers()` 支持已加载的无名及 scratch buffer | 未发现同类公开入口 |
 | 模板诊断 | 编辑时检查语法与执行错误 | 保存时完整执行模板检查 |
 | 宿主诊断 | 复用已启用 LSP 和 nvim-lint stdin 检查器，检查渲染结果并映射回源码 | 未发现同类集成 |
-| blink 补全 | 函数、data 字段、局部变量、路径、块 snippet；不展示 data 值 | 函数、data 字段和值说明、按字段模式遮盖敏感值、块 snippet |
+| blink 补全 | 函数、data 字段、局部变量、路径、块 snippet；可选 data 值说明与按字段路径过滤 | 函数、data 字段和值说明、按字段模式遮盖敏感值、块 snippet |
 | 路径与块导航 | gf/gF 覆盖 include、template、includeTemplate、glob、symlink 等；可选 vim-matchup | gf 跳转共享模板；可选 vim-matchup |
 | 宿主格式化 | 未提供 | Conform：屏蔽模板、格式化、恢复，必要时整行屏蔽 |
 | 图标 | 未提供 | mini.icons 按 target 名称解析 |

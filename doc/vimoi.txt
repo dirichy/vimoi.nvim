@@ -79,6 +79,7 @@ The available options and their defaults are: >lua
       },
       completion = {
         enabled = true,
+        mask = true,
       },
       diagnostics = {
         enabled = true,
@@ -703,8 +704,29 @@ Outside actions, block snippets complete if, ifelse, range, with, define, block,
 and comment into full templates with editable placeholders. Items use standard
 LSP snippet format and blink's configured snippet engine; comments are excluded.
 
-Completion loads and caches data asynchronously on demand until invalidation. Values are omitted from item details to avoid exposing secrets in
-the completion menu. Shared-template directory discovery is cached across
+Completion loads and caches data asynchronously on demand until invalidation.
+`completion.mask` controls value documentation (not labels or type details):
+  true           Mask all values (default).
+  false          Show all values.
+  function(key)  Return true to mask the value at this full field path.
+
+Paths have no leading dot, e.g. "chezmoi.os" or "accounts.1.token"; list indices
+start at 1. The function also masks nested object/list previews. Masked fields
+retain their completion/type and show "[ masked]" in their value documentation.
+Masking a parent masks all its descendants, including when completing them
+directly. Masking never changes the cached data.
+Previews show at most 40 nodes, four container levels, and 200 characters per
+string, with an ellipsis for omitted content. Field-name masking only covers
+paths matched by the function.
+
+Example (inside vimoi setup options): >lua
+    completion = {
+      mask = function(key)
+        return key:lower():match("password") ~= nil or key:lower():match("token") ~= nil
+      end,
+    },
+<
+Shared-template directory discovery is cached across
 completion and navigation, and cleared by filesystem/cache invalidation.
 Set `completion.enabled` to false to disable this source.
 

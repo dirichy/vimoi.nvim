@@ -34,7 +34,7 @@
 | 文件类型识别与懒加载 | source 根目录内识别模板和特殊文件；普通 managed source 按真实 target 判断类型并保留原生初始化回调。源文件规则统一在 `core/source.lua`，Neovim 检测与注册位于 `editor/filetype.lua`，不建立全部 target 的属性索引 |
 | 宿主语言高亮 | 普通模板按真实 target 路径识别宿主语言，复用 CLI 路径缓存；默认渲染高亮、可选 gotmpl injection、模板背景色、脚本 shebang 与无 parser 时的 syntax 回退，特殊文件保留自身规则 |
 | 路径跳转 | 增强 gf / gF，支持 include、includeTemplate、template、glob、ignore/remove、symlink 等；多匹配使用 picker |
-| blink.cmp 补全 | 常用模板函数、data 字段、局部变量和 chezmoi 路径；action 外有 if/ifelse/range/with/define/block/comment snippet。目前只集成 blink |
+| blink.cmp 补全 | 常用模板函数、data 字段、局部变量和 chezmoi 路径；action 外有 if/ifelse/range/with/define/block/comment snippet。可选 data 值说明，通过布尔值或完整字段路径函数控制展示并过滤嵌套值。目前只集成 blink |
 | 模板块匹配 | 为可选 vim-matchup 提供 Tree-sitter 查询，支持 trim、嵌套和 else 链；不自行覆盖 `%` |
 | 缓存失效与监听 | 配置、已发现的 data / include 模板目录及 ignore 路径监听；支持编辑器外变化、按 scope 失效和保存事件兜底。渲染上下文失效后自动刷新所有打开的视图，不写回真实文件 |
 | init 模板 | 识别 `.chezmoi.{toml,yaml,yml,json,jsonc}.tmpl`，映射 config 路径，使用 `execute-template --init` |
@@ -140,7 +140,7 @@ target 及取消时的行为，避免隐式保存或覆盖。其余候选及取�
 | --- | --- | --- |
 | 宿主语言格式化：chezmoi-template 的 Conform 集成 | 值得单独研究，暂不承诺实现 | 需要屏蔽模板、保证 formatter 输入语法可接受并恢复模板；运行时 source map 哨兵不能直接解决。先确认常见模板上的收益和恢复可靠性 |
 | 加密 source 透明编辑：chezmoi-template、nvim-chezmoi | 留作独立候选 | 可以委托 chezmoi 加解密，但还需设计 buffer 读写、明文持久化、失败保存及取消；不同于自行实现密码学，也不同于自动 re-add |
-| 目标图标、补全中的 data 值说明：chezmoi-template | 按需要选择，不作为核心缺口 | 图标可做可选集成；data 值当前不显示，若以后显示需决定敏感值处理，不必为追求功能对等加入额外配置 |
+| 目标图标：chezmoi-template | 按需要选择，不作为核心缺口 | 图标可做可选集成；data 值说明已支持 completion.mask，默认全部遮盖，可按完整字段路径选择遮盖 |
 | Add / Forget / Update 等 CLI 入口：Telescope / Snacks 扩展 | Add 保留原规划，其余等具体工作流需要再加 | 简单包装命令的收益有限；优先补足模板编辑闭环，不把所有 CLI 子命令搬进插件 |
 
 自动 re-add 和复杂动态输出反向合并仍按「已明确不做」处理；同类插件的功能不会改变这一边界。
