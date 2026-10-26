@@ -66,7 +66,15 @@ local function load_data(callback)
   callback(data)
 end
 cli.data_async = load_data
-assert(labels("{{ .acc").account.documentation.value == '"[ masked]"')
+local function assert_masked(expression, key, hint)
+  local documentation = labels(expression)[key].documentation
+  assert(documentation.kind == "plaintext")
+  local expected = "[ masked]" .. (hint and "\n\nSee :help vimoi-completion-mask." or "")
+  assert(documentation.value == expected, documentation.value)
+  assert(not documentation.value:find("secret", 1, true))
+end
+assert(config.mask == "hint")
+assert_masked("{{ .acc", "account", true)
 config.mask = false
 local function doc(expression, key)
   local item = assert(labels(expression)[key])
@@ -89,13 +97,13 @@ assert(account_doc.user == "alice" and account_doc.password == "[ masked]")
 assert(account_doc.nested == "[ masked]")
 local accounts_doc = doc("{{ .accounts", "accounts")
 assert(accounts_doc[1].user == "bob" and accounts_doc[1].password == "[ masked]")
-assert(doc("{{ .account.pass", "password") == "[ masked]")
-assert(doc("{{ .account.nested.to", "token") == "[ masked]")
+assert_masked("{{ .account.pass", "password")
+assert_masked("{{ .account.nested.to", "token")
 local function mask_values()
   return true
 end
 config.mask = mask_values
-assert(labels("{{ .acc").account.documentation.value == '"[ masked]"')
+assert_masked("{{ .acc", "account")
 config.mask = false
 data.large = {}
 for i = 1, 100 do
@@ -106,7 +114,9 @@ assert(#large_doc == 40 and large_doc[40] == "…")
 data.large = nil
 assert(vim.deep_equal(data, original_data), "value docs mutated shared data")
 config.mask = true
-assert(labels("{{ .acc").account.documentation.value == '"[ masked]"')
+assert_masked("{{ .acc", "account")
+config.mask = "hint"
+assert_masked("{{ .account.pass", "password", true)
 cli.data_async = data_async
 
 -- Outside actions, complete whole blocks as native LSP snippets.

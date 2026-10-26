@@ -156,9 +156,10 @@ require("vimoi").setup({
 })
 ```
 
-`completion.mask` 默认 `true`，遮盖所有值；设为 `false` 展示所有值。函数收到
-不带前导点的完整字段路径（如 `account.token`），返回 `true` 时遮盖该值。
-被遮盖的值在值说明中显示为 `[ masked]`，对象预览中也一样；遮盖父字段也会遮盖其全部后代。
+`completion.mask` 默认 `"hint"`：遮盖所有值，并附简短的 `See :help vimoi-completion-mask`。
+设为 `true` 时只遮盖、不附帮助提示；`false` 展示所有值。函数收到不带前导点的完整字段路径
+（如 `account.token`），返回 `true` 时遮盖该值，也不附帮助提示。
+被遮盖值统一使用 `[ masked]`，对象预览中也一样。遮盖父字段也会遮盖其全部后代。
 字段补全和类型仍保留。列表路径使用从 1 开始的索引，如 `accounts.1.token`。
 预览会限制大小并截断；按字段名遮盖只覆盖函数匹配到的路径。
 

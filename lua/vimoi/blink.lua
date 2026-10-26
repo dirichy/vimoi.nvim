@@ -344,8 +344,8 @@ end
 -- Copy only the displayed portion; filtering must not mutate the shared data cache.
 local function data_value_preview(value, key, policy, depth, budget)
   budget.remaining = budget.remaining - 1
-  if policy == true or (type(policy) == "function" and policy(key)) then
-    return "[ masked]"
+  if policy == "hint" or policy == true or (type(policy) == "function" and policy(key)) then
+    return "[ masked]", true
   end
   if type(value) == "string" then
     local text = vim.fn.strcharpart(value, 0, 200)
@@ -392,9 +392,11 @@ local function data_field_completions(data, expression, row, col)
       local item =
         completion_item(key, CompletionItemKind.Field, "chezmoi data · " .. value_type, row, col - #prefix, col)
       local key_path = path == "" and key or path .. "." .. key
+      local preview, masked = data_value_preview(value, key_path, policy, 0, { remaining = 40 })
       item.documentation = {
         kind = "plaintext",
-        value = vim.json.encode(data_value_preview(value, key_path, policy, 0, { remaining = 40 })),
+        value = masked and (preview .. (policy == "hint" and "\n\nSee :help vimoi-completion-mask." or ""))
+          or vim.json.encode(preview),
       }
       items[#items + 1] = item
     end

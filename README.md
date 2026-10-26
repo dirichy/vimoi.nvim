@@ -159,13 +159,14 @@ require("vimoi").setup({
 })
 ```
 
-`completion.mask` defaults to `true`, masking all values; `false` shows all
-values. A function receives the full field path without a leading dot (for
-example `account.token`) and returns `true` to mask it. Masked values show
-`[ masked]` in value documentation, including inside object previews. Masking a
-parent also masks all its descendants. Lists use one-based paths such as
-`accounts.1.token`. Previews are bounded and truncated; field-name masking only
-covers paths matched by your function.
+`completion.mask` defaults to `"hint"`: all values are masked, with a short
+`See :help vimoi-completion-mask` hint. Set `true` to mask without the hint, or
+`false` to show all values. A function receives the full field path without a
+leading dot (for example `account.token`); returning `true` masks that value
+without the hint. Masked values use `[ masked]`, including in object previews.
+Masking a parent also masks all its descendants. Lists use one-based paths such
+as `accounts.1.token`. Previews are bounded and truncated; field-name masking
+only covers paths matched by your function.
 
 ![Real completion menus for data, functions, variables, paths, and block snippets](https://github.com/dirichy/vimoi.nvim/releases/download/demos/completion.gif)
 

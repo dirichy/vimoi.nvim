@@ -24,7 +24,7 @@ local defaults = {
   },
   completion = {
     enabled = true,
-    mask = true,
+    mask = "hint",
   },
   diagnostics = {
     enabled = true,
@@ -80,7 +80,7 @@ M.config = vim.deepcopy(defaults)
 ---@field split? "vertical"|"horizontal" Orientation for newly created diff/preview splits.
 ---@field watch? VimoiWatchOptions
 ---@field render? { validate?: boolean }
----@field completion? { enabled?: boolean, mask?: boolean|fun(key: string): boolean }
+---@field completion? { enabled?: boolean, mask?: "hint"|boolean|fun(key: string): boolean }
 ---@field diagnostics? { enabled?: boolean, host?: boolean }
 ---@field highlight? { mode?: "injection"|"rendered"|"disabled", template_bg?: string|{ dark: string, light: string } }
 ---@field keymaps? VimoiKeymaps|false
@@ -104,7 +104,11 @@ M.setup = require("vimoi.core.util").once(function(opts)
     vim.validate(name, config[name], "table")
     vim.validate(name .. ".enabled", config[name].enabled, "boolean")
   end
-  vim.validate("completion.mask", config.completion.mask, { "boolean", "function" })
+  local mask = config.completion.mask
+  assert(
+    mask == "hint" or type(mask) == "boolean" or type(mask) == "function",
+    "completion.mask must be hint, a boolean or a function"
+  )
   vim.validate("diagnostics.host", config.diagnostics.host, "boolean")
   vim.validate("highlight", config.highlight, "table")
   assert(

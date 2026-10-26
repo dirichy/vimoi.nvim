@@ -79,7 +79,7 @@ The available options and their defaults are: >lua
       },
       completion = {
         enabled = true,
-        mask = true,
+        mask = "hint",
       },
       diagnostics = {
         enabled = true,
@@ -718,14 +718,17 @@ and comment into full templates with editable placeholders. Items use standard
 LSP snippet format and blink's configured snippet engine; comments are excluded.
 
 Completion loads and caches data asynchronously on demand until invalidation.
+                                                   *vimoi-completion-mask*
 `completion.mask` controls value documentation (not labels or type details):
-  true           Mask all values (default).
+  "hint"         Mask all values and append a short help hint (default).
+  true           Mask all values without the hint.
   false          Show all values.
-  function(key)  Return true to mask the value at this full field path.
+  function(key)  Return true to mask this full field path, without the hint.
 
 Paths have no leading dot, e.g. "chezmoi.os" or "accounts.1.token"; list indices
 start at 1. The function also masks nested object/list previews. Masked fields
-retain their completion/type and show "[ masked]" in their value documentation.
+retain their completion/type and show "[ masked]", including in nested previews.
+Only "hint" mode appends "See :help vimoi-completion-mask." to field documentation.
 Masking a parent masks all its descendants, including when completing them
 directly. Masking never changes the cached data.
 Previews show at most 40 nodes, four container levels, and 200 characters per
