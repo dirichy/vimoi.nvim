@@ -16,6 +16,7 @@
 [`670ba83`](https://github.com/dpezto/chezmoi-template.nvim/tree/670ba83095ba6571f3125a5e5fd4118505a2c3c6)。
 逐项核对 README、默认配置和相关实现；本轮没有运行第三方插件，也没有新增性能测量。
 下表反映当前 vimoi；后续章节保留 2026-10-22 的历史快照，不能将其中的旧缺口当作当前状态。
+后续更新：已补 `VimoiFiles` 受管理文件选择。
 已补 `completion.mask` 值说明与按完整字段路径遮盖，默认全部遮盖。
 
 | 功能 | 当前 vimoi.nvim | chezmoi-template.nvim |
@@ -33,7 +34,7 @@
 | 宿主格式化 | 未提供 | Conform：屏蔽模板、格式化、恢复，必要时整行屏蔽 |
 | 图标 | 未提供 | mini.icons 按 target 名称解析 |
 | 透明加密 | 未提供 | 可选 `.age` / `.asc` 解密读取、加密保存，委托 chezmoi |
-| managed-files picker | 未提供；现有 picker 用于候选选择 | snacks / telescope / fzf-lua / mini.pick / vim.ui.select |
+| managed-files picker | VimoiFiles：chezmoi 提供列表，vim.ui.select 选择并打开 source | snacks / telescope / fzf-lua / mini.pick / vim.ui.select |
 | 部署 | 无 apply 命令；Put/Get 与 ReAdd 只改 buffer | 显式 apply，默认 `apply.on_save = true`、`force = false` |
 | 默认按键 | 全局快捷键，可全部关闭；视图映射按窗口启用 | 默认关闭，可选 source buffer 局部快捷键 |
 | 耗时渲染 | 后台进度与取消入口，无默认超时 | 模板执行 10 秒超时；预览默认超过 500ms 降级为保存刷新 |

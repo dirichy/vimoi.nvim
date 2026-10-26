@@ -42,6 +42,7 @@ local defaults = {
     invalidate_cache = "<leader>cr",
     readd = "<leader>ca",
     toggle = "<leader>ct",
+    files = "<leader>cf",
     goto_file = "gf",
     goto_file_line = "gF",
     diff_get = "do",
@@ -59,6 +60,7 @@ M.config = vim.deepcopy(defaults)
 ---@field invalidate_cache? string|false
 ---@field readd? string|false
 ---@field toggle? string|false
+---@field files? string|false
 ---@field goto_file? string|false
 ---@field goto_file_line? string|false
 ---@field diff_get? string|false

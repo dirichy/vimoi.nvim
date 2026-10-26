@@ -93,6 +93,7 @@ The available options and their defaults are: >lua
         diff = "<leader>cd",
         preview = "<leader>cp",
         toggle = "<leader>ct",
+        files = "<leader>cf",
         invalidate_cache = "<leader>cr",
         readd = "<leader>ca",
         cancel_command = "<leader>cx",
@@ -289,6 +290,7 @@ when a namespace-specific setting is desired.
 Default normal-mode entry mappings:
     <leader>cd    Open diff                      global
     <leader>cp    Open template preview          global
+    <leader>cf    Pick a managed source file     global
     <leader>ct    Toggle source/target           global
     <leader>cr    Clear caches and rescan watches  global
     <leader>ca    Re-add target changes to template  global
@@ -313,6 +315,17 @@ Neovim to change options. A failed initialization may be retried.
 
 ==============================================================================
 COMMANDS                                                       *vimoi-commands*
+
+                                                              *:VimoiFiles*
+:VimoiFiles
+    Query managed files and symlink sources asynchronously and choose one via
+    vim.ui.select. Open its source with native edit protections; use VimoiToggle
+    to switch to the target. Default mapping: <leader>cf.
+    The list is queried fresh each time, respects chezmoi ignore rules, and omits
+    directories. Labels are relative to the source root. Dismissing the picker
+    opens nothing. Use VimoiCancel to cancel a slow query; no default timeout.
+    No save or apply. Delayed results are discarded after leaving the originating
+    window/buffer or editing its text.
 
                                                              *:VimoiToggle*
 :VimoiToggle [path]
@@ -866,6 +879,11 @@ require("vimoi.api").invalidate_cache({scope})
     Use this when automatic invalidation misses a change or a new directory.
     The source root and init-template/config mapping retain their setup-time
     values. Open views schedule a refresh; otherwise reload happens on demand.
+
+                                              *vimoi.api.files()*
+require("vimoi.api").files()
+    Open the managed-source picker described in |:VimoiFiles|.
+    Always returns nil; querying the list and choosing a file are asynchronous.
 
                                              *vimoi.api.toggle()*
 require("vimoi.api").toggle({path})

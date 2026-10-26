@@ -99,7 +99,7 @@ function M.run(args, opts)
   local argv = vim.list_extend(vim.list_slice(chezmoi_command), args)
   -- Path/config identity queries do not render user templates. Everything that
   -- can consult data/password helpers gets cancellable, asynchronous execution.
-  local slow = args[1] == "data" or args[1] == "cat" or args[1] == "execute-template"
+  local slow = args[1] == "data" or args[1] == "cat" or args[1] == "execute-template" or args[1] == "managed"
   if args[1] == "execute-template" and args[2] == "{{ .chezmoi.configFile }}" then
     slow = false
   end

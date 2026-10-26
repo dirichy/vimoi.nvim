@@ -56,11 +56,17 @@ Open a chezmoi-managed source or target, then use these commands and default map
 
 | Command | Key | Purpose |
 | --- | --- | --- |
+| `:VimoiFiles` | `<leader>cf` | Pick a managed file and open its source |
 | `:VimoiToggle` | `<leader>ct` | Switch source / target, preserving unsaved edits |
 | `:VimoiPreview` | `<leader>cp` | Preview the current template as you type, without saving |
 | `:VimoiDiff` | `<leader>cd` | Compare rendered output with the actual target |
 | `:VimoiReAdd` | `<leader>ca` | Bring target changes back into source in bulk |
 | `:VimoiCancel` | `<leader>cx` | Cancel slow tasks |
+
+`:VimoiFiles` lists managed files and symlink sources through `vim.ui.select`,
+reusing your configured picker UI. Select an entry to edit its source, then use
+`:VimoiToggle` to switch to its target. The list is refreshed each time and
+respects chezmoi's ignore rules. Cancel a slow query with `:VimoiCancel`.
 
 Path arguments are also available; see `:help vimoi-commands`.
 Preview supports unnamed buffers and template fragments. Failed renders retain the previous
@@ -216,7 +222,7 @@ and template navigation. Their focus differs. This comparison uses
 | Diagnostics | Template checks as you edit, plus LSP / nvim-lint host checks | Template execution checks on save |
 | Completion | Functions, data fields, locals, paths, block snippets; optional filtered data value docs | Functions, data fields with value docs, sensitive-field masking, block snippets |
 | Template formatting, target icons, transparent encryption | Not provided | Conform, mini.icons, optional decrypt/encrypt |
-| File selection and deployment | Source / target toggle; deploy with the CLI | Multiple file pickers, apply commands, apply on save by default |
+| File selection and deployment | Managed-file picker and source / target toggle; deploy with the CLI | Multiple file pickers, apply commands, apply on save by default |
 | Default mappings | Global shortcuts, can be disabled | Opt-in source-buffer mappings |
 | Neovim requirement | 0.12+ | 0.10+ |
 

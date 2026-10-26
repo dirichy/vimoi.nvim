@@ -55,13 +55,18 @@ opts = {
 
 | 命令 | 快捷键 | 用途 |
 | --- | --- | --- |
+| `:VimoiFiles` | `<leader>cf` | 选择受管理文件并打开 source |
 | `:VimoiToggle` | `<leader>ct` | 切换 source / target，保留未保存修改 |
 | `:VimoiPreview` | `<leader>cp` | 实时预览当前模板，无须保存 |
 | `:VimoiDiff` | `<leader>cd` | 比较模板渲染结果与真实 target |
 | `:VimoiReAdd` | `<leader>ca` | 将 target 修改批量写回 source |
 | `:VimoiCancel` | `<leader>cx` | 取消耗时任务 |
 
-这些命令也支持指定路径，详见 `:help vimoi-commands`。
+`:VimoiFiles` 通过 `vim.ui.select` 列出受管理的文件和 symlink source，复用你已有的 picker UI。
+选择后编辑 source，再用 `:VimoiToggle` 切换 target。每次重新查询列表，遵循 chezmoi 的 ignore 规则。
+查询耗时较长时可用 `:VimoiCancel` 取消。
+
+其他命令也支持指定路径，详见 `:help vimoi-commands`。
 预览支持无名 buffer 和模板片段；渲染失败时保留旧结果并标记过期。
 关闭任一侧窗口即可结束 diff/preview。
 
@@ -210,7 +215,7 @@ data、配置和已发现的共享模板变化后自动刷新。若结果未更�
 | 诊断 | 编辑时模板检查，以及 LSP / nvim-lint 宿主检查 | 保存时模板执行检查 |
 | 补全 | 函数、data 字段、局部变量、路径和块片段；可选 data 值说明与过滤 | 函数、data 字段与值说明、敏感字段遮盖、块片段 |
 | 模板格式化、目标图标、透明加密 | 未提供 | Conform、mini.icons、可选加解密 |
-| 文件选择与部署 | source / target 切换，部署使用 CLI | 多种文件 picker、apply 命令，默认保存后 apply |
+| 文件选择与部署 | 受管理文件选择、source / target 切换，部署使用 CLI | 多种文件 picker、apply 命令，默认保存后 apply |
 | 默认键位 | 全局快捷键，可关闭 | 可选的 source buffer 局部键位 |
 | Neovim 要求 | 0.12+ | 0.10+ |
 

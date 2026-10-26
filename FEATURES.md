@@ -19,6 +19,7 @@
 | 模板语法与 source map | `render/source_map.lua` 收集完整 template tag 与静态槽位；记录未执行、一次执行及重复执行的位置和顺序，处理 trim 和空控制块 |
 | 两窗口、三份数据的模板 diff | 展示 Source Template 与 Modified Target；Rendered Base 在后台参与比较 |
 | 双向打开 diff | `:VimoiDiff` 支持从 source 或 target 打开，也支持显式文件对；普通文件使用原生双文件 diff |
+| 受管理文件选择 | `:VimoiFiles` / `api.files()`，默认 `<leader>cf`；异步查询 chezmoi managed，通过 `vim.ui.select` 打开 source，遵循 ignore，支持文件与 symlink source，不缓存列表 |
 | 独立 source/target 导航 | `:VimoiToggle [path]` / `api.toggle(path)` 切换到另一侧；默认 `<leader>ct`，复用双向路径缓存，不渲染、apply 或自动保存 |
 | 分屏方向 | `split = "vertical"`（默认）或 `"horizontal"`；diff/preview 共用，只影响新建分屏，已有窗口继续复用 |
 | 原生 diff 展示与导航 | 投影 hunks 后复用原生高亮、filler、`[c` / `]c` 和 `foldmethod=diff` |
@@ -106,7 +107,7 @@
 ## 后续候选（未承诺实现顺序）
 
 `checkhealth`、模板 diagnostics、source 目标文件类型、独立导航、依赖刷新、snippet、
-可选块匹配及分屏方向已完成。后续可以考虑显式 Apply 和受管理文件选择。
+可选块匹配及分屏方向已完成。受管理文件选择已完成，后续可以考虑显式 Apply。
 Apply 应只操作明确的当前文件；实现前确定未保存 source、未保存
 target 及取消时的行为，避免隐式保存或覆盖。其余候选及取舍见下面的对比，不代表全部承诺实现。
 
@@ -122,7 +123,7 @@ target 及取消时的行为，避免隐式保存或覆盖。其余候选及取�
 | --- | --- | --- |
 | 目标文件类型识别：alker0、chezmoi-template | 已补模板与非模板 managed source 的 target 名称识别 | 复用 CLI 路径缓存，不另写属性前缀解析。文件类型正确仍不等于解决 LSP 工作区 |
 | 独立 source 编辑与 apply：xvzc、nvim-chezmoi | 独立 Toggle 已完成；Diff Put/Get 仍只改接收方 buffer 的 hunk，不执行 CLI apply | 显式当前文件 Apply 留作后续；保存后自动 apply 继续保留为待设计项，不照搬其他插件的默认开启行为 |
-| 受管理文件选择：xvzc、Telescope / Snacks 扩展 | 当前 picker 只选择写回候选、路径匹配或待取消任务，没有 managed-files 浏览入口 | 有实际需要时加入；由 chezmoi 提供列表，优先 `vim.ui.select`，复用用户已有 UI，不先做多 backend 适配 |
+| 受管理文件选择：xvzc、Telescope / Snacks 扩展 | 已加入 VimoiFiles，列出受管理的文件与 symlink source | 由 chezmoi 提供列表，使用 `vim.ui.select`，复用用户已有 UI，不做多 backend 适配或额外列表缓存 |
 | 块片段与模板块匹配：chezmoi-template | 已加入 blink snippet 和可选 vim-matchup 查询 | 复用现有 snippet 引擎和匹配插件，不增加必需依赖或自行接管 `%` |
 
 ### 已有替代方案或覆盖更适合我们的需求

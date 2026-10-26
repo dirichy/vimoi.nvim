@@ -13,6 +13,7 @@ for _, lhs in ipairs({
   "<leader>cp",
   "<leader>cs",
   "<leader>ct",
+  "<leader>cf",
   "<leader>cr",
   "<leader>ca",
   "<leader>cx",

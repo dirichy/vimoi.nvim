@@ -11,6 +11,7 @@ for lhs, name in pairs({
   [" cd"] = "diff",
   [" cp"] = "preview",
   [" ct"] = "toggle",
+  [" cf"] = "files",
   [" cr"] = "invalidate_cache",
   [" ca"] = "readd",
   [" cx"] = "cancel_command",

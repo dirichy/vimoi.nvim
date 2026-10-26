@@ -71,6 +71,50 @@ function M.toggle(path)
   return destination
 end
 
+---Pick a managed file and open its source without saving or applying.
+function M.files()
+  local cli = require("vimoi.core.cli")
+  local util = require("vimoi.core.util")
+  local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
+  local changedtick = vim.api.nvim_buf_get_changedtick(buf)
+  local function current()
+    return vim.api.nvim_win_is_valid(win)
+      and vim.api.nvim_get_current_win() == win
+      and vim.api.nvim_win_get_buf(win) == buf
+      and vim.api.nvim_buf_get_changedtick(buf) == changedtick
+  end
+  cli.run({ "managed", "--include=files,symlinks", "--path-style=source-absolute", "--nul-path-separator" }, {
+    text = false,
+    callback = function(output, err)
+      if not current() then
+        return
+      end
+      if not output then
+        util.notify(err, "files", vim.log.levels.ERROR)
+        return
+      end
+      local paths = vim.split(output, "\0", { plain = true, trimempty = true })
+      if #paths == 0 then
+        util.notify("no managed files", "files", vim.log.levels.INFO)
+        return
+      end
+      vim.ui.select(paths, {
+        prompt = "Vimoi source:",
+        format_item = function(path)
+          return vim.fn.strtrans(vim.fs.relpath(cli.source_root, path) or path)
+        end,
+      }, function(path)
+        if path and current() then
+          local ok, edit_error = pcall(vim.cmd.edit, vim.fn.fnameescape(path))
+          if not ok then
+            util.notify(tostring(edit_error), "files", vim.log.levels.ERROR)
+          end
+        end
+      end)
+    end,
+  })
+end
+
 ---Put the current hunk into the other diff window, rendering template output as needed.
 ---@return boolean?
 function M.put_hunk()
@@ -116,6 +160,7 @@ end
 ---Register commands and global entry mappings during plugin setup.
 ---@private
 M.register = require("vimoi.core.util").once(function()
+  vim.api.nvim_create_user_command("VimoiFiles", M.files, { desc = "Pick a managed chezmoi source file" })
   vim.api.nvim_create_user_command("VimoiToggle", function(args)
     M.toggle(args.fargs[1])
   end, {
@@ -181,6 +226,7 @@ M.register = require("vimoi.core.util").once(function()
     diff = "Open chezmoi diff",
     preview = "Preview chezmoi template",
     toggle = "Switch between chezmoi source and target",
+    files = "Pick a managed chezmoi source file",
     invalidate_cache = "Clear chezmoi caches and rescan watches",
   }) do
     local lhs = keymaps[name]
