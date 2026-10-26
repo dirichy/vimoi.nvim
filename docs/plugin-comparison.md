@@ -16,7 +16,7 @@
 [`670ba83`](https://github.com/dpezto/chezmoi-template.nvim/tree/670ba83095ba6571f3125a5e5fd4118505a2c3c6)。
 逐项核对 README、默认配置和相关实现；本轮没有运行第三方插件，也没有新增性能测量。
 下表反映当前 vimoi；后续章节保留 2026-10-22 的历史快照，不能将其中的旧缺口当作当前状态。
-后续更新：已补 `VimoiFiles` 受管理文件选择。
+后续更新：已补 `VimoiFiles` 受管理文件选择；仓库加密推荐 [git-crypt](https://github.com/AGWA/git-crypt)，不提供 chezmoi 加密 source 的透明编辑。
 已补 `completion.mask` 值说明与按完整字段路径遮盖，默认全部遮盖。
 
 | 功能 | 当前 vimoi.nvim | chezmoi-template.nvim |
@@ -33,7 +33,7 @@
 | 路径与块导航 | gf/gF 覆盖 include、template、includeTemplate、glob、symlink 等；可选 vim-matchup | gf 跳转共享模板；可选 vim-matchup |
 | 宿主格式化 | 未提供 | Conform：屏蔽模板、格式化、恢复，必要时整行屏蔽 |
 | 图标 | 未提供 | mini.icons 按 target 名称解析 |
-| 透明加密 | 未提供 | 可选 `.age` / `.asc` 解密读取、加密保存，委托 chezmoi |
+| 透明加密 | 未提供；仓库加密推荐 git-crypt | 可选 `.age` / `.asc` 解密读取、加密保存，委托 chezmoi |
 | managed-files picker | VimoiFiles：chezmoi 提供列表，vim.ui.select 选择并打开 source | snacks / telescope / fzf-lua / mini.pick / vim.ui.select |
 | 部署 | 无 apply 命令；Put/Get 与 ReAdd 只改 buffer | 显式 apply，默认 `apply.on_save = true`、`force = false` |
 | 默认按键 | 全局快捷键，可全部关闭；视图映射按窗口启用 | 默认关闭，可选 source buffer 局部快捷键 |
@@ -53,8 +53,8 @@
 
 选择上，它更适合需要格式化、加密、文件浏览和部署配套的 source 编辑流程；
 vimoi 更侧重渲染结果与实际文件的比较，以及保留模板结构的静态写回。
-格式化与透明加密仍值得独立研究，但分别需要处理合法宿主输入、模板恢复和明文持久化、失败保存、取消语义，
-不应为了功能对等而直接加入。默认保存后 apply 也不能照搬到我们当前的显式 buffer 修改流程。
+格式化仍需独立研究合法宿主输入与模板恢复。仓库加密推荐 git-crypt，保持解锁后的普通 source 编辑流程；
+不新增 chezmoi 加密 source 的透明编辑入口。默认保存后 apply 也不能照搬到我们当前的显式 buffer 修改流程。
 预览性能结论继续以已有独立实测为准，不从代码结构推断整体快慢。
 
 ## 历史调研：本地仓库与版本

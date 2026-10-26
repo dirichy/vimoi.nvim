@@ -140,7 +140,7 @@ target 及取消时的行为，避免隐式保存或覆盖。其余候选及取�
 | 代表功能 | 建议 | 原因与边界 |
 | --- | --- | --- |
 | 宿主语言格式化：chezmoi-template 的 Conform 集成 | 值得单独研究，暂不承诺实现 | 需要屏蔽模板、保证 formatter 输入语法可接受并恢复模板；运行时 source map 哨兵不能直接解决。先确认常见模板上的收益和恢复可靠性 |
-| 加密 source 透明编辑：chezmoi-template、nvim-chezmoi | 留作独立候选 | 可以委托 chezmoi 加解密，但还需设计 buffer 读写、明文持久化、失败保存及取消；不同于自行实现密码学，也不同于自动 re-add |
+| 加密 source 透明编辑：chezmoi-template、nvim-chezmoi | 仓库加密推荐 [git-crypt](https://github.com/AGWA/git-crypt)，不新增透明加解密入口 | 解锁后 source 和模板保持普通文本编辑流程，本地工作区明文落盘；不提供 chezmoi `.age` / `.asc` source 的透明编辑 |
 | 目标图标：chezmoi-template | 按需要选择，不作为核心缺口 | 图标可做可选集成；data 值说明已支持 completion.mask，默认全部遮盖，可按完整字段路径选择遮盖 |
 | Add / Forget / Update 等 CLI 入口：Telescope / Snacks 扩展 | Add 保留原规划，其余等具体工作流需要再加 | 简单包装命令的收益有限；优先补足模板编辑闭环，不把所有 CLI 子命令搬进插件 |
 
