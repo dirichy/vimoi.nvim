@@ -46,7 +46,7 @@
 | 模板 action 背景 | 默认取主题的 `NormalFloat` 背景；`highlight.template_bg` 支持高亮组名、固定颜色或深浅色配置，保留语法前景色 |
 | 模板 diagnostics | 默认启用，可配置关闭；120ms debounce，复用哨兵骨架、缓存和在途渲染，语法/执行错误映射到原始 source；静态修改复用成功及失败结果 |
 | 宿主 diagnostics | 默认自动复用已启用的 LSP 和 nvim-lint 的 stdin 检查器；对共享渲染 output 检查，经 source map 映射回模板，保留来源/级别/错误码；动态区域保守定位，同一 output 通过 didChange 更新，旧宿主诊断按 provider 的更新节奏替换 |
-| 渲染结果高亮（默认） | `highlight.mode = "rendered"` 对完整输出使用原生 Tree-sitter query，把可见静态文本的颜色映射回 source；持久 extmark 保留旧颜色并跟随编辑；隐藏 output buffer 增量解析；保留 gotmpl action，关闭诊断仍可使用；未执行静态片段使用 Comment，循环采用第一次执行；define/block 正文不投色，可显式切换 injection |
+| 渲染结果高亮（默认） | `highlight.mode = "rendered"` 对完整输出使用原生 Tree-sitter query 或 Vim syntax，把可见静态文本的颜色映射回 source；持久 extmark 保留旧颜色并跟随编辑；隐藏 output buffer 复用原生高亮状态；保留 gotmpl action，关闭诊断仍可使用；未执行静态片段使用 Comment，循环采用第一次执行；define/block 正文不投色，可显式切换 injection |
 | 关闭宿主高亮 | `highlight.mode = "disabled"` 关闭宿主 injection、渲染高亮和 Vim syntax 回退；保留模板 action 高亮及背景，不影响诊断或 source map |
 | 环境健康检查 | `:checkhealth vimoi` 检查版本要求、可执行文件、已发现路径、gotmpl parser/查询及打开模板的可选宿主 parser；不启动 chezmoi、不渲染或写文件 |
 | 自动化覆盖 | 路径、配置、缓存、任务取消、窗口生命周期、diff/preview/写回等测试；source map 覆盖条件、循环、trim、重复文本、空块与 includeTemplate |

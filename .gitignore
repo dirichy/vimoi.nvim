@@ -8,5 +8,6 @@ __pycache__/
 *.swo
 *~
 /.demo-deps/
+/.dev/
 /docs/demos/output/
 /README*.local.md

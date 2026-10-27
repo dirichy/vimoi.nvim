@@ -7,10 +7,6 @@ local cli = require("vimoi.core.cli")
 ---@field start_byte integer
 ---@field end_byte integer
 
----@class VimoiTemplateTagRange: VimoiByteRange
----@field left_trim boolean
----@field right_trim boolean
-
 ---Literal text between template tags, after trim, including empty text.
 ---@class VimoiLiteralPart
 ---@field source VimoiByteRange
@@ -167,7 +163,8 @@ local function parse_tags(source, buf)
   local ok, parser =
     pcall(buf and vim.treesitter.get_parser or vim.treesitter.get_string_parser, buf or source, "gotmpl")
   if not ok or not parser then
-    return nil, "gotmpl Tree-sitter parser is required: " .. tostring(parser)
+    local tags, err = require("vimoi.parser").collect_template_tags(source)
+    return tags, err, tags and #tags or 0
   end
   local syntax_cache = buf and buffer_syntax_cache[buf]
   if buf and (not syntax_cache or syntax_cache.parser ~= parser) then
@@ -358,7 +355,7 @@ end
 ---@param buf? integer
 ---@return VimoiTemplateParts?
 ---@return string? error
----@return integer? visited_nodes Recursive visits and tag endpoints, excluding sibling searches and binary-search probes.
+---@return integer? visited_nodes Tree-sitter visits/endpoints, or collected tag count in fallback; excludes sibling searches and binary-search probes.
 function M.parse(source, buf)
   local cached_tags, err, visited_nodes = parse_tags(source, buf)
   if not cached_tags then

@@ -1,6 +1,5 @@
--- Rendered Tree-sitter captures, drawn on literal template text through source_map.
--- Capture groups, metadata ranges and priorities follow Neovim's highlighter;
--- the parser and queries remain native, only the decoration destination changes.
+-- Rendered host colors, drawn on literal template text through source_map.
+-- Native Tree-sitter captures or Vim syntax groups share the same projection.
 local M = {}
 local api = vim.api
 local util = require("vimoi.core.util")
@@ -10,8 +9,9 @@ local namespace = api.nvim_create_namespace("vimoi-host-highlight")
 ---@class VimoiHostHighlight
 ---@field map VimoiOutputMap
 ---@field parser? vim.treesitter.LanguageTree
----@field output_buf? integer Persistent scratch buffer driving native incremental parsing.
+---@field output_buf integer Persistent scratch buffer driving native host highlighting.
 ---@field language? string
+---@field syntax? string Vim syntax used on output when no host parser is available.
 ---@field regions VimoiRenderedRegion[] Exact literal mappings, ordered by output byte.
 ---@field inactive VimoiByteRange[] Literal source ranges not executed in this snapshot.
 ---@field generation integer
@@ -96,7 +96,93 @@ local function decorations(state, top, bottom)
       }
     end
   end
+  ---@param first integer Output byte, inclusive.
+  ---@param last integer Output byte, exclusive.
+  ---@param style vim.api.keyset.set_extmark
+  local function project(first, last, style)
+    -- Both lists are ordered by output bytes. Skip unrelated literal
+    -- slots without scanning the entire source map for every capture.
+    local low, high = 1, #visible
+    while low <= high do
+      local middle = math.floor((low + high) / 2)
+      if visible[middle].last <= first then
+        low = middle + 1
+      else
+        high = middle - 1
+      end
+    end
+    for index = low, #visible do
+      local part = visible[index]
+      if part.first >= last then
+        break
+      end
+      local a, b = math.max(first, part.first), math.min(last, part.last)
+      if a < b then
+        local offset = part.region.source.start_byte - part.region.output_range.start_byte
+        local row, col = util.byte_to_position(nil, a + offset, map.source_starts)
+        local end_row, end_col = util.byte_to_position(nil, b + offset, map.source_starts)
+        local mark = {
+          row = row,
+          col = col,
+          opts = vim.tbl_extend("force", style, { end_row = end_row, end_col = end_col }),
+        }
+        -- Equal-priority persistent marks have no query-order tie
+        -- breaker. Stack coincident captures in one mark so later
+        -- captures (e.g. @property over @variable) reliably win.
+        local key = table.concat({
+          a + offset,
+          b + offset,
+          style.priority,
+          tostring(style.spell),
+          tostring(mark.opts.conceal),
+          tostring(style.url),
+        }, "\0")
+        local previous = seen[key]
+        if previous then
+          local groups = previous.opts.hl_group
+          if type(groups) ~= "table" then
+            groups = { groups }
+          end
+          -- Disjoint query ranges can yield the same capture again.
+          if not vim.list_contains(groups, mark.opts.hl_group) then
+            groups[#groups + 1] = mark.opts.hl_group
+            previous.opts.hl_group = groups
+          end
+        else
+          seen[key] = mark
+          marks[#marks + 1] = mark
+        end
+      end
+    end
+  end
   if not state.parser then
+    if state.syntax then
+      api.nvim_buf_call(state.output_buf, function()
+        for _, part in ipairs(visible) do
+          local row = util.byte_to_position(nil, part.first, map.output_starts)
+          local position = part.first
+          while position < part.last do
+            local line = api.nvim_buf_get_lines(state.output_buf, row, row + 1, false)[1] or ""
+            local finish = math.min(part.last, map.output_starts[row + 1] + #line)
+            local group, first = 0, position
+            for byte = position, finish - 1 do
+              local current = vim.fn.synID(row + 1, byte - map.output_starts[row + 1] + 1, 1)
+              if current ~= group then
+                if group ~= 0 then
+                  project(first, byte, { hl_group = group, priority = vim.hl.priorities.syntax })
+                end
+                group, first = current, byte
+              end
+            end
+            if group ~= 0 then
+              project(first, finish, { hl_group = group, priority = vim.hl.priorities.syntax })
+            end
+            row = row + 1
+            position = map.output_starts[row + 1] or part.last
+          end
+        end
+      end)
+    end
     return marks
   end
   state.parser:for_each_tree(function(tree, language_tree)
@@ -125,71 +211,17 @@ local function decorations(state, top, bottom)
             local nodes = match:captures()[url]
             url = nodes and vim.treesitter.get_node_text(nodes[1], state.output_buf, { metadata = metadata[url] })
           end
+          ---@cast url string?
           for _, included_range in ipairs(included) do
             local first = math.max(range[3], included_range[3])
             local last = math.min(range[6], included_range[6])
-            -- Both lists are ordered by output bytes. Skip unrelated literal
-            -- slots without scanning the entire source map for every capture.
-            local low, high = 1, #visible
-            while low <= high do
-              local middle = math.floor((low + high) / 2)
-              if visible[middle].last <= first then
-                low = middle + 1
-              else
-                high = middle - 1
-              end
-            end
-            for index = low, #visible do
-              local part = visible[index]
-              if part.first >= last then
-                break
-              end
-              local a, b = math.max(first, part.first), math.min(last, part.last)
-              if a < b then
-                local offset = part.region.source.start_byte - part.region.output_range.start_byte
-                local row, col = util.byte_to_position(nil, a + offset, map.source_starts)
-                local end_row, end_col = util.byte_to_position(nil, b + offset, map.source_starts)
-                local mark = {
-                  row = row,
-                  col = col,
-                  opts = {
-                    end_row = end_row,
-                    end_col = end_col,
-                    hl_group = "@" .. name .. "." .. language,
-                    priority = priority,
-                    spell = spell,
-                    conceal = metadata.conceal or capture_metadata.conceal,
-                    url = url,
-                  },
-                }
-                -- Equal-priority persistent marks have no query-order tie
-                -- breaker. Stack coincident captures in one mark so later
-                -- captures (e.g. @property over @variable) reliably win.
-                local key = table.concat({
-                  a + offset,
-                  b + offset,
-                  priority,
-                  tostring(spell),
-                  tostring(mark.opts.conceal),
-                  tostring(url),
-                }, "\0")
-                local previous = seen[key]
-                if previous then
-                  local groups = previous.opts.hl_group
-                  if type(groups) == "string" then
-                    groups = { groups }
-                  end
-                  -- Disjoint query ranges can yield the same capture again.
-                  if not vim.list_contains(groups, mark.opts.hl_group) then
-                    groups[#groups + 1] = mark.opts.hl_group
-                    previous.opts.hl_group = groups
-                  end
-                else
-                  seen[key] = mark
-                  marks[#marks + 1] = mark
-                end
-              end
-            end
+            project(first, last, {
+              hl_group = "@" .. name .. "." .. language,
+              priority = priority,
+              spell = spell,
+              conceal = metadata.conceal or capture_metadata.conceal,
+              url = url,
+            })
           end
         end
       end
@@ -233,14 +265,21 @@ api.nvim_set_decoration_provider(namespace, {
 ---@param map VimoiOutputMap
 function M.update(buf, map)
   local language = vim.b[buf].vimoi_template_language
+  local syntax = not language and vim.b[buf].vimoi_template_filetype or nil
+  if syntax == "" or syntax == "gotmpl" or syntax == "template" then
+    syntax = nil
+  end
   ---@type VimoiHostHighlight?
   local state = buffers[buf]
-  if state and state.language ~= language then
+  if state and (state.language ~= language or state.syntax ~= syntax) then
     M.clear(buf)
     state = nil
   end
   local rendered = sessions.get(buf).buf
   local parser = language and vim.treesitter.get_parser(rendered, language) or nil
+  if syntax and vim.bo[rendered].syntax ~= syntax then
+    vim.bo[rendered].syntax = syntax
+  end
   if parser then
     parser:parse(true)
   end
@@ -267,6 +306,7 @@ function M.update(buf, map)
     parser = parser,
     output_buf = rendered,
     language = language,
+    syntax = syntax,
     generation = state and state.generation + 1 or 1,
     regions = regions,
     inactive = inactive,

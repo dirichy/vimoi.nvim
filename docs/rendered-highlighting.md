@@ -1,9 +1,13 @@
 # 渲染结果高亮实现
 
 `highlight.mode = "rendered"` 停用 source 上的宿主 injection，保留 gotmpl 自身的
-高亮。默认模式为 "rendered"，可在同一会话中通过 setup 切换到 "injection"。
+高亮。默认模式为 "rendered"，也可在 setup 中选择 "injection"；配置只能初始化一次，
+修改模式后需重启 Neovim。
 模式 "disabled" 同时关闭宿主 injection、渲染高亮和 Vim syntax 回退，保留模板
 action 的高亮及背景，不关闭诊断或 source map。
+
+缺少 gotmpl parser 时，source map 使用独立的实验性标签收集器；宿主颜色仍可以使用
+Tree-sitter 或 Vim syntax。模板 action 保留基础颜色与背景，不提供 Tree-sitter 的模板内部语义着色。
 
 ## 渲染与生命周期
 
@@ -11,7 +15,7 @@ action 的高亮及背景，不关闭诊断或 source map。
 诊断发布和渲染高亮分别由开关控制。静态文本修改复用骨架渲染结果，重新恢复当前原文及映射。
 
 每个 source buffer 对应唯一的只读 output buffer，preview 直接展示它，diff 读取它的映射及文本，
-高亮使用它的原生 parser，宿主诊断也在同一个 buffer 上运行 LSP/lint。映射范围、行索引、
+高亮在其中使用原生 Tree-sitter 或 Vim syntax，宿主诊断也在同一个 buffer 上运行 LSP/lint。映射范围、行索引、
 文本长度和版本保存在 output 状态中；高亮不再保留完整 source/output 文本快照。
 单独高亮时不设置
 filetype、不启动 provider；预览和宿主诊断按需设置宿主 filetype。新旧 output 做 line diff，每个 hunk 再缩小到实际改变的
@@ -28,8 +32,13 @@ filetype、不启动 provider；预览和宿主诊断按需设置宿主 filetype
 
 ## 查询与绘制
 
-使用原生宿主 parser、highlights query、`@capture.language`、priority、普通 conceal、
-spell 和 URL metadata，再通过 source_map 投射到 source。与原生 Tree-sitter 的临时
+有宿主 parser 时，使用原生 highlights query、`@capture.language`、priority、普通 conceal、
+spell 和 URL metadata。没有宿主 parser 时，只设置 output 的 `syntax`，在临时 buffer 上下文中
+用 `synID()` 读取有效分组，将相邻同组字节合并为区间。只查询当前视口映射到 output 的
+静态字节，不逐字节扫描动态输出或整个文件；查询按 output 顺序进行，复用原生 syntax 状态。
+两种后端共用同一个区间投影、去重和视口缓存。Tree-sitter 使用其原始 priority；Vim syntax
+使用原生 syntax priority。source 保持 gotmpl filetype 和 syntax，宿主语法不会接触模板标签。
+与原生 Tree-sitter 的临时
 高亮不同，这里使用持久 extmark，让原生机制在等待渲染时保留颜色及移动范围。
 
 source 的 decoration provider 只使用 `on_win` 来观察可见范围。当前快照与视口未变时
@@ -57,6 +66,10 @@ source 的 decoration provider 只使用 `on_win` 来观察可见范围。当前
 
 ## 限制与验证
 
+- 只有 injection 模式缺少宿主 parser 时，才把宿主 Vim syntax 直接应用到模板 source。
+  该回退与 injection 一样可能误读标签和不完整片段，不限于某个 Neovim 版本或语言。
+- rendered 的 Vim syntax 分支读取高亮分组，不投射其 conceal/spell 标志；保留原生
+  `synmaxcol` 和 syntax 同步限制，不自行更改用户的语法规则或补丁同步状态。
 - 动态输出没有对应的可编辑字符，不映射到模板 action。
 - `literal_parts` 中没有任何 output occurrence 的非空静态区域，使用原生 `Comment`
   高亮，表示当前渲染未执行。包括条件分支和零次执行的循环体；不覆盖模板 action。
@@ -84,3 +97,8 @@ source 的 decoration provider 只使用 `on_win` 来观察可见范围。当前
   define/block 多次调用及间隔文本、trim、UTF-8、YAML/JSON/TOML/shell、HTML 内的
   JavaScript 和 Markdown 内的 Lua，以及迭代顺序变化、反向滚动和多窗口关闭清理。
   TUI 测试另外将其中六种情况的实际屏幕颜色与原生完整输出逐项对照。
+- `tests/host_highlight_syntax.lua` 强制宿主 parser 缺失，用独立完整 output buffer 的原生
+  syntax 逐字节对照投影，覆盖动态引号、UTF-8、跨行、heredoc、首次执行乱序、未执行分支、
+  反向视口和缓存命中；只设置 syntax，不激活 output FileType provider。
+  `tests/host_highlight_syntax_ui.lua` 复用同一组真实终端用例，将原生参考端也切换为 Vim syntax，
+  验证滚动、连续输入、undo/redo、临时错误和旧颜色保留。

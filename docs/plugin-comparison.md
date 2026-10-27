@@ -38,7 +38,7 @@
 | 部署 | 无 apply 命令；Put/Get 与 ReAdd 只改 buffer | 显式 apply，默认 `apply.on_save = true`、`force = false` |
 | 默认按键 | 全局快捷键，可全部关闭；视图映射按窗口启用 | 默认关闭，可选 source buffer 局部快捷键 |
 | 耗时渲染 | 后台进度与取消入口，无默认超时 | 模板执行 10 秒超时；预览默认超过 500ms 降级为保存刷新 |
-| 版本与平台 | Neovim 0.12+；目前验证 Linux | README 要求 Neovim 0.10+，声明 macOS / Linux / Windows 测试 |
+| 版本与平台 | Neovim 0.11+；目前验证 Linux | README 要求 Neovim 0.10+，声明 macOS / Linux / Windows 测试 |
 
 实现依据：对方的 [默认配置与入口](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/init.lua)、
 [预览与差异显示](https://github.com/dpezto/chezmoi-template.nvim/blob/670ba83095ba6571f3125a5e5fd4118505a2c3c6/lua/chezmoi-template/commands.lua)、

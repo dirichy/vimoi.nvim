@@ -12,7 +12,7 @@ local text = table.concat({
   '{{ define "name" }}body{{ end }}',
   '{{ block "body" . }}body{{ end }}',
 }, "\n")
-local parser = vim.treesitter.get_string_parser(text, "gotmpl")
+local parser = assert(vim.treesitter.get_string_parser(text, "gotmpl"))
 local root = parser:parse()[1]:root()
 assert(not root:has_error())
 local captures = {}

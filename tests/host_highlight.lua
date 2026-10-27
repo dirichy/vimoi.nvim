@@ -204,6 +204,7 @@ assert(vim.deep_equal(comments, { "nested", "skipped", "empty" }), vim.inspect(c
 source = source:gsub("if false", "if true")
 util.set_buffer_text(buf, source)
 vim.b[buf].vimoi_template_language = nil
+vim.b[buf].vimoi_template_filetype = nil
 require("vimoi.render").update(buf, trace(source))
 comments = {}
 starts = util.line_starts(source)

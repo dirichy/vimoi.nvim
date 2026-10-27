@@ -108,6 +108,18 @@ jobs:
           echo "$RUNNER_TEMP/demo-bin" >> "$GITHUB_PATH"
       - name: Install and check test parsers
         run: nvim --headless -n -i NONE -u NONE -l docs/demos/install-parsers.lua
+      - name: Test Neovim 0.11
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/nvim-0.11"
+          gh release download v0.11.5 --repo neovim/neovim \
+            --pattern nvim-linux-x86_64.appimage --dir "$RUNNER_TEMP/nvim-0.11"
+          chmod +x "$RUNNER_TEMP/nvim-0.11/nvim-linux-x86_64.appimage"
+          cd "$RUNNER_TEMP/nvim-0.11"
+          ./nvim-linux-x86_64.appimage --appimage-extract > extract.log
+          cd "$GITHUB_WORKSPACE"
+          python3 tests/run.py --skip-demos --nvim "$RUNNER_TEMP/nvim-0.11/squashfs-root/AppRun"
       - name: Test and record
         run: python3 tests/run.py
       - uses: actions/upload-artifact@v4

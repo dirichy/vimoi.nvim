@@ -389,22 +389,19 @@ local function check(buf, state)
   local source = util.buffer_text(buf)
   local eol = vim.bo[buf].endofline
   local ok, parser = pcall(vim.treesitter.get_parser, buf, "gotmpl")
-  if not ok or not parser then
-    cancel_request(state)
-    state.root, state.prepared, state.skeleton = nil, nil, nil
-    state.error = "gotmpl parser is required; run :checkhealth vimoi"
-    return { tick = api.nvim_buf_get_changedtick(buf), eol = eol }
-  end
-  local tree = parser:parse()[1]
-  local root = tree and tree:root()
-  if not root then
-    return
+  local root
+  if ok and parser then
+    local tree = parser:parse()[1]
+    root = tree and tree:root()
+    if not root then
+      return
+    end
   end
   if state.initialized == false then
     state.root = root
     return { tick = api.nvim_buf_get_changedtick(buf), eol = eol }
   end
-  if root:has_error() then
+  if root and root:has_error() then
     cancel_request(state)
     state.root, state.prepared, state.rendered_skeleton, state.skeleton = root, nil, nil, nil
     return { tick = vim.api.nvim_buf_get_changedtick(buf), eol = eol, syntax = true }

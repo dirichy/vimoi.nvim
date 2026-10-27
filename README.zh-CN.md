@@ -22,8 +22,9 @@
 
 ## 安装与配置
 
-需要 Neovim 0.12+、chezmoi 2.x 和 `gotmpl` Tree-sitter parser。
-宿主语言 parser 可选，缺少时回退到 Vim syntax。已在 Linux 上测试。
+需要 Neovim 0.11+ 和 chezmoi 2.x。完整模板高亮、语法感知补全和模板引用跳转需要 `gotmpl` Tree-sitter parser。
+未安装时，实验性回退支持预览、diff 和静态写回；模板表达式仍由 chezmoi 校验。
+宿主语言 parser 可选，缺少时 rendered 高亮使用 Vim syntax。已在 Linux 上测试。
 
 lazy.nvim：
 
@@ -97,8 +98,10 @@ opts = {
 ## 高亮与诊断
 
 默认同时显示模板语法和宿主语言高亮；未执行分支显示为注释颜色。
+Rendered 模式从完整渲染结果读取 Tree-sitter 或 Vim syntax 颜色，再映射到模板。
 可通过 `highlight.mode` 改用 `"injection"`，或设为 `"disabled"` 只保留模板高亮。
 `highlight.template_bg` 可调整模板 action 的背景。
+Injection 模式缺少宿主 parser 时，直接在模板上使用 Vim syntax，属于尽力而为的回退。
 
 ![渲染结果高亮、未执行分支与模板 action 背景](https://github.com/dirichy/vimoi.nvim/releases/download/demos/highlighting.gif)
 
@@ -219,7 +222,7 @@ data、配置和已发现的共享模板变化后自动刷新。若结果未更�
 | 模板格式化、目标图标、透明加密 | 未提供 | Conform、mini.icons、可选加解密 |
 | 文件选择与部署 | 受管理文件选择、source / target 切换，部署使用 CLI | 多种文件 picker、apply 命令，默认保存后 apply |
 | 默认键位 | 全局快捷键，可关闭 | 可选的 source buffer 局部键位 |
-| Neovim 要求 | 0.12+ | 0.10+ |
+| Neovim 要求 | 0.11+ | 0.10+ |
 
 需要格式化、加密和部署配套时，可以考虑它；需要比较渲染结果并将实际文件的静态修改带回模板时，vimoi 更侧重这一流程。
 详细实现对比与历史调研见 [插件对比](docs/plugin-comparison.md)。

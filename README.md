@@ -22,8 +22,10 @@ Edit [chezmoi](https://www.chezmoi.io/) templates in Neovim, preview their outpu
 
 ## Installation and configuration
 
-Requires Neovim 0.12+, chezmoi 2.x, and the `gotmpl` Tree-sitter parser.
-Host-language parsers are optional; highlighting falls back to Vim syntax. Tested on Linux.
+Requires Neovim 0.11+ and chezmoi 2.x. Install the `gotmpl` Tree-sitter parser for full template highlighting,
+syntax-aware completion, and template-reference navigation. Without it, an experimental fallback supports
+preview, diff, and static write-back; chezmoi still validates template expressions.
+Host-language parsers are optional; rendered highlighting uses Vim syntax when no host parser is available. Tested on Linux.
 
 With lazy.nvim:
 
@@ -100,8 +102,10 @@ then run `chezmoi apply` to deploy.
 ## Highlighting and diagnostics
 
 Template and host-language highlighting are enabled by default; inactive branches use comment colors.
+Rendered mode reads Tree-sitter or Vim syntax colors from complete output and maps them onto the template.
 Set `highlight.mode = "injection"` to highlight host fragments directly, or `"disabled"`
 to keep only template highlighting. Customize action backgrounds with `highlight.template_bg`.
+In injection mode, missing host parsers use Vim syntax directly on the template as a best-effort fallback.
 
 ![Rendered host colors, inactive branches, and template action backgrounds](https://github.com/dirichy/vimoi.nvim/releases/download/demos/highlighting.gif)
 
@@ -226,7 +230,7 @@ and template navigation. Their focus differs. This comparison uses
 | Template formatting, target icons, transparent encryption | Not provided | Conform, mini.icons, optional decrypt/encrypt |
 | File selection and deployment | Managed-file picker and source / target toggle; deploy with the CLI | Multiple file pickers, apply commands, apply on save by default |
 | Default mappings | Global shortcuts, can be disabled | Opt-in source-buffer mappings |
-| Neovim requirement | 0.12+ | 0.10+ |
+| Neovim requirement | 0.11+ | 0.10+ |
 
 Consider it for formatting, encryption, and deployment integrations. vimoi focuses on comparing rendered
 output and bringing static changes from actual files back into templates.

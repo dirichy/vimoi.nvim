@@ -127,7 +127,7 @@ function M.diffexpr(sessions)
       return
     end
   end
-  local fallback = vim.text.diff(original_text, modified_text, {
+  local fallback = util.diff(original_text, modified_text, {
     result_type = "unified",
     ctxlen = 0,
     algorithm = "histogram",

@@ -62,15 +62,17 @@ def run_test(test):
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("tests", nargs="*", help="optional Lua test basenames")
 parser.add_argument("--jobs", type=int, default=4)
+parser.add_argument("--nvim", default="nvim", help="Neovim executable or path (0.11+)")
 parser.add_argument("--skip-demos", action="store_true", help="run Lua tests without building the demo recordings")
 args = parser.parse_args()
 if args.jobs < 1:
     parser.error("--jobs must be positive")
 workspace = Path(__file__).resolve().parent.parent
 fixture = workspace / "tests/fixtures/environment"
-chezmoi, nvim = shutil.which("chezmoi"), shutil.which("nvim")
+chezmoi, nvim = shutil.which("chezmoi"), shutil.which(args.nvim)
 if not chezmoi or not nvim:
-    parser.error("chezmoi and Neovim 0.12+ must be on PATH")
+    parser.error("chezmoi and Neovim 0.11+ must be available; select Neovim with --nvim")
+nvim = str(Path(nvim).resolve())
 tests = [workspace / "tests" / name for name in args.tests] if args.tests else sorted(
     path for path in (workspace / "tests").glob("*.lua")
     if "benchmark" not in path.name and path.name != "minimal_init.lua"

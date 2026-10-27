@@ -8,7 +8,8 @@
 
 原 `lua/vimoi/gotmpl/` 同时包含渲染、窗口和写回逻辑，不能整体准确地称为 render。
 内部模块按五个主要职责归组；顶层只保留 `init.lua`、`api.lua`、`blink.lua` 和 `health.lua`
-这四个配置、用户操作及 Neovim 集成入口。
+这四个配置、用户操作及 Neovim 集成入口。顶层另有实验性 `parser.lua`，只提供
+`collect_template_tags(source)`；它不实现 AST，也不模拟 Tree-sitter 的节点 API。
 
 | 目录 | 模块与职责 |
 | --- | --- |

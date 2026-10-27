@@ -175,7 +175,7 @@ cases[#cases + 1] = {
 
 for _, case in ipairs(cases) do
   print(("\n%s: %d bytes"):format(case.label, #case.source))
-  local parser = vim.treesitter.get_string_parser(case.source, "gotmpl")
+  local parser = assert(vim.treesitter.get_string_parser(case.source, "gotmpl"))
   local root = parser:parse()[1]:root()
   assert(not root:has_error())
   compare("collector only (already parsed)", 10, function(variant)

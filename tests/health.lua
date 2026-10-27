@@ -34,13 +34,13 @@ assert(package.loaded["vimoi.core.cli"] == nil, "health must not initialize CLI 
 assert(package.loaded["vimoi.compare"] == nil and package.loaded["vimoi.core.job"] == nil)
 
 vim.fn.has = function(feature)
-  if feature == "nvim-0.12" then
+  if feature == "nvim-0.11" then
     return 0
   end
   return original_has(feature)
 end
 check()
-assert(has("error", "Neovim 0.12 or newer is required"))
+assert(has("error", "Neovim 0.11 or newer is required"))
 vim.fn.has = original_has
 
 local root = vim.fn.tempname()
@@ -84,7 +84,7 @@ vim.treesitter.language.add = function()
   return false
 end
 check()
-assert(has("error", "gotmpl parser is unavailable"))
+assert(has("warn", "gotmpl parser is unavailable"))
 vim.treesitter.language.add = function(language)
   if language == "gotmpl" then
     error("incompatible parser ABI")
@@ -92,7 +92,7 @@ vim.treesitter.language.add = function(language)
   return original_add(language)
 end
 check()
-assert(has("error", "incompatible parser ABI"))
+assert(has("warn", "incompatible parser ABI"))
 vim.treesitter.language.add = original_add
 vim.treesitter.query.get = function()
   error("broken query")

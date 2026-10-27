@@ -30,7 +30,7 @@ end
 ---@param trace VimoiSourceMapTrace
 ---@return VimoiDiffHunk[]
 function M.compute(modified, trace)
-  local raw_hunks = vim.text.diff(trace.output, modified, {
+  local raw_hunks = util.diff(trace.output, modified, {
     result_type = "indices",
     algorithm = "histogram",
   })

@@ -37,14 +37,21 @@ source mappings, then displayed with Neovim's native diff UI.
 ==============================================================================
 REQUIREMENTS                                              *vimoi-requirements*
 
-- Neovim 0.12 or later.
+- Neovim 0.11 or later.
 - chezmoi 2.x available in $PATH, or configured with |vimoi-setup|.
-- A `gotmpl` Tree-sitter parser for template source mapping and diagnostics.
+- A `gotmpl` Tree-sitter parser is recommended for full template highlighting,
+  syntax-aware completion and template-reference navigation.
 - A Tree-sitter parser for the target language is optional but improves
   embedded syntax highlighting.
 
-Tested on Linux with Neovim 0.12.6 and chezmoi 2.73.3. Other platforms have not
-been verified.
+Without gotmpl, an experimental tag collector supports rendering, source
+mapping, preview, diff and static write-back. It only recognizes tag boundaries
+and opaque define/block ranges; chezmoi validates expressions. It does not
+provide a syntax tree or replace syntax-aware editor integrations. Tree-sitter
+syntax errors do not trigger this fallback; only an unavailable parser does.
+
+Tested on Linux with Neovim 0.11.5 / 0.12.6 and chezmoi 2.73.3. Other platforms
+have not been verified.
 
 ==============================================================================
 SETUP                                                            *vimoi-setup*
@@ -602,10 +609,12 @@ this does not mean their pattern semantics are identical to Gitignore.
 For scripts, the shebang can refine the filename-derived host type: a `.sh.tmpl`
 file starting with `#!/usr/bin/env zsh` uses zsh rather than sh.
 
-If the inferred host language has no Tree-sitter parser, the template keeps
-its `gotmpl` filetype and parser but uses the host's Vim syntax highlighting
-instead. For example, `script.sh.tmpl` uses `syntax/sh.vim` when no `sh`
-parser is available. Template actions receive a basic syntax highlight too.
+If the inferred host language has no Tree-sitter parser, rendered mode reads
+Vim syntax from the complete output and projects its groups through the same
+source map. The template keeps its gotmpl filetype, parser and syntax; the
+host's Vim syntax runs only on the rendered buffer. For example, a shell
+template can use syntax/sh.vim on its output without parsing template actions
+as shell syntax.
 Both highlighting paths give template actions the same configurable background;
 see |vimoi-setup|.
 
@@ -614,12 +623,15 @@ required token, branches may contain individually incomplete statements, and
 loops may generate fragments. Tree-sitter cannot see the final rendered
 program, so injected regions can contain errors or inaccurate highlighting.
 This does not affect template parsing, source mapping, or chezmoi rendering.
+Without a host parser, injection mode uses the host's Vim syntax directly on
+the source. Native syntax may misinterpret template delimiters or fragments;
+this source fallback is not used in rendered mode.
 
 Rendered highlighting is enabled by default. To use host injections instead: >lua
     require("vimoi").setup({ highlight = { mode = "injection" } })
 <
-Rendered mode uses native host queries, highlight groups and priorities on complete rendered
-output, projecting visible literal ranges onto source. Template actions retain
+Rendered mode uses native host Tree-sitter captures or Vim syntax groups on
+complete output, projecting visible literal ranges onto source. Template actions retain
 gotmpl highlighting. Rendering shares the asynchronous cache with diagnostics and
 views, and still runs when diagnostics.enabled is false. Persistent highlights
 follow source edits while rendering is pending; successful results replace them.
@@ -630,7 +642,9 @@ Opaque define/block bodies have no host-color projection. Use injection mode to
 highlight their contents. Host colors may be absent until the first successful
 render; rendering can execute template functions and invoke password helpers.
 LSP semantic tokens, conceal_lines and spell
-navigation are not projected. Missing host parsers retain the Vim syntax fallback.
+navigation are not projected. Vim syntax projection reads native syntax groups;
+its conceal and spell behavior is not projected. Native synmaxcol and syntax
+synchronization settings still apply.
 Setting highlight.mode = "injection" restores host injections.
 Set highlight.mode = "disabled" to disable host highlighting, including the Vim
 syntax fallback. Template actions retain gotmpl highlighting and their background.
@@ -766,7 +780,9 @@ through the CLI path cache; filename classification itself requires no CLI calls
 It also classifies ignore/remove contents as destination patterns and symlink
 contents as link targets; navigation and event registration share those rules.
 `highlight` owns template colors, buffer highlighting, host-language injection,
-and Vim syntax fallback. A host-language change invalidates the template parser
+and injection's source Vim syntax fallback. Rendered host colors use native
+Tree-sitter captures or Vim syntax groups on output, with shared projection
+and viewport caches owned by `host_highlight`. A host-language change invalidates the template parser
 so injections are recalculated even if a FileType handler parsed it before host
 detection. Restarting the highlighter alone retains cached injection regions.
 Combined host injections are declared with #set! injection.combined in the
@@ -1065,9 +1081,10 @@ inspect the original startup error too: health uses the last successful options
 or defaults. Saved target files are never automatically re-added; use explicit
 commands. Complex dynamic output changes require manual source editing.
 
-`gotmpl Tree-sitter parser is required`
-    Install and enable a Tree-sitter parser that registers the `gotmpl`
-    language, then reopen the buffer.
+`gotmpl parser is unavailable`
+    Rendering and source mapping use the experimental tag collector. Install
+    a parser registering the gotmpl language for full template colors,
+    syntax-aware completion and template-reference navigation.
 
 `sentinel rendering differs from chezmoi cat`
     Strict validation found an environment-sensitive template. Disable

@@ -35,18 +35,19 @@ local initialize = require("vimoi.core.util").once(function()
 end)
 
 ---@param buf integer
-local function configure_syntax(buf)
+---@param parser? vim.treesitter.LanguageTree
+local function configure_syntax(buf, parser)
   local filetype = vim.b[buf].vimoi_template_filetype
   if
-    require("vimoi").config.highlight.mode == "disabled"
-    or vim.b[buf].vimoi_template_language
+    require("vimoi").config.highlight.mode ~= "injection"
+    or (parser and vim.b[buf].vimoi_template_language)
     or not filetype
     or filetype == ""
     or filetype == "gotmpl"
   then
     vim.bo[buf].syntax = "gotmpl"
   else
-    -- Keep Go-template parsing, but use Vim syntax for a host without a parser.
+    -- Injection falls back on source; rendered highlighting only reads output.
     vim.bo[buf].syntax = filetype
   end
   -- Vim syntax supplies action backgrounds; Tree-sitter keeps the foregrounds.
@@ -83,14 +84,22 @@ function M.configure_template_buffer(buf, filetype)
     vim.bo[buf].filetype = "gotmpl"
   end
   pcall(vim.treesitter.stop, buf)
-  local parser = vim.treesitter.get_parser(buf, "gotmpl")
+  local ok, parser = pcall(vim.treesitter.get_parser, buf, "gotmpl")
+  if not ok then
+    parser = nil
+  end
   if parser and previous_language ~= vim.b[buf].vimoi_template_language then
     -- FileType handlers may have parsed before host detection. Restarting only
     -- the highlighter reuses those cached trees without updating injections.
     parser:invalidate()
   end
-  pcall(vim.treesitter.start, buf, "gotmpl")
-  configure_syntax(buf)
+  if parser then
+    pcall(vim.treesitter.start, buf, "gotmpl")
+  elseif vim.g.syntax_on ~= 1 then
+    -- Initialize native Syntax autocommands without enabling it on every buffer.
+    vim.cmd.runtime({ "syntax/synload.vim", bang = true })
+  end
+  configure_syntax(buf, parser)
   if previous_filetype ~= filetype then
     vim.api.nvim_exec_autocmds("User", { pattern = "VimoiHostFiletypeChanged", data = { buf = buf } })
   end

@@ -76,7 +76,8 @@ vim.bo[zsh_buf].filetype = "gotmpl"
 assert(vim.wait(300, function()
   return vim.b[zsh_buf].vimoi_template_configured == true
 end))
-assert(vim.b[zsh_buf].vimoi_template_language == "zsh" or vim.bo[zsh_buf].syntax == "zsh")
+assert(vim.b[zsh_buf].vimoi_template_filetype == "zsh")
+assert(vim.bo[zsh_buf].syntax == "gotmpl")
 
 local external_buf = vim.api.nvim_create_buf(true, false)
 vim.api.nvim_set_current_buf(external_buf)
@@ -124,10 +125,10 @@ assert(
   "gotmpl ftplugin did not initialize"
 )
 vim.treesitter.language.add = original_add
-assert(vim.bo[buf].syntax == "sh", "missing sh injection did not fall back to syntax/sh.vim")
+assert(vim.bo[buf].syntax == "gotmpl", "rendered mode enabled host syntax on template source")
 assert(vim.b[buf].vimoi_template_language == nil)
 local shell_group = vim.fn.synIDattr(vim.fn.synID(1, 1, 1), "name")
-assert(shell_group == "shConditional", shell_group)
+assert(shell_group == "", "rendered mode leaked shell syntax onto source: " .. shell_group)
 local action_group = vim.fn.synIDattr(vim.fn.synID(2, 6, 1), "name")
 assert(action_group == "VimoiTemplateAction", action_group)
 assert(vim.treesitter.get_parser(buf, "gotmpl")):parse(true)

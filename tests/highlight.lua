@@ -95,3 +95,24 @@ for _, tree in pairs(yaml:trees()) do
 end
 assert(vim.treesitter.query.get("gotmpl", "injections").has_combined_injections)
 vim.api.nvim_buf_delete(yaml_buf, { force = true })
+
+-- Only injection mode applies the host's Vim syntax to the template source.
+local fallback = vim.api.nvim_create_buf(false, true)
+vim.api.nvim_buf_set_lines(fallback, 0, -1, false, { "local value = {{ .value }}" })
+local add_language = vim.treesitter.language.add
+---@diagnostic disable-next-line: duplicate-set-field -- Exercise the missing host parser.
+vim.treesitter.language.add = function(language, ...)
+  if language == "lua" then
+    return nil, "test: host parser unavailable"
+  end
+  return add_language(language, ...)
+end
+require("vimoi.editor.highlight").configure_template_buffer(fallback, "lua")
+vim.treesitter.language.add = add_language
+assert(vim.bo[fallback].filetype == "gotmpl" and vim.bo[fallback].syntax == "lua")
+assert(vim.b[fallback].vimoi_template_language == nil)
+vim.api.nvim_buf_call(fallback, function()
+  assert(vim.fn.synIDattr(vim.fn.synID(1, 1, 1), "name") == "luaStatement")
+  assert(vim.fn.synIDattr(vim.fn.synID(1, 15, 1), "name") == "VimoiTemplateAction")
+end)
+vim.api.nvim_buf_delete(fallback, { force = true })

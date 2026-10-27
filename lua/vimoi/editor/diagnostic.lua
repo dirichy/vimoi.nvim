@@ -176,11 +176,14 @@ local function update_host(buf, map)
   end)
 end
 
----@param node TSNode
+---@param node? TSNode
 ---@param message string
 ---@return vim.Diagnostic
 local function node_diagnostic(node, message)
-  local row, col, end_row, end_col = node:range()
+  local row, col, end_row, end_col = 0, 0, 0, 1
+  if node then
+    row, col, end_row, end_col = node:range()
+  end
   return {
     lnum = row,
     col = col,
@@ -216,7 +219,7 @@ end
 ---@param state VimoiSourceSession
 ---@return vim.Diagnostic?
 local function render_error(buf, state)
-  local source, root = util.buffer_text(buf), assert(state.root)
+  local source, root = util.buffer_text(buf), state.root
   local err = assert(state.error)
   local line, column, message = err:match("template: stdin:(%d+):(%d+):%s*(.*)")
   if not line then
@@ -240,10 +243,10 @@ local function render_error(buf, state)
     if byte and byte >= start_byte and byte < end_byte then
       local source_byte = tag.start_byte + byte - start_byte
       local row, col = util.byte_to_position(source, source_byte)
-      local node = root:named_descendant_for_range(row, col, row, col)
+      local node = root and root:named_descendant_for_range(row, col, row, col)
       local diagnostic = node_diagnostic(node or root, assert(message))
       diagnostic.lnum, diagnostic.col = row, col
-      local _, _, node_end = (node or root):end_()
+      local node_end = node and select(3, node:end_())
       if not node or node_end > tag.end_byte then
         diagnostic.end_lnum, diagnostic.end_col = row, col + 1
       end
@@ -260,7 +263,7 @@ local function render_error(buf, state)
   -- Parse errors often have only a line number. Match the named function or
   -- variable in syntax, so an earlier quoted string cannot steal its location.
   local name = message:match('function "([^"]+)" not defined') or message:match('undefined variable "([^"]+)"')
-  if name then
+  if name and root then
     local function find(node)
       local identifier
       if node:type() == "function_call" then

@@ -10,7 +10,7 @@ local util = require("vimoi.core.util")
 ---@return VimoiBufferEdit[]
 function M.diff(before, after)
   local before_starts, after_starts = util.line_starts(before), util.line_starts(after)
-  local hunks = assert(vim.text.diff(before, after, { result_type = "indices" }))
+  local hunks = assert(util.diff(before, after, { result_type = "indices" }))
   ---@cast hunks integer[][]
   local edits = {}
   for _, hunk in ipairs(hunks) do

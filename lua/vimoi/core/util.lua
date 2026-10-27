@@ -1,5 +1,9 @@
 local M = {}
 
+-- Neovim 0.12 renamed vim.diff to vim.text.diff.
+---@diagnostic disable-next-line: deprecated -- Neovim 0.11 compatibility.
+M.diff = vim.text.diff or vim.diff
+
 ---Notify with a vimoi prefix and an optional feature label.
 ---@param message string
 ---@param prefix? string Optional label following "vimoi"; nil or empty omits it.

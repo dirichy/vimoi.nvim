@@ -67,6 +67,9 @@ MdKite 当前不转换相对 video 路径，查看高清 MP4 时请从文件系�
 `python3 tests/run.py --skip-demos` 或指定 Lua 文件名只运行 Lua 测试。`build.py --check`
 只检查依赖和启动，不能替代完整回放验证；新增或修改 tape 后应运行完整测试或构建。
 
+Lua 测试支持 Neovim 0.11+，可通过 `--nvim /path/to/nvim` 选择版本；默认使用 PATH
+中的 `nvim`。演示录制仍使用下面列出的 Neovim 0.12+ 环境。
+
 `verify.lua` 检查真实回放结果：补全菜单、snippet、诊断、模板表达式保留、依赖刷新、跳转记录、未保存修改、上下分屏和真实任务取消等。
 三段核心演示共用 [common/scroll.tape](common/scroll.tape)，验证 source 和 output 两个方向都确实带动对侧视口。
 验证失败或未运行到验证步骤时构建失败。直接运行 VHS 需自行提供 `VIMOI_DEMO` 和 `VIMOI_DEMO_RESULT`，建议统一使用构建脚本。

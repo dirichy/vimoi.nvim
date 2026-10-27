@@ -3,6 +3,28 @@ if not dofile("tests/helpers/tui.lua")("tests/host_highlight_ui.lua", 45000) the
   return
 end
 
+local syntax = vim.env.VIMOI_TEST_HOST_SYNTAX == "1"
+local template_fallback = vim.env.VIMOI_TEST_TEMPLATE_FALLBACK == "1"
+if syntax then
+  local add_language = vim.treesitter.language.add
+  ---@diagnostic disable-next-line: duplicate-set-field -- Run the same display checks without host parsers.
+  vim.treesitter.language.add = function(language, ...)
+    if language ~= "gotmpl" or template_fallback then
+      return nil, "test: use Vim syntax on rendered output"
+    end
+    return add_language(language, ...)
+  end
+end
+
+local function highlight_reference(buf, language)
+  if syntax then
+    vim.bo[buf].syntax = language
+  else
+    vim.bo[buf].filetype = language
+    vim.treesitter.start(buf, language)
+  end
+end
+
 local function finish(err)
   vim.fn.writefile({ err or "OK" }, vim.env.VIMOI_UI_RESULT)
   vim.cmd("qa!")
@@ -43,11 +65,12 @@ local function check_keys(index)
   local reference = vim.api.nvim_create_buf(true, false)
   vim.api.nvim_set_current_buf(reference)
   vim.api.nvim_buf_set_lines(reference, 0, -1, false, { case.line })
-  vim.bo[reference].filetype = case.language
-  vim.treesitter.start(reference, case.language)
+  highlight_reference(reference, case.language)
   later(function()
     local expected = vim.fn.screenattr(1, case.column)
-    assert(expected ~= vim.fn.screenattr(2, 1), "native key has no color")
+    if not syntax then
+      assert(expected ~= vim.fn.screenattr(2, 1), "native key has no color")
+    end
     vim.api.nvim_set_current_buf(buf)
     local lines = {}
     for row = 1, 120 do
@@ -138,8 +161,7 @@ check_mappings = function(index)
   local reference = api.nvim_create_buf(true, false)
   api.nvim_set_current_buf(reference)
   util.set_buffer_text(reference, trace.output)
-  vim.bo[reference].filetype = case[1]
-  vim.treesitter.start(reference, case[1])
+  highlight_reference(reference, case[1])
   api.nvim_win_set_cursor(0, { 1, 0 })
   vim.cmd("normal! zt")
   later(function()
@@ -176,8 +198,7 @@ later(function()
     hl_group = "Comment",
     priority = 200,
   })
-  vim.bo[target].filetype = "lua"
-  vim.treesitter.start(target, "lua")
+  highlight_reference(target, "lua")
   later(function()
     assert(projected == vim.fn.screenattr(1, #'local message = "' + 1), "native and projected colors differ")
     local comment = vim.fn.screenattr(2, 1)

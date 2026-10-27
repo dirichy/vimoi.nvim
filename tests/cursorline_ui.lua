@@ -32,6 +32,8 @@ local function background(row, col)
   return cell[2].background or 0x101010
 end
 local action, line_style = 0x202020, 0x404040
+-- Native diff windows layer syntax over CursorLine in 0.11, and under it in 0.12.
+local source_line_style = vim.fn.has("nvim-0.12") == 1 and line_style or action
 later(function()
   local source_buf, target_buf = api.nvim_create_buf(true, false), api.nvim_create_buf(true, false)
   util.set_buffer_text(source_buf, '{{ "one\\ntwo\\nthree" }}\ntail\n')
@@ -62,8 +64,8 @@ later(function()
     later(function()
       assert(api.nvim_win_get_cursor(session.target_win)[1] == 2, "expanded action did not select its middle row")
       assert(
-        style(session.source_win, 1, 3) == line_style,
-        "native cursorline background: " .. style(session.source_win, 1, 3) .. " expected " .. line_style
+        style(session.source_win, 1, 3) == source_line_style,
+        "native cursorline background: " .. style(session.source_win, 1, 3) .. " expected " .. source_line_style
       )
       for row = 1, 3 do
         assert(style(session.target_win, row) == line_style, "expanded target row lost cursorline: " .. row)

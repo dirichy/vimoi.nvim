@@ -282,7 +282,7 @@ local function byte_edits(before, after, rendered_start_byte)
     end
     return table.concat(lines)
   end
-  local byte_hunks = vim.text.diff(encode_bytes_as_lines(old_middle), encode_bytes_as_lines(new_middle), {
+  local byte_hunks = util.diff(encode_bytes_as_lines(old_middle), encode_bytes_as_lines(new_middle), {
     result_type = "indices",
     algorithm = "myers",
   })

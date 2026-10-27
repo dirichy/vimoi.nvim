@@ -39,7 +39,7 @@ _G.VimoiTestDiffexpr = function()
   delegated = delegated + 1
   local before = table.concat(vim.fn.readfile(vim.v.fname_in), "\n") .. "\n"
   local after = table.concat(vim.fn.readfile(vim.v.fname_new), "\n") .. "\n"
-  local patch = vim.text.diff(before, after, { result_type = "unified", ctxlen = 0 })
+  local patch = require("vimoi.core.util").diff(before, after, { result_type = "unified", ctxlen = 0 })
   assert(type(patch) == "string")
   vim.fn.writefile(vim.split(patch, "\n", { plain = true }), vim.v.fname_out)
 end

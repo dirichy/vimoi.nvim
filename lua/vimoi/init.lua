@@ -87,8 +87,8 @@ M.config = vim.deepcopy(defaults)
 
 ---@param opts? VimoiConfig
 M.setup = require("vimoi.core.util").once(function(opts)
-  if vim.fn.has("nvim-0.12") == 0 then
-    error("vimoi.nvim requires Neovim 0.12 or newer")
+  if vim.fn.has("nvim-0.11") == 0 then
+    error("vimoi.nvim requires Neovim 0.11 or newer")
   end
   vim.validate("opts", opts, "table", true)
   for _, name in ipairs({ "diff", "session" }) do
