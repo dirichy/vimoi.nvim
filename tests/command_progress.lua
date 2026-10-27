@@ -59,7 +59,7 @@ assert(promoted.finish())
 local elapsed = false
 vim.defer_fn(function()
   elapsed = true
-end, 250)
+end, 1100)
 wait_for(function()
   return elapsed
 end)

@@ -16,6 +16,7 @@ local defaults = {
   chezmoi_executable = "chezmoi",
   chezmoi_config_path = nil,
   split = "vertical",
+  files = { path = "target" },
   watch = {
     buffer_write_fallback = "auto",
   },
@@ -78,6 +79,7 @@ M.config = vim.deepcopy(defaults)
 ---@field chezmoi_executable? string
 ---@field chezmoi_config_path? string
 ---@field split? "vertical"|"horizontal" Orientation for newly created diff/preview splits.
+---@field files? { path?: "target"|"source" } Picker labels; selection always opens source.
 ---@field watch? VimoiWatchOptions
 ---@field render? { validate?: boolean }
 ---@field completion? { enabled?: boolean, mask?: "hint"|boolean|fun(key: string): boolean }
@@ -115,6 +117,8 @@ M.setup = require("vimoi.core.util").once(function(opts)
     config.highlight.mode == "injection" or config.highlight.mode == "rendered" or config.highlight.mode == "disabled",
     "highlight.mode must be injection, rendered or disabled"
   )
+  vim.validate("files", config.files, "table")
+  assert(config.files.path == "target" or config.files.path == "source", "files.path must be target or source")
   vim.validate("render", config.render, "table")
   vim.validate("render.validate", config.render.validate, "boolean")
   vim.validate("watch", config.watch, "table")

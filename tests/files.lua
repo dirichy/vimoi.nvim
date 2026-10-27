@@ -6,7 +6,7 @@ local source = root .. "/source"
 vim.fn.mkdir(source .. "/dot_config", "p")
 vim.fn.writefile({ "plain" }, source .. "/dot_a space|name")
 vim.fn.writefile({ "newline" }, source .. "/dot_line\nbreak")
-vim.fn.writefile({ "config" }, source .. "/dot_config/app")
+vim.fn.writefile({ "config" }, source .. "/dot_config/private_app.tmpl")
 vim.fn.writefile({ "ignored" }, source .. "/ignored")
 vim.fn.writefile({ "ignored" }, source .. "/.chezmoiignore")
 vim.fn.writefile({ "a space|name" }, source .. "/symlink_link")
@@ -18,7 +18,28 @@ local api = require("vimoi.api")
 local original_select = vim.ui.select
 local paths, options, choose
 local function select(items, opts, callback)
-  paths, options, choose = items, opts, callback
+  paths, options = {}, opts
+  for _, item in ipairs(items) do
+    paths[#paths + 1] = item.source
+  end
+  choose = function(source_path)
+    for _, item in ipairs(items) do
+      if item.source == source_path then
+        callback(item)
+        return
+      end
+    end
+    assert(source_path == nil, "unknown source selection")
+    callback(nil)
+  end
+  options.format_source = function(source_path)
+    for _, item in ipairs(items) do
+      if item.source == source_path then
+        return opts.format_item(item)
+      end
+    end
+    error("missing source entry")
+  end
 end
 vim.ui.select = select
 local function picker()
@@ -36,8 +57,11 @@ picker()
 assert(#paths == 4, vim.inspect(paths))
 assert(vim.tbl_contains(paths, source .. "/symlink_link"))
 assert(vim.tbl_contains(paths, source .. "/dot_line\nbreak"))
-assert(options.format_item(source .. "/dot_a space|name") == "dot_a space|name")
-assert(not options.format_item(source .. "/dot_line\nbreak"):find("\n", 1, true))
+assert(options.format_source(source .. "/dot_a space|name") == ".a space|name")
+assert(not options.format_source(source .. "/dot_line\nbreak"):find("\n", 1, true))
+assert(options.prompt == "Vimoi target:")
+assert(options.format_source(source .. "/symlink_link") == "link")
+assert(options.format_source(source .. "/dot_config/private_app.tmpl") == ".config/app")
 local before = vim.api.nvim_get_current_buf()
 choose(nil)
 assert(vim.api.nvim_get_current_buf() == before, "dismissing the picker changed buffers")
@@ -73,6 +97,15 @@ choose(paths[1])
 assert(vim.api.nvim_get_current_buf() == before and vim.bo.modified)
 assert(notices[#notices]:find("E37", 1, true))
 vim.opt.hidden = true
+
+-- Source mode retains source names and still opens the source.
+require("vimoi").config.files.path = "source"
+picker()
+assert(options.prompt == "Vimoi source:")
+assert(options.format_source(source .. "/dot_a space|name") == "dot_a space|name")
+choose(source .. "/symlink_link")
+assert(vim.api.nvim_buf_get_name(0) == source .. "/symlink_link")
+require("vimoi").config.files.path = "target"
 
 -- Every invocation refreshes the list, with an explicit empty-list message.
 vim.fn.writefile({ "new" }, source .. "/dot_new")

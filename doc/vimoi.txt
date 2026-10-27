@@ -81,6 +81,7 @@ The available options and their defaults are: >lua
       chezmoi_executable = "chezmoi",
       chezmoi_config_path = nil,
       split = "vertical",
+      files = { path = "target" },
       watch = {
         buffer_write_fallback = "auto",
       },
@@ -130,6 +131,10 @@ Paths support `~` and relative paths, resolved against the working directory at
 setup time. Dollar signs are literal; environment variables are not expanded.
 Read `vim.env` explicitly when needed, for example:
 `chezmoi_config_path = vim.env.MY_CHEZMOI_CONFIG` (set that variable first).
+
+`files.path` controls VimoiFiles labels and search: "target" (default) uses paths
+relative to the destination directory; "source" uses paths relative to the source
+root. Selection always edits the corresponding source.
 
 `watch.buffer_write_fallback` controls BufWritePost invalidation:
   "auto" (default)  Use buffer saves only when the file's parent directory has
@@ -222,7 +227,7 @@ Use `vimoi.api` for user operations.
 
 `data`, `cat`, and user-template rendering have no default timeout, allowing
 password prompts to wait. Background calls show progress floats at the top right
-without taking focus only after 200ms; faster calls show no float.
+without taking focus only after 1000ms; faster calls show no float.
 Use :VimoiCancel even before a float appears. Calls that need the result suspend in a coroutine behind a focused float;
 Neovim continues processing input. Press q, Esc, Ctrl-C or close the float to
 cancel; leaving a focused float also cancels. Cancellation terminates the process
@@ -329,12 +334,12 @@ COMMANDS                                                       *vimoi-commands*
 
                                                               *:VimoiFiles*
 :VimoiFiles
-    Query managed files and symlink sources asynchronously and choose one via
+    Query managed files and symlinks asynchronously and choose one via
     vim.ui.select. Open its source with native edit protections; use VimoiToggle
     to switch to the target. Default mapping: <leader>cf.
     The list is queried fresh each time, respects chezmoi ignore rules, and omits
-    directories. Labels are relative to the source root. Dismissing the picker
-    opens nothing. Use VimoiCancel to cancel a slow query; no default timeout.
+    directories. Labels follow files.path (target-relative by default).
+    Dismissing the picker opens nothing. Use VimoiCancel to cancel a slow query; no default timeout.
     No save or apply. Delayed results are discarded after leaving the originating
     window/buffer or editing its text.
 

@@ -67,10 +67,12 @@ Open a chezmoi-managed source or target, then use these commands and default map
 | `:VimoiReAdd` | `<leader>ca` | Bring target changes back into source in bulk |
 | `:VimoiCancel` | `<leader>cx` | Cancel slow tasks |
 
-`:VimoiFiles` lists managed files and symlink sources through `vim.ui.select`,
-reusing your configured picker UI. Select an entry to edit its source, then use
-`:VimoiToggle` to switch to its target. The list is refreshed each time and
-respects chezmoi's ignore rules. Cancel a slow query with `:VimoiCancel`.
+`:VimoiFiles` lists managed files and symlinks through `vim.ui.select`, reusing
+your configured picker UI. Search by target paths such as `.config/nvim/init.lua`;
+select an entry to edit its source. Use `:VimoiToggle` to switch to its target.
+To search by source names instead, set `files = { path = "source" }` in `setup()`
+(default: `"target"`). The list is refreshed each time and respects chezmoi's ignore
+rules. Cancel a slow query with `:VimoiCancel`.
 
 Path arguments are also available; see `:help vimoi-commands`.
 Preview supports unnamed buffers and template fragments. Failed renders retain the previous
@@ -197,7 +199,7 @@ provides `%` for template blocks. See `:help vimoi-navigation` for path rules.
 
 ## Cancel tasks and refresh
 
-Background tasks show progress after 200ms; editing updates are debounced by 200ms.
+Background tasks show progress after 1000ms; editing updates are debounced by 200ms.
 Cancel running tasks with `:VimoiCancel` or `<leader>cx`, even before progress appears.
 In a focused waiting float, use `q`, `Esc`, or `Ctrl-C`. Canceled pending write-back does not continue.
 

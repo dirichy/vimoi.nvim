@@ -141,7 +141,7 @@ function M.progress(message, mode, on_cancel)
     timer = vim.defer_fn(function()
       timer = nil
       show()
-    end, 200)
+    end, 1000)
   else
     show()
   end

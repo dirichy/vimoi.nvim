@@ -63,6 +63,7 @@ source 类型时，应提前 setup，不只依赖该 filetype 触发。
       chezmoi_executable = "chezmoi",
       chezmoi_config_path = nil,
       split = "vertical",
+      files = { path = "target" },
       watch = {
         buffer_write_fallback = "auto",
       },
@@ -108,6 +109,9 @@ source 类型时，应提前 setup，不只依赖该 filetype 触发。
 支持 `~` 和相对路径；相对路径以 setup 时的工作目录为准。路径中的 `$` 按字面保留，
 不展开环境变量；需要时请显式使用 `vim.env`，例如
 `chezmoi_config_path = vim.env.MY_CHEZMOI_CONFIG`（需先设置该环境变量）。
+
+`files.path` 控制 VimoiFiles 的显示和搜索路径：默认 "target"，使用相对 destination
+目录的 target 路径；"source" 使用相对 source 根目录的路径。选中后始终编辑 source。
 
 `watch.buffer_write_fallback` 控制 BufWritePost 兜底：
   "auto"（默认） 文件父目录没有正常 watcher 时才启用。自动识别句柄创建/启动失败、
@@ -172,7 +176,7 @@ merge 使用一条协程流程：等待共享 session 结果、规划、按需�
 merge 的注册闭包持有 source 订阅和临时 VimoiViewClosed 监听，完成或取消时统一清理；
 view 只通知关闭状态，不保存 merge 的继续执行或取消句柄。
 
-`data`、`cat` 和用户模板渲染没有默认超时，允许等待密码输入。后台调用持续 200ms 后才在
+`data`、`cat` 和用户模板渲染没有默认超时，允许等待密码输入。后台调用持续 1000ms 后才在
 右上角显示不抢焦点的进度浮窗，更快完成的任务不显示；浮窗出现前也可用 :VimoiCancel 取消。
 需要等待结果时立即显示聚焦浮窗，异步进程暂停调用流程，Neovim 仍正常处理输入。
 在浮窗按 q、Esc、Ctrl-C 或关窗会取消；离开聚焦浮窗也会取消。取消会结束进程（Unix
@@ -250,6 +254,14 @@ init 模板使用 --init；已有哨兵限制仍适用。
 
 ==============================================================================
 命令                                                           *vimoi-commands*
+
+                                                              *:VimoiFiles*
+:VimoiFiles
+    异步查询受管理文件和 symlink，通过 vim.ui.select 选择并编辑 source。
+    默认按相对 destination 的 target 路径搜索；files.path = "source" 改用 source 名。
+    默认映射 <leader>cf；每次重新查询，遵循 chezmoi ignore 规则，排除目录。
+    取消选择不打开文件；用 VimoiCancel 取消耗时查询，无默认超时。不保存或 apply。
+    离开发起窗口/buffer 或编辑文本后丢弃延迟结果，打开文件时保留原生编辑保护。
 
                                                              *:VimoiToggle*
 :VimoiToggle [path]

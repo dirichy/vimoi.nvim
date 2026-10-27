@@ -3,6 +3,8 @@ local original = vim.deepcopy(plugin.config)
 for _, input in ipairs({
   "false",
   '{"split":"diagonal"}',
+  '{"files":false}',
+  '{"files":{"path":"absolute"}}',
   '{"keymaps":true}',
   '{"keymaps":{"diff":true}}',
   '{"keymaps":{"unknown":"x"}}',

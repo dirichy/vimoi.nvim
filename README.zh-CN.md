@@ -64,9 +64,11 @@ opts = {
 | `:VimoiReAdd` | `<leader>ca` | 将 target 修改批量写回 source |
 | `:VimoiCancel` | `<leader>cx` | 取消耗时任务 |
 
-`:VimoiFiles` 通过 `vim.ui.select` 列出受管理的文件和 symlink source，复用你已有的 picker UI。
-选择后编辑 source，再用 `:VimoiToggle` 切换 target。每次重新查询列表，遵循 chezmoi 的 ignore 规则。
-查询耗时较长时可用 `:VimoiCancel` 取消。
+`:VimoiFiles` 通过 `vim.ui.select` 列出受管理的文件和 symlink，复用你已有的 picker UI。
+默认按 target 路径搜索，例如 `.config/nvim/init.lua`，选择后编辑对应 source，
+再用 `:VimoiToggle` 切换 target。若习惯按 source 名搜索，可在 `setup()` 中设置
+`files = { path = "source" }`（默认 `"target"`）。每次重新查询列表，遵循 chezmoi 的
+ignore 规则；查询耗时较长时可用 `:VimoiCancel` 取消。
 
 其他命令也支持指定路径，详见 `:help vimoi-commands`。
 预览支持无名 buffer 和模板片段；渲染失败时保留旧结果并标记过期。
@@ -189,7 +191,7 @@ require("vimoi").setup({
 
 ## 取消任务与刷新
 
-后台任务持续 200ms 后显示进度；编辑更新采用 200ms 防抖。
+后台任务持续 1000ms 后显示进度；编辑更新采用 200ms 防抖。
 进度显示前也可用 `:VimoiCancel` 或 `<leader>cx` 取消任务。
 聚焦的等待浮窗中也可按 `q`、`Esc` 或 `Ctrl-C`。取消待处理的写回后不会继续修改文件。
 

@@ -83,8 +83,9 @@ function M.files()
       and vim.api.nvim_win_get_buf(win) == buf
       and vim.api.nvim_buf_get_changedtick(buf) == changedtick
   end
-  cli.run({ "managed", "--include=files,symlinks", "--path-style=source-absolute", "--nul-path-separator" }, {
-    text = false,
+  local path_mode = require("vimoi").config.files.path
+  cli.run({ "managed", "--include=files,symlinks", "--path-style=all", "--format=json" }, {
+    decode_json = true,
     callback = function(output, err)
       if not current() then
         return
@@ -93,19 +94,28 @@ function M.files()
         util.notify(err, "files", vim.log.levels.ERROR)
         return
       end
-      local paths = vim.split(output, "\0", { plain = true, trimempty = true })
+      local paths = {}
+      for target, entry in pairs(output) do
+        paths[#paths + 1] = {
+          source = entry.sourceAbsolute,
+          label = path_mode == "source" and entry.sourceRelative or target,
+        }
+      end
+      table.sort(paths, function(a, b)
+        return a.label < b.label
+      end)
       if #paths == 0 then
         util.notify("no managed files", "files", vim.log.levels.INFO)
         return
       end
       vim.ui.select(paths, {
-        prompt = "Vimoi source:",
+        prompt = "Vimoi " .. path_mode .. ":",
         format_item = function(path)
-          return vim.fn.strtrans(vim.fs.relpath(cli.source_root, path) or path)
+          return vim.fn.strtrans(path.label)
         end,
       }, function(path)
         if path and current() then
-          local ok, edit_error = pcall(vim.cmd.edit, vim.fn.fnameescape(path))
+          local ok, edit_error = pcall(vim.cmd.edit, vim.fn.fnameescape(path.source))
           if not ok then
             util.notify(tostring(edit_error), "files", vim.log.levels.ERROR)
           end
