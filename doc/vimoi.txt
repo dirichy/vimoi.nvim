@@ -736,6 +736,13 @@ and comment into full templates with editable placeholders. Items use standard
 LSP snippet format and blink's configured snippet engine; comments are excluded.
 
 Completion loads and caches data asynchronously on demand until invalidation.
+The cached data view replaces runtime-only fields before exposing it to consumers.
+Completion makes a private copy and fills fields known from the current managed
+buffer. Value documentation comes from this sanitized view. Fields whose values are supplied
+by the current execution context, such as `.chezmoi.command`, `.chezmoi.args`,
+`.chezmoi.sourceFile` and `.chezmoi.targetFile`, are shown as `[runtime value]`
+instead of displaying the possibly stale `chezmoi data` snapshot. Other fields
+under `.chezmoi` remain available in the preview.
                                                    *vimoi-completion-mask*
 `completion.mask` controls value documentation (not labels or type details):
   "hint"         Mask all values and append a short help hint (default).

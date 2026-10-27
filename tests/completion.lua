@@ -68,7 +68,7 @@ end
 cli.data_async = load_data
 local function assert_masked(expression, key, hint)
   local documentation = labels(expression)[key].documentation
-  assert(documentation.kind == "plaintext")
+  assert(documentation.kind == "markdown")
   local expected = "[ masked]" .. (hint and "\n\nSee :help vimoi-completion-mask." or "")
   assert(documentation.value == expected, documentation.value)
   assert(not documentation.value:find("secret", 1, true))
@@ -78,8 +78,11 @@ assert_masked("{{ .acc", "account", true)
 config.mask = false
 local function doc(expression, key)
   local item = assert(labels(expression)[key])
-  assert(item.documentation.kind == "plaintext")
-  return vim.json.decode(item.documentation.value)
+  assert(item.documentation.kind == "markdown")
+  local value = item.documentation.value:match("^```lua\n([%s%S]-)\n```$") or item.documentation.value
+  local chunk, error_message = load("return " .. value, "completion documentation", "t", { vim = vim })
+  assert(chunk, error_message)
+  return chunk()
 end
 assert(doc("{{ .account.us", "user") == "alice")
 assert(doc("{{ .en", "enabled") == false)

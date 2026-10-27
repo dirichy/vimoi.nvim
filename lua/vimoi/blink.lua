@@ -386,6 +386,9 @@ end
 
 -- Copy only the displayed portion; filtering must not mutate the shared data cache.
 local function data_value_preview(value, key, policy, depth, budget)
+  if cli.is_runtime_value(value) then
+    return "[runtime value]"
+  end
   budget.remaining = budget.remaining - 1
   if policy == "hint" or policy == true or (type(policy) == "function" and policy(key)) then
     return "[ masked]", true
@@ -437,9 +440,9 @@ local function data_field_completions(data, expression, row, col)
       local key_path = path == "" and key or path .. "." .. key
       local preview, masked = data_value_preview(value, key_path, policy, 0, { remaining = 40 })
       item.documentation = {
-        kind = "plaintext",
+        kind = "markdown",
         value = masked and (preview .. (policy == "hint" and "\n\nSee :help vimoi-completion-mask." or ""))
-          or vim.json.encode(preview),
+          or ("```lua\n" .. vim.inspect(preview) .. "\n```"),
       }
       items[#items + 1] = item
     end
@@ -527,6 +530,7 @@ local function complete(buf, row, col, callback)
       callback({})
       return
     end
+    data = cli.data_for_completion(data, buf)
     if function_name == "include" then
       callback(
         path_completions(data.chezmoi.sourceDir, prefix, CompletionItemKind.File, row, col, "chezmoi source file")

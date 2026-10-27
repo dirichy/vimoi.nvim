@@ -167,6 +167,10 @@ require("vimoi").setup({
 被遮盖值统一使用 `[ masked]`，对象预览中也一样。遮盖父字段也会遮盖其全部后代。
 字段补全和类型仍保留。列表路径使用从 1 开始的索引，如 `accounts.1.token`。
 预览会限制大小并截断；按字段名遮盖只覆盖函数匹配到的路径。
+缓存的数据视图会先替换运行时字段，再提供给各个消费者。补全会基于当前受管理 buffer 复制一份数据，
+填入能够确定的 source/target 上下文；值说明来自这份经过处理的 `chezmoi data`；
+`.chezmoi.command`、`.chezmoi.args`、`.chezmoi.sourceFile` 和 `.chezmoi.targetFile` 等字段会显示为
+`[runtime value]`，不直接展示可能过时的快照值。
 
 ![真实补全菜单：data、函数、局部变量、路径与块 snippet](https://github.com/dirichy/vimoi.nvim/releases/download/demos/completion.gif)
 

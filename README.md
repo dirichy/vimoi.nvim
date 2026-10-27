@@ -174,6 +174,11 @@ without the hint. Masked values use `[ masked]`, including in object previews
 Masking a parent also masks all its descendants. Lists use one-based paths such
 as `accounts.1.token`. Previews are bounded and truncated; field-name masking
 only covers paths matched by your function.
+The cached data view replaces runtime-only fields before exposing it to consumers. Completion makes a private copy
+and fills fields that can be determined from the current managed buffer. Value documentation comes from
+that sanitized view; runtime fields such as
+`.chezmoi.command`, `.chezmoi.args`, `.chezmoi.sourceFile`, and `.chezmoi.targetFile`
+are shown as `[runtime value]` because they can differ during template execution.
 
 ![Real completion menus for data, functions, variables, paths, and block snippets](https://github.com/dirichy/vimoi.nvim/releases/download/demos/completion.gif)
 

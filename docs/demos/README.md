@@ -90,6 +90,7 @@ Python 3、VHS、ttyd、FFmpeg（含 ffprobe）、Chromium / Google Chrome、Neo
 | Saghen/blink.cmp | completion；Lua matcher | `VIMOI_DEMO_BLINK` |
 | mfussenegger/nvim-lint | diagnostics；luac provider | `VIMOI_DEMO_LINT` |
 | andymass/vim-matchup | navigation；真实 % 块匹配 | `VIMOI_DEMO_MATCHUP` |
+| folke/snacks.nvim | diff；placement choice picker | `VIMOI_DEMO_PICKER` |
 
 默认从 `stdpath("data") .. "/lazy/<插件名>"` 加载插件。字体匹配检查：
 `fc-match 'JetBrainsMono Nerd Font Mono'`。VHS 的 ttyd / Chromium 需要允许监听本地端口的环境。

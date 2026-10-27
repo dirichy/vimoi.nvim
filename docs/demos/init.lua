@@ -6,6 +6,7 @@ local deps = {
   blink = "blink.cmp",
   lint = "nvim-lint",
   matchup = "vim-matchup",
+  picker = "snacks.nvim",
 }
 for key, directory in pairs(deps) do
   local path = vim.env["VIMOI_DEMO_" .. key:upper()] or vim.fn.stdpath("data") .. "/lazy/" .. directory
@@ -13,6 +14,7 @@ for key, directory in pairs(deps) do
     (key == "blink" and demo == "completion")
     or (key == "lint" and demo == "diagnostics")
     or (key == "matchup" and demo == "navigation")
+    or (key == "picker" and demo == "diff")
   then
     assert(vim.fn.isdirectory(path) == 1, "missing demo dependency: " .. path)
     vim.opt.runtimepath:prepend(path)
@@ -21,6 +23,10 @@ end
 if demo == "navigation" then
   vim.g.matchup_treesitter_enabled = true
   vim.g.matchup_matchparen_offscreen = { method = "status_manual" }
+end
+if demo == "diff" then
+  require("snacks").setup({ picker = { enabled = true, ui_select = true } })
+  require("snacks.picker").setup()
 end
 vim.cmd("filetype plugin indent on")
 vim.cmd("syntax enable")
@@ -214,7 +220,7 @@ if demo == "completion" then
     fuzzy = { implementation = "lua", frecency = { enabled = false } },
     keymap = { preset = "default" },
     completion = {
-      documentation = { auto_show = false },
+      documentation = { auto_show = true, auto_show_delay_ms = 0 },
       accept = { auto_brackets = { enabled = false } },
     },
     sources = {

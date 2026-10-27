@@ -36,6 +36,7 @@ jobs:
       VIMOI_DEMO_BLINK: ${{ github.workspace }}/.demo-deps/blink.cmp
       VIMOI_DEMO_MATCHUP: ${{ github.workspace }}/.demo-deps/vim-matchup
       VIMOI_DEMO_LINT: ${{ github.workspace }}/.demo-deps/nvim-lint
+      VIMOI_DEMO_PICKER: ${{ github.workspace }}/.demo-deps/snacks.nvim
       NVIM_LOG_FILE: ${{ github.workspace }}/.demo-deps/nvim.log
     steps:
       - uses: actions/checkout@v4
@@ -69,6 +70,11 @@ jobs:
           repository: andymass/vim-matchup
           ref: 0106b1afd4a2f7e1098037b5ceb161bab7471088
           path: .demo-deps/vim-matchup
+      - uses: actions/checkout@v4
+        with:
+          repository: folke/snacks.nvim
+          ref: 882c996cf28183f4d63640de0b4c02ec886d01f2
+          path: .demo-deps/snacks.nvim
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true

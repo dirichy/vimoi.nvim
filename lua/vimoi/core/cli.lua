@@ -9,6 +9,48 @@ local chezmoi_command = { "chezmoi" }
 -- Preserve the setup-time init mapping when ordinary query results are cleared.
 local initial_paths = {}
 local cache = { paths = {}, data = {}, templates = {}, template_order = {}, directories = {} }
+-- Values below describe the `chezmoi data` command itself, not the template
+-- execution context used by cat or execute-template.
+local runtime_data_fields = { args = true, command = true, sourceFile = true, targetFile = true }
+M.runtime_value = "[runtime value]"
+
+---@param value any
+---@return boolean
+function M.is_runtime_value(value)
+  return value == M.runtime_value
+end
+
+---@param data VimoiData
+---@return VimoiData
+local function sanitize_data(data)
+  local chezmoi = data.chezmoi
+  for field in pairs(runtime_data_fields) do
+    if chezmoi[field] ~= nil then
+      chezmoi[field] = M.runtime_value
+    end
+  end
+  return data
+end
+
+---@param data VimoiData
+---@param buf integer
+---@return VimoiData
+function M.data_for_completion(data, buf)
+  local result = vim.deepcopy(data)
+  local chezmoi = result.chezmoi
+  local name = vim.api.nvim_buf_get_name(buf)
+  local source_file = name ~= "" and M.source_root and vim.fs.relpath(M.source_root, name)
+  if not source_file then
+    return result
+  end
+  local target_file = M.counterpart_path(name)
+  chezmoi.sourceFile = source_file
+  chezmoi.targetFile = target_file or ""
+  chezmoi.command = "cat"
+  chezmoi.args = target_file and { "cat", target_file } or { "cat" }
+  return result
+end
+
 -- Cached asynchronous template requests are shared by views and diagnostics.
 -- Each caller owns a cancellable subscription; only the final cancellation kills the process.
 ---@class VimoiTemplateRequest
@@ -257,7 +299,7 @@ function M.data_async(callback, mode)
       elseif loaded ~= nil and (type(loaded) ~= "table" or type(loaded.chezmoi) ~= "table") then
         loaded, err = nil, "invalid `chezmoi data`: missing chezmoi object"
       elseif loaded then
-        cache.data.value = loaded
+        cache.data.value = sanitize_data(loaded)
       end
       local callbacks = request_data_cache.waiters
       request_data_cache.waiters, request_data_cache.job = nil, nil

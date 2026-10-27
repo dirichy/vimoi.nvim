@@ -19,7 +19,16 @@ vim.system = function(argv, opts, callback)
   elseif argv[2] == "target-path" then
     output = argv[3] == ignored_source and "/tmp/.ignored" or "/tmp/vimoi-cli-target"
   elseif argv[2] == "data" then
-    output = vim.json.encode({ chezmoi = { sourceDir = source_root, destDir = "/tmp" } })
+    output = vim.json.encode({
+      chezmoi = {
+        sourceDir = source_root,
+        destDir = "/tmp",
+        command = "data",
+        args = { "data" },
+        sourceFile = "stdin",
+        targetFile = "/tmp/target",
+      },
+    })
   elseif argv[2] == "execute-template" and argv[3] == "{{ .chezmoi.configFile }}" then
     output = "/tmp/vimoi-cli-config"
   end
@@ -71,6 +80,10 @@ assert(calls["fake source-path " .. sibling_path] == 1, "source-root prefix must
 
 assert(run_async(cli.data).chezmoi.sourceDir == source_root)
 assert(run_async(cli.data).chezmoi.sourceDir == source_root)
+local cached_data = run_async(cli.data)
+for _, field in ipairs({ "command", "args", "sourceFile", "targetFile" }) do
+  assert(cli.is_runtime_value(cached_data.chezmoi[field]), field .. " was not sanitized")
+end
 assert(calls["fake data --format=json"] == 1)
 
 local working_directory = vim.fn.getcwd()
