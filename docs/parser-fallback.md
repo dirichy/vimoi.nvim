@@ -11,13 +11,14 @@
 空格、tab、CR、LF。未闭合字符串、注释、action 或不透明定义返回错误，不能猜测边界。
 
 `render/source_map.lua` 继续优先使用原生 Tree-sitter 及已有增量缓存；只有无法获得 gotmpl
-parser 时才调用这个收集器。Tree-sitter 报出的语法错误不会被回退掩盖。回退是无状态的，
+parser 时才调用这个收集器。Tree-sitter 报出的语法错误不会被回退掩盖。这个收集器本身无状态，
 每次调用扫描完整 source，不另建 buffer 缓存或失效协议。表达式和控制语法由异步 chezmoi
 执行校验；已有取消流程、source map、render 校验及静态写回规则不变。
 
 没有 gotmpl parser 时，模板 source 保留 gotmpl filetype 和基础 action 样式。渲染结果的
-宿主高亮仍可使用 Tree-sitter 或 Vim syntax。语法感知补全与模板函数引用跳转仍依赖
-真实 AST，暂不为这些接口实现回退。执行错误按 chezmoi 提供的位置映射；缺少列号时，
+宿主高亮仍可使用 Tree-sitter 或 Vim syntax。补全会用当前行正则判断 action，并从整个 buffer
+收集 `$name` 作为变量候选；这种回退不判断字符串、注释或作用域，可能返回额外候选。模板函数
+引用跳转仍依赖真实 AST，暂不为它实现回退。执行错误按 chezmoi 提供的位置映射；缺少列号时，
 只在候选标签唯一的情况下标记整个标签，不猜测函数或变量节点。
 
 `tests/parser.lua` 将范围和 trim 与 Tree-sitter 对照，再强制缺少 parser 验证完整 layout；

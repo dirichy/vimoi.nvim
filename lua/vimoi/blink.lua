@@ -172,10 +172,24 @@ end
 
 -- Read real delimiter tokens, including incomplete actions. Strings and comments
 -- may contain braces, so searching source text for the last {{ / }} is unsafe.
+local function regex_completion_syntax(buf, row, col)
+  local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or ""
+  local before = line:sub(1, col)
+  local opening = before:match(".*(){{%-?")
+  if not opening then
+    return
+  end
+  local closing = before:match(".*()%-?}}")
+  if closing and closing > opening then
+    return
+  end
+  return vim.api.nvim_buf_get_offset(buf, row) + opening - 1, nil, vim.api.nvim_buf_get_offset(buf, row) + col
+end
+
 local function completion_syntax(buf, row, col)
   local ok, parser = pcall(vim.treesitter.get_parser, buf, "gotmpl")
   if not ok or not parser then
-    return
+    return regex_completion_syntax(buf, row, col)
   end
   local tree = parser:parse()[1]
   if not tree then
@@ -209,6 +223,35 @@ local function completion_syntax(buf, row, col)
     end
   end
   return last_delimiter(tree:root()), tree:root(), cursor_byte
+end
+
+-- Fallback for environments without a gotmpl parser. This intentionally favors
+-- useful candidates over scope accuracy.
+-- TODO(vimoi): cache these names with the prepared skeleton.
+local function regex_variable_completions(buf, prefix, row, start_col, end_col)
+  local names = {}
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
+    for name in line:gmatch("%$([%w_]+)") do
+      names[name] = true
+    end
+  end
+  local items = {}
+  for name in pairs(names) do
+    if name:sub(1, #prefix) == prefix then
+      items[#items + 1] = completion_item(
+        "$" .. name,
+        CompletionItemKind.Variable,
+        "template variable",
+        row,
+        start_col,
+        end_col
+      )
+    end
+  end
+  table.sort(items, function(a, b)
+    return a.label < b.label
+  end)
+  return items
 end
 
 local function path_completions(base_directory, prefix, kind, row, end_col, detail)
@@ -460,7 +503,11 @@ local function complete(buf, row, col, callback)
   local expression = before:match("([.][%w_.]*)$")
   local variable = before:match("%$([%w_]*)$")
   if variable then
-    callback(variable_completions(buf, root, cursor_byte, row, variable, col - #variable - 1, col))
+    if root then
+      callback(variable_completions(buf, root, cursor_byte, row, variable, col - #variable - 1, col))
+    else
+      callback(regex_variable_completions(buf, variable, row, col - #variable - 1, col))
+    end
     return
   end
   if not function_name and not expression then

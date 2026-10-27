@@ -22,10 +22,12 @@ Edit [chezmoi](https://www.chezmoi.io/) templates in Neovim, preview their outpu
 
 ## Installation and configuration
 
-Requires Neovim 0.11+ and chezmoi 2.x. Install the `gotmpl` Tree-sitter parser for full template highlighting,
-syntax-aware completion, and template-reference navigation. Without it, an experimental fallback supports
-preview, diff, and static write-back; chezmoi still validates template expressions.
-Host-language parsers are optional; rendered highlighting uses Vim syntax when no host parser is available. Tested on Linux.
+Requires Neovim 0.11+ and chezmoi 2.x. The `gotmpl` Tree-sitter parser is recommended for full template highlighting,
+precise syntax-aware completion, template-reference navigation, and template block matching. Without it, an experimental
+fallback still supports preview, diff, static write-back, and basic completion: action detection uses line-local regular
+expressions and variable completion may include names from unrelated scopes. Chezmoi still validates template expressions.
+Host-language parsers are optional; rendered highlighting uses Vim syntax when no host parser is available. blink.cmp is
+optional unless you want Vimoi's completion source. Tested on Linux.
 
 With lazy.nvim:
 
@@ -148,7 +150,8 @@ require("blink.cmp").setup({
 })
 ```
 
-Completes functions, data fields, local variables, paths, and block snippets.
+Completes functions, data fields, local variables, paths, and block snippets. With no `gotmpl` parser, completion falls
+back to line-local action detection and buffer-wide variable-name matching, so the menu may contain extra candidates.
 `blocked_filetypes` prevents automatic parentheses on template function completions.
 
 Control value masking in vimoi's setup options:

@@ -40,15 +40,18 @@ REQUIREMENTS                                              *vimoi-requirements*
 - Neovim 0.11 or later.
 - chezmoi 2.x available in $PATH, or configured with |vimoi-setup|.
 - A `gotmpl` Tree-sitter parser is recommended for full template highlighting,
-  syntax-aware completion and template-reference navigation.
+  precise syntax-aware completion, template-reference navigation and block matching.
 - A Tree-sitter parser for the target language is optional but improves
   embedded syntax highlighting.
 
 Without gotmpl, an experimental tag collector supports rendering, source
-mapping, preview, diff and static write-back. It only recognizes tag boundaries
-and opaque define/block ranges; chezmoi validates expressions. It does not
-provide a syntax tree or replace syntax-aware editor integrations. Tree-sitter
-syntax errors do not trigger this fallback; only an unavailable parser does.
+mapping, preview, diff and static write-back. Completion falls back to
+line-local action detection and buffer-wide `$name` matching, so it may return
+extra candidates and does not provide scope accuracy. The collector only
+recognizes tag boundaries and opaque define/block ranges; chezmoi validates
+expressions. It does not provide a syntax tree or replace AST-based template
+reference navigation. Tree-sitter syntax errors do not trigger this fallback;
+only an unavailable parser does.
 
 Tested on Linux with Neovim 0.11.5 / 0.12.6 and chezmoi 2.73.3. Other platforms
 have not been verified.

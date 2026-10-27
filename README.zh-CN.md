@@ -22,9 +22,10 @@
 
 ## 安装与配置
 
-需要 Neovim 0.11+ 和 chezmoi 2.x。完整模板高亮、语法感知补全和模板引用跳转需要 `gotmpl` Tree-sitter parser。
-未安装时，实验性回退支持预览、diff 和静态写回；模板表达式仍由 chezmoi 校验。
-宿主语言 parser 可选，缺少时 rendered 高亮使用 Vim syntax。已在 Linux 上测试。
+需要 Neovim 0.11+ 和 chezmoi 2.x。建议安装 `gotmpl` Tree-sitter parser，以获得完整模板高亮、更准确的语法感知补全、
+模板引用跳转和模板块匹配。未安装时，实验性回退仍支持预览、diff、静态写回和基础补全：action 判断使用当前行正则，
+变量补全会扫描整个 buffer，因此可能包含其他作用域的候选；模板表达式仍由 chezmoi 校验。
+宿主语言 parser 可选，缺少时 rendered 高亮使用 Vim syntax。blink.cmp 只在需要 Vimoi 补全 source 时才是依赖。已在 Linux 上测试。
 
 lazy.nvim：
 
@@ -144,7 +145,8 @@ require("blink.cmp").setup({
 })
 ```
 
-补全函数、data 字段、局部变量、路径和模板块 snippet。
+补全函数、data 字段、局部变量、路径和模板块 snippet。没有 `gotmpl` parser 时，action 判断退回当前行正则，变量名从整个
+buffer 搜索，因此菜单可能出现额外候选。
 `blocked_filetypes` 防止补全模板函数时自动添加圆括号。
 
 在 vimoi 的 setup 选项中控制值的遮盖：
