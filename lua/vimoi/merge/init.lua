@@ -152,8 +152,14 @@ local function merge(mode)
       vim.log.levels.ERROR
     )
   end
-  local trace = sessions.rebuild(session.source_buf)
+  local trace, schedule_render = sessions.rebuild(session.source_buf)
   if not trace then
+    if schedule_render then
+      local state = sessions.get(session.source_buf)
+      if state.check then
+        state.check(state.skeleton == nil)
+      end
+    end
     local completed, rendered, render_error = wait_for_render(session)
     if not completed then
       return

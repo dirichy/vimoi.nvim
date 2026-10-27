@@ -225,7 +225,7 @@ end
 ---Refresh literal-only edits synchronously from the cached skeleton execution.
 ---Structural/context changes return nil and use the shared asynchronous request.
 ---@param source integer
----@return VimoiSourceMapTrace?
+---@return VimoiSourceMapTrace?, boolean? schedule_render
 function M.rebuild(source)
   local state = M.get(source)
   if current(source, state) then
@@ -234,23 +234,36 @@ function M.rebuild(source)
   if
     state.error
     or state.initialized ~= true
-    or not state.rendered_skeleton
     or not state.map
     or state.map.path ~= api.nvim_buf_get_name(source)
-    or state.context_generation ~= cli.context_generation
   then
-    return
+    return nil, true
   end
   local renderer = require("vimoi.render.source_map")
   local prepared = renderer.prepare(util.buffer_text(source), { buf = source, init = state.init })
-  if not prepared or prepared.skeleton ~= state.skeleton then
-    return
+  if not prepared then
+    return nil, true
+  end
+  if
+    prepared.skeleton ~= state.skeleton
+    or prepared.init ~= state.init
+    or prepared.context_generation ~= state.context_generation
+  then
+    cancel_request(state)
+    state.prepared = prepared
+    state.skeleton, state.prefix, state.init = prepared.skeleton, prepared.prefix, prepared.init
+    state.context_generation = prepared.context_generation
+    state.rendered_skeleton, state.error = nil, nil
+    return nil, true
+  end
+  if not state.rendered_skeleton then
+    return nil, false
   end
   local trace = renderer.restore(prepared, state.rendered_skeleton)
   if trace then
     M.update(source, trace)
   end
-  return trace
+  return trace, false
 end
 
 local function cancel(source, state)
@@ -457,19 +470,45 @@ local function check(buf, state)
   return { tick = state.tick, eol = assert(state.prepared).source:sub(-1) == "\n" }
 end
 
--- Source edits share one debounce; cached output needs no new notification.
-local function refresh(source)
-  local state = buffers[source]
-  if state and next(state.subscribers) then
-    M.get(source)
-    if not current(source, state) then
-      state.cancelled = nil
-      if state.initialized == nil then
-        construct(source, state)
-      else
-        assert(state.check)()
+-- Static edits rebuild from the cached skeleton on the next event-loop turn.
+-- Structural edits share one trailing debounce before starting another render.
+local function refresh_now(source, state)
+  if buffers[source] ~= state or not next(state.subscribers) then
+    return
+  end
+  M.get(source)
+  if not current(source, state) then
+    state.cancelled = nil
+    if state.initialized == nil then
+      construct(source, state)
+    else
+      local immediate = state.skeleton == nil
+      local trace, schedule = M.rebuild(source)
+      if trace then
+        return
+      end
+      if schedule then
+        assert(state.check)(immediate)
       end
     end
+  end
+end
+
+local function refresh(source, deferred)
+  local state = buffers[source]
+  if not state or not next(state.subscribers) then
+    return
+  end
+  if deferred then
+    local cancelled = state.cancelled
+    vim.schedule(function()
+      if state.cancelled ~= cancelled then
+        return
+      end
+      refresh_now(source, state)
+    end)
+  else
+    refresh_now(source, state)
   end
 end
 
@@ -503,7 +542,7 @@ function M.register(source, callback, opts)
         and next(state.subscribers) ~= nil
         and api.nvim_buf_is_loaded(source)
     end
-    state.check = function()
+    state.check = function(immediate)
       revision = revision + 1
       local queued_revision = revision
       vim.defer_fn(function()
@@ -516,9 +555,10 @@ function M.register(source, callback, opts)
             return
           end
           if result.tick ~= api.nvim_buf_get_changedtick(source) or result.eol ~= vim.bo[source].endofline then
-            -- A newer queued edit already covers this retry; keep its debounce.
+            -- The render result is already cached; only restore the newer
+            -- source text, without waiting for another structural debounce.
             if queued_revision == revision then
-              state.check()
+              state.check(true)
             end
             return
           end
@@ -540,14 +580,14 @@ function M.register(source, callback, opts)
             publish(state)
           end
         end)
-      end, 200)
+      end, immediate and 0 or require("vimoi").config.render.debounce)
     end
     api.nvim_buf_attach(source, false, {
       on_lines = function()
-        refresh(source)
+        refresh(source, true)
       end,
       on_reload = function()
-        refresh(source)
+        refresh(source, true)
       end,
     })
   end

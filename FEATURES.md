@@ -30,7 +30,7 @@
 | 控制边界插入选择 | 对空控制块及相邻静态槽位枚举位置，通过 `vim.ui.select` 选择；不是通用动态模板反向合并 |
 | 局部写入 | 只写变化字节，多处修改可一次 undo/redo；不强制重新收起全部折叠 |
 | 只读预览 | `:VimoiPreview [source]`；使用未保存的 source，结果临时且只读，不写真实 target；失败时保留旧结果并标明过期 |
-| 增量更新与缓存 | 编辑 debounce；静态、trim、重复区域等修改复用结构；新 action 结构异步渲染，过期结果不写入新状态 |
+| 增量更新与缓存 | 静态、trim、重复区域等修改立即复用结构；新 action 结构或上下文变化使用 500ms debounce 异步渲染，过期结果不写入新状态 |
 | 窗口绑定 session | 重复打开或切换 diff/preview 复用双窗口；同一 buffer 的其他窗口/tab 可有独立视图 |
 | 文件类型识别与懒加载 | source 根目录内识别模板和特殊文件；普通 managed source 按真实 target 判断类型并保留原生初始化回调。源文件规则统一在 `core/source.lua`，Neovim 检测与注册位于 `editor/filetype.lua`，不建立全部 target 的属性索引 |
 | 宿主语言高亮 | 普通模板按真实 target 路径识别宿主语言，复用 CLI 路径缓存；默认渲染高亮、可选 gotmpl injection、模板背景色、脚本 shebang 与无 parser 时的 syntax 回退，特殊文件保留自身规则 |
@@ -44,7 +44,7 @@
 | 用户入口与键位配置 | 已提供的用户命令都有 Lua API；默认键位可覆盖、单项禁用或全部关闭 |
 | 配置与帮助文档 | 支持 executable/config 路径、监听、补全、高亮、diff 校验与键位；提供中英文 `:help vimoi.nvim` |
 | 模板 action 背景 | 默认取主题的 `NormalFloat` 背景；`highlight.template_bg` 支持高亮组名、固定颜色或深浅色配置，保留语法前景色 |
-| 模板 diagnostics | 默认启用，可配置关闭；120ms debounce，复用哨兵骨架、缓存和在途渲染，语法/执行错误映射到原始 source；静态修改复用成功及失败结果 |
+| 模板 diagnostics | 默认启用，可配置关闭；静态修改立即复用哨兵骨架，结构或上下文变化使用 500ms debounce，语法/执行错误映射到原始 source；复用成功及失败结果 |
 | 宿主 diagnostics | 默认自动复用已启用的 LSP 和 nvim-lint 的 stdin 检查器；对共享渲染 output 检查，经 source map 映射回模板，保留来源/级别/错误码；动态区域保守定位，同一 output 通过 didChange 更新，旧宿主诊断按 provider 的更新节奏替换 |
 | 渲染结果高亮（默认） | `highlight.mode = "rendered"` 对完整输出使用原生 Tree-sitter query 或 Vim syntax，把可见静态文本的颜色映射回 source；持久 extmark 保留旧颜色并跟随编辑；隐藏 output buffer 复用原生高亮状态；保留 gotmpl action，关闭诊断仍可使用；未执行静态片段使用 Comment，循环采用第一次执行；define/block 正文不投色，可显式切换 injection |
 | 关闭宿主高亮 | `highlight.mode = "disabled"` 关闭宿主 injection、渲染高亮和 Vim syntax 回退；保留模板 action 高亮及背景，不影响诊断或 source map |

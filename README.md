@@ -120,6 +120,8 @@ In injection mode, missing host parsers use Vim syntax directly on the template 
 Template errors are checked as you edit. Host diagnostics reuse your enabled Neovim LSP
 or nvim-lint configuration, checking rendered output and mapping errors back to source.
 nvim-lint supports stdin linters only. Set `diagnostics.host = false` for template diagnostics only.
+Set `render.debounce` to change the default 500ms wait for structural or rendering-context changes;
+literal-only edits reuse the cached skeleton immediately.
 See `:help vimoi-highlighting` and `:help vimoi-diagnostics`.
 
 ![Template errors and host diagnostics projected back to source, followed by repair](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diagnostics.gif)
@@ -199,7 +201,8 @@ provides `%` for template blocks. See `:help vimoi-navigation` for path rules.
 
 ## Cancel tasks and refresh
 
-Background tasks show progress after 1000ms; editing updates are debounced by 200ms.
+Background tasks show progress after 1000ms. Literal edits rebuild from the cached
+skeleton immediately; structural or rendering-context changes use a 500ms debounce.
 Cancel running tasks with `:VimoiCancel` or `<leader>cx`, even before progress appears.
 In a focused waiting float, use `q`, `Esc`, or `Ctrl-C`. Canceled pending write-back does not continue.
 

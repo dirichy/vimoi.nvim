@@ -22,6 +22,7 @@ local defaults = {
   },
   render = {
     validate = true,
+    debounce = 500,
   },
   completion = {
     enabled = true,
@@ -81,7 +82,7 @@ M.config = vim.deepcopy(defaults)
 ---@field split? "vertical"|"horizontal" Orientation for newly created diff/preview splits.
 ---@field files? { path?: "target"|"source" } Picker labels; selection always opens source.
 ---@field watch? VimoiWatchOptions
----@field render? { validate?: boolean }
+---@field render? { validate?: boolean, debounce?: integer }
 ---@field completion? { enabled?: boolean, mask?: "hint"|boolean|fun(key: string): boolean }
 ---@field diagnostics? { enabled?: boolean, host?: boolean }
 ---@field highlight? { mode?: "injection"|"rendered"|"disabled", template_bg?: string|{ dark: string, light: string } }
@@ -121,6 +122,11 @@ M.setup = require("vimoi.core.util").once(function(opts)
   assert(config.files.path == "target" or config.files.path == "source", "files.path must be target or source")
   vim.validate("render", config.render, "table")
   vim.validate("render.validate", config.render.validate, "boolean")
+  vim.validate("render.debounce", config.render.debounce, "number")
+  assert(
+    config.render.debounce >= 0 and config.render.debounce == math.floor(config.render.debounce),
+    "render.debounce must be a non-negative integer"
+  )
   vim.validate("watch", config.watch, "table")
   local fallback = config.watch.buffer_write_fallback
   assert(fallback == "auto" or type(fallback) == "boolean", "watch.buffer_write_fallback must be auto, true or false")

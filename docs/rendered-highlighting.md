@@ -11,8 +11,9 @@ Tree-sitter 或 Vim syntax。模板 action 保留基础颜色与背景，不提�
 
 ## 渲染与生命周期
 
-`render/init.lua` 按 source/context 管理异步渲染和 200ms debounce，视图、高亮和诊断复用同一计算链。
-诊断发布和渲染高亮分别由开关控制。静态文本修改复用骨架渲染结果，重新恢复当前原文及映射。
+`render/init.lua` 按 source/context 管理异步渲染；静态文本修改立即复用骨架渲染结果，
+结构或上下文变化使用 500ms debounce。视图、高亮和诊断复用同一计算链。
+诊断发布和渲染高亮分别由开关控制。
 
 每个 source buffer 对应唯一的只读 output buffer，preview 直接展示它，diff 读取它的映射及文本，
 高亮在其中使用原生 Tree-sitter 或 Vim syntax，宿主诊断也在同一个 buffer 上运行 LSP/lint。映射范围、行索引、

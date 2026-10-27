@@ -35,7 +35,7 @@ local function later(callback, delay)
     if not ok then
       finish(err)
     end
-  end, delay or 500)
+  end, delay or (require("vimoi").config.render.debounce + 200))
 end
 
 require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "rendered" } })

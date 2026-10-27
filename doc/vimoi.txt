@@ -87,6 +87,7 @@ The available options and their defaults are: >lua
       },
       render = {
         validate = true,
+        debounce = 500,
       },
       completion = {
         enabled = true,
@@ -192,6 +193,10 @@ including preview, highlighting and diagnostics, rather than an individual diff.
     true     Default. Validate once when the file's session is first constructed.
     false    Skip validation.
 
+`render.debounce` is a non-negative integer in milliseconds. Structural or
+rendering-context changes wait this long before asynchronous rendering; literal-only
+edits reuse the cached skeleton immediately. The default is 500.
+
 The constructor starts `chezmoi cat` and sentinel rendering of a fixed on-disk
 source baseline in parallel, then compares their outputs. Buffer edits cannot
 cancel or restart this check. Cancellation or failure stops the other task too.
@@ -212,9 +217,8 @@ verify the real cat execution context.
 Internal `vimoi.core.job` owns process execution, progress floats and cancellation;
 `vimoi.core.cli` owns chezmoi arguments, output handling and caching. Shared
 data/template requests deliver to all waiting consumers even if one callback fails; the first callback error is then propagated. Coroutine and
-general helpers remain in `vimoi.core.util`. Source sessions own the 200ms debounce,
-asynchronous rendering and stale result retries; a newer queued edit already
-covers a retry. Navigation resolves paths synchronously and checks its window
+general helpers remain in `vimoi.core.util`. Source sessions rebuild literal-only edits immediately from the cached skeleton; structural or rendering-context changes use a 500ms debounce before asynchronous rendering and stale-result checks.
+Navigation resolves paths synchronously and checks its window
 after picker selection. Deferred writes check their view, paths, text and rendering context
 when continuing after a render wait or placement choice.
 Merge runs as one coroutine: await the shared session result, plan hunks, await
@@ -241,8 +245,9 @@ Template diagnostics are enabled by default: >lua
     require("vimoi").setup({ diagnostics = { enabled = false } })
 <
 The `vimoi-diagnostics` namespace reports gotmpl syntax errors and errors from
-asynchronous sentinel-template rendering. Checks run 200ms after edits, without
-opening a diff or preview. Edits while the native completion menu is visible also
+asynchronous sentinel-template rendering. Literal-only edits reuse the cached
+skeleton immediately; structural or rendering-context changes are checked after
+the 500ms debounce, without opening a diff or preview. Edits while the native completion menu is visible also
 trigger checks. The `vimoi-host-diagnostics` namespace additionally projects
 diagnostics from rendered output back to source. Host checks are enabled by
 default and use the host filetype already inferred for highlighting, including
@@ -475,9 +480,10 @@ right displays its rendered output with the host filetype. Unnamed buffers and
 template fragments without a managed target are supported. No save, re-add, or
 apply is performed. Init templates use `execute-template --init`, as in diff.
 
-Preview shares diff's asynchronous rendering, 200ms debounce, incremental
-syntax/structure caches, and source-map-aware cursor/viewport synchronization.
-Literal edits reuse rendered structures. It does not enable diff highlighting,
+Preview shares diff's asynchronous rendering and source-map-aware cursor/viewport
+synchronization. Literal-only edits reuse the cached skeleton immediately; structural
+or context changes use a 500ms debounce and the incremental syntax/structure caches.
+It does not enable diff highlighting,
 filler lines, diff folds, or merge mappings. Original mappings temporarily
 shadowed by diff are restored when switching modes or closing the session.
 
@@ -1073,8 +1079,9 @@ for editor saves if needed. Symlinked directories are not
 traversed. Setup-time source-root and init mappings are not recomputed.
 The same invalidation clears rendered structure caches. Undetected changes to
 data, other included files, environment, or time-sensitive functions may leave cached
-dynamic output stale. Literal text is restored locally; updates are debounced
-by 200ms; unchanged source/context versions reuse the current output and mapping.
+dynamic output stale. Literal text is restored locally without waiting; structural or
+context changes are debounced by 500ms, while unchanged source/context versions reuse
+the current output and mapping.
 
 ==============================================================================
 TROUBLESHOOTING                                    *vimoi-troubleshooting*

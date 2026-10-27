@@ -4,6 +4,7 @@ vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 local cli, util = require("vimoi.core.cli"), require("vimoi.core.util")
+local structural_debounce = require("vimoi").config.render.debounce
 local original_execute = cli.execute_template
 local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
 local requests = {}
@@ -35,12 +36,12 @@ end
 
 -- Fast structural edits are debounced; only the final skeleton starts a job.
 local buf = open("{{ initial . }}")
-vim.wait(140, function()
-  return #requests > 0
-end, 5)
-assert(#requests == 0, "render started before the editing pause")
+wait_for(function()
+  return #requests == 1
+end)
+table.remove(requests, 1)
 change(buf, "{{ intermediate . }}")
-vim.wait(140, function()
+vim.wait(math.max(100, structural_debounce - 100), function()
   return #requests > 0
 end, 5)
 assert(#requests == 0, "continued editing did not reset the debounce")
@@ -63,6 +64,10 @@ end)
 assert(#requests == 1 and not requests[1].job.cancelled)
 deliver(requests[1], "final")
 local diagnostics = vim.diagnostic.get(buf, { namespace = namespace })
+assert(vim.wait(1000, function()
+  diagnostics = vim.diagnostic.get(buf, { namespace = namespace })
+  return #diagnostics == 1
+end))
 assert(#diagnostics == 1 and diagnostics[1].lnum == 2)
 
 -- A result arriving before the static edit's debounce must be cached, then

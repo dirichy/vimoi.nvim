@@ -91,7 +91,7 @@ for _, change in ipairs({ "none", "cancel", "source", "target", "context", "clos
   local before = #requests
   api.readd()
   assert(waiting())
-  assert(vim.wait(1000, function()
+  assert(vim.wait(2000, function()
     return #requests == before + 1
   end))
   local request = requests[#requests]

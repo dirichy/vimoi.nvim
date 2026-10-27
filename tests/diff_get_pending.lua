@@ -54,7 +54,7 @@ for _, side in ipairs({ "source", "target" }) do
       local before_transfer = #requests
       assert(transfer() == nil and waiting())
       if stage == "stale" then
-        assert(vim.wait(1000, function()
+        assert(vim.wait(2000, function()
           return #requests > before_transfer
         end))
       end

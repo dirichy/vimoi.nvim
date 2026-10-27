@@ -13,7 +13,7 @@ local function later(callback)
     if not ok then
       finish(err)
     end
-  end, 350)
+  end, require("vimoi").config.render.debounce + 200)
 end
 vim.cmd("set noswapfile nonumber norelativenumber signcolumn=no laststatus=0")
 require("vimoi").setup({ diagnostics = { enabled = false } })

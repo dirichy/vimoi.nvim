@@ -69,6 +69,7 @@ source 类型时，应提前 setup，不只依赖该 filetype 触发。
       },
       render = {
         validate = true,
+        debounce = 500,
       },
       completion = {
         enabled = true,
@@ -152,6 +153,9 @@ preview、高亮、诊断和 diff 共用的 source session。
     true     默认值。首次打开文件、构造 session 时校验一次。
     false    跳过校验。
 
+`render.debounce` 使用非负整数毫秒。模板结构或渲染上下文变化后等待该时长再进行
+异步渲染；只有静态文本变化时直接复用缓存骨架。默认值为 500。
+
 构造时并行执行 `chezmoi cat` 与固定磁盘 source 基线的哨兵渲染，再比较输出。
 buffer 内容修改不会取消或重启校验。取消或失败会停止另一条任务。
 构造成功前不发布 output 或 map；通过后才渲染最新 buffer。
@@ -166,8 +170,8 @@ cat 无法通过 stdin 覆盖模板正文。把 buffer 原文交给 execute-temp
 内部 `vimoi.core.job` 管理进程执行、进度浮窗和取消选择；`vimoi.core.cli` 负责 chezmoi
 参数、输出处理和缓存。共享 data/模板请求会向所有等待者交付结果，再抛出首个回调异常，
 避免一个消费者出错卡住其他消费者。协程及通用工具保留在 `vimoi.core.util`，用户操作仍通过 `vimoi.api`。
-source session 统一处理 200ms 防抖、异步渲染和过期结果重试；已有新编辑排队时
-沿用该次防抖。路径跳转同步解析路径，在 picker 选择后检查窗口；异步写回在渲染等待或位置选择
+source session 对静态文本修改立即复用缓存骨架；骨架或渲染上下文变化使用 500ms 防抖，
+再进行异步渲染和过期结果检查。路径跳转同步解析路径，在 picker 选择后检查窗口；异步写回在渲染等待或位置选择
 结束后检查视图、路径、文本和渲染上下文。
 
 merge 使用一条协程流程：等待共享 session 结果、规划、按需等待 vim.ui.select 选择，
@@ -188,8 +192,8 @@ view 只通知关闭状态，不保存 merge 的继续执行或取消句柄。
 模板诊断默认启用，可通过配置关闭： >lua
     require("vimoi").setup({ diagnostics = { enabled = false } })
 <
-`vimoi-diagnostics` namespace 展示 gotmpl 语法错误和异步哨兵渲染错误。编辑后等待 200ms
-检查，包括原生补全菜单显示时的编辑，无须打开 diff/preview，也不清除其他 LSP
+`vimoi-diagnostics` namespace 展示 gotmpl 语法错误和异步哨兵渲染错误。静态文本修改立即复用缓存骨架；
+骨架变化的编辑等待 500ms 检查，包括原生补全菜单显示时的编辑，无须打开 diff/preview，也不清除其他 LSP
 的诊断。`vimoi-host-diagnostics` namespace 默认启用，按高亮已识别的宿主 filetype
 （包括 diff_buffers 的覆盖值）检查完整渲染结果，再映射回源码。照常配置
 vim.lsp.enable() 或 nvim-lint 的 linters_by_ft 即可，无须另列 provider。
@@ -343,7 +347,7 @@ session 失效，旧的刷新或合并结果会被丢弃。重复打开 diff 或
 同一对窗口；同一 buffer 在其他窗口/tab 中可以有独立视图。文本仍由 buffer 共享，
 因此编辑后各视图都会刷新。
 
-刷新带有 debounce。只修改 target 时不会重新渲染，只重新计算 hunks。修改模板时会先
+骨架变化的刷新带有 500ms debounce。只修改 target 时不会重新渲染，只重新计算 hunks。修改模板时会先
 按语法树与字节变化范围局部更新。静态文本变化（包括重复/未执行文本及 trim 变化）
 复用已渲染的结构；新的、未缓存的 action 序列才会异步执行
 `chezmoi execute-template`，过期结果会被丢弃。
@@ -369,7 +373,7 @@ source map 统一使用相邻模板标签（`template_tags`）之间的字面文
 受管理 target 的模板片段；不会保存、re-add 或 apply。Init 模板和 diff 一样使用
 `execute-template --init`。
 
-预览复用 diff 的异步渲染、200ms debounce、增量语法/结构缓存和 source map 光标与
+预览复用 diff 的异步渲染、500ms 结构 debounce、增量语法/结构缓存和 source map 光标与
 viewport 同步；静态编辑复用已渲染结构。不启用 diff 高亮、filler、diff 折叠或合并映射。
 切换模式或结束 session 时会恢复被 diff 临时覆盖的原有映射。
 

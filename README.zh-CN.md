@@ -115,6 +115,7 @@ Injection 模式缺少宿主 parser 时，直接在模板上使用 Vim syntax，
 模板错误随编辑检查。宿主诊断复用已启用的 Neovim LSP 或 nvim-lint 配置，
 检查渲染结果并将错误映射回 source；nvim-lint 仅支持 stdin 检查器。
 设置 `diagnostics.host = false` 可只保留模板诊断。
+可通过 `render.debounce` 修改结构或渲染上下文变化时默认 500ms 的等待；静态文本修改会立即复用缓存骨架。
 详见 `:help vimoi-highlighting` 和 `:help vimoi-diagnostics`。
 
 ![模板错误和映射回 source 的宿主诊断，以及修复过程](https://github.com/dirichy/vimoi.nvim/releases/download/demos/diagnostics.gif)
@@ -191,7 +192,7 @@ require("vimoi").setup({
 
 ## 取消任务与刷新
 
-后台任务持续 1000ms 后显示进度；编辑更新采用 200ms 防抖。
+后台任务持续 1000ms 后显示进度。静态文本修改会立即复用缓存的骨架恢复；模板结构或渲染上下文变化时使用 500ms 防抖。
 进度显示前也可用 `:VimoiCancel` 或 `<leader>cx` 取消任务。
 聚焦的等待浮窗中也可按 `q`、`Esc` 或 `Ctrl-C`。取消待处理的写回后不会继续修改文件。
 
