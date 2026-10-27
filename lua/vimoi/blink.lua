@@ -404,7 +404,7 @@ local function data_value_preview(value, key, policy, depth, budget)
     return "…"
   end
   local list = vim.islist(value)
-  local preview = list and {} or vim.empty_dict()
+  local preview = {}
   for child_key, child in (list and ipairs or pairs)(value) do
     if budget.remaining <= 0 then
       preview[list and (#preview + 1) or "…"] = "…"
@@ -412,7 +412,9 @@ local function data_value_preview(value, key, policy, depth, budget)
     end
     preview[child_key] = data_value_preview(child, key .. "." .. child_key, policy, depth + 1, budget)
   end
-  return preview
+  -- Only empty objects need the dictionary marker; inspect prints its metatable
+  -- as implementation details when the table contains fields.
+  return not list and next(preview) == nil and vim.empty_dict() or preview
 end
 
 local function data_field_completions(data, expression, row, col)
