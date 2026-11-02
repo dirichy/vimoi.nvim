@@ -866,6 +866,13 @@ hunks. It uses the trace's complete control-tag ranges, including multiline tags
 or subprocesses. `source_map.rebuild_after_edits()` infers a complete trace,
 including newly generated constant brace actions. `merge` owns placement
 selection, snapshot checks, and explicit source writes for put/template re-add.
+Diff hunks retain the full line projection for merge planning. Native diff
+display and source-side selection project only the changed byte range after
+removing the common prefix/suffix, so an unchanged newline after a trimmed
+conditional does not include skipped branches. Inline insertions use adjacent
+content on the same output line to anchor their display; possible source
+placements remain available for merge selection. Whole-line insertions retain
+their boundary projection.
 The source map types distinguish prepared structure from a complete trace,
 which always has both output and rendered skeleton.
 

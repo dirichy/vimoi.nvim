@@ -45,7 +45,7 @@ end
 local function projected_hunks(map, hunks)
   local result = {}
   for _, hunk in ipairs(hunks) do
-    local source_start_line, source_line_count = source_line_range(map.source_starts, hunk.source_ranges)
+    local source_start_line, source_line_count = source_line_range(map.source_starts, hunk.display_ranges)
     result[#result + 1] = {
       source_start_line = source_start_line,
       source_line_count = source_line_count,

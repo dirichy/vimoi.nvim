@@ -652,7 +652,11 @@ source_map.restore 无须再次执行即可还原完整输出和 byte 映射。
 中的完整控制标签范围（包括跨行标签）。`merge_plan.apply_source_edits()` 只构造转义后的
 源码修改，不调用 UI 或外部进程。`source_map.rebuild_after_edits()` 推算完整 trace，
 包括新增的常量花括号标签。`merge` 统一负责选择位置、快照检查及 put/template re-add 的
-显式写入。source map 的注解区分准备阶段和完整 trace，
+显式写入。hunk 为合并规划保留完整行投射；原生 diff 展示和 source 侧选择则先去除
+未变化的前后缀，仅投射实际变化的字节范围，避免裁剪空白后的条件块因共用换行而
+包含未执行分支。行内插入借用同一输出行的相邻内容定位显示，合并时仍保留可能的
+source 位置供选择；整行插入保持边界投射。
+source map 的注解区分准备阶段和完整 trace，
 完整 trace 保证同时具备输出及渲染后的哨兵骨架。
 
 内部模块按职责分组：`core/` 管理 CLI、任务、监听和共享工具；`render/` 管理共享
