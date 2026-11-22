@@ -1058,17 +1058,14 @@ the whole block. Body text, including static text, requires manual source edits.
 No sentinels are inserted inside these bodies, preserving Go's whitespace/comment-only
 empty-definition semantics.
 
-The sentinel prefix is generated randomly once when the module loads. A complete
-marker is `prefix .. ID .. prefix`. The current implementation conservatively
-rejects any source containing this prefix. Static text would not itself cause
-misdecoding: it is replaced before rendering and is not scanned again when
-restored. The source check does not yet distinguish static text from template
-tags.
-Dynamic output from expressions, data, includes, etc. must not contain a current
-complete marker. An unknown ID causes an error; a valid ID may be mistaken for a
-real sentinel, corrupting output or source mappings. A prefix alone in dynamic
-output does not trigger replacement. Randomization reduces accidental collisions
-but does not guarantee collision-free rendering of arbitrary dynamic output.
+Source templates and rendered output must be valid UTF-8 text; binary output
+and other encodings are unsupported. Sentinels use the fixed byte 0xFF around a
+decimal slot ID: `0xFF .. ID .. 0xFF`, taking only ID digits + 2 bytes. Since 0xFF
+cannot occur in valid UTF-8, supported text cannot collide with these markers.
+The CLI preserves the marker bytes, which are removed before displaying output.
+Source containing 0xFF is rejected. Arbitrary binary dynamic output is not
+validated: if it contains a complete marker, an unknown ID causes an error,
+while a valid ID may corrupt output or source mappings.
 
 Init templates named `.chezmoi.toml.tmpl`, `.chezmoi.yaml.tmpl`, `.chezmoi.yml.tmpl`,
 `.chezmoi.json.tmpl`, or `.chezmoi.jsonc.tmpl` are a special case. They map to

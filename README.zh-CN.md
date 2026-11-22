@@ -240,6 +240,7 @@ data、配置和已发现的共享模板变化后自动刷新。若结果未更�
 
 - 动态、重复输出及 `define` / `block` 正文中的修改通常需要手动编辑 source。
 - 不支持自定义模板分隔符，或在 `chezmoi cat` 与 `apply` 下产生不同结果的模板。
+- source 模板和渲染结果须为合法 UTF-8 文本。
 - 加密文件、symlink 和脚本 source 不支持普通文本 ReAdd。
 - 不提供格式化、图标、文件浏览或 apply 命令，部署继续使用 chezmoi CLI。
 - 不提供 chezmoi 加密 source 的透明编辑。若只需保护仓库内容，更推荐 [git-crypt](https://github.com/AGWA/git-crypt)：解锁后的模板可直接编辑，本地工作区以明文落盘。参见 [chezmoi 透明加密说明](https://www.chezmoi.io/user-guide/encryption/transparent/)。

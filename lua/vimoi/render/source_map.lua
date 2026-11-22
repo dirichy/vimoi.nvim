@@ -400,8 +400,9 @@ function M.parse(source, buf)
   return { source = source, template_tags = template_tags, literal_parts = literal_parts }, nil, visited_nodes
 end
 
--- One sentinel prefix per renderer keeps skeleton keys stable across literal edits.
-local sentinel_prefix = ("__VIMOI_%x_%x__"):format(vim.uv.hrtime(), math.random(0, 0x7fffffff))
+-- 0xFF cannot occur in valid UTF-8 output and survives execute-template unchanged.
+-- Keep it fixed so skeleton keys remain stable across literal edits.
+local sentinel_prefix = "\255"
 -- Only managed files have a target context. Keep raw strings, source-only files,
 -- and init templates in execute-template's native context.
 ---@param buf? integer

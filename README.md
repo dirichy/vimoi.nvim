@@ -253,6 +253,7 @@ See the [implementation comparison and historical research](docs/plugin-comparis
 
 - Changes to dynamic or repeated output and `define` / `block` bodies usually need manual source edits.
 - Custom template delimiters and templates producing different results under `chezmoi cat` and `apply` are unsupported.
+- Source templates and rendered output must be valid UTF-8 text.
 - Encrypted files, symlinks, and script sources are unsupported by plain text ReAdd.
 - Formatting, icons, file browsing, and apply commands are not provided; deploy with the chezmoi CLI.
 - Transparent editing of chezmoi-encrypted source is not provided. For repository encryption, we recommend [git-crypt](https://github.com/AGWA/git-crypt): unlocked templates are directly editable, and the local working tree is plaintext. See [chezmoi transparent encryption](https://www.chezmoi.io/user-guide/encryption/transparent/).

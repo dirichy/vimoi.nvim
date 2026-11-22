@@ -1,6 +1,20 @@
 local run_async = dofile("tests/helpers/await.lua")
 local source_map = require("vimoi.render.source_map")
 
+-- Short byte markers survive the real CLI and cannot collide with UTF-8 text,
+-- including U+FFFD, noncharacters, and strings resembling the old prefix.
+local utf8_source = '__VIMOI_123_456__1__VIMOI_123_456__ 中文 � \239\191\191 {{ "世界" }}'
+local utf8_trace = assert(run_async(source_map.trace, utf8_source))
+assert(utf8_trace.output == "__VIMOI_123_456__1__VIMOI_123_456__ 中文 � \239\191\191 世界")
+assert(utf8_trace.skeleton == '\2551\255{{ "世界" }}\2552\255')
+assert(utf8_trace.rendered_skeleton == "\2551\255世界\2552\255")
+assert(utf8_trace.literal_parts[2].output_ranges[1].start_byte == #utf8_trace.output)
+
+local reserved, reserved_error = source_map.prepare("before\255after")
+assert(not reserved and reserved_error == "template contains the renderer's reserved sentinel prefix")
+local unknown, unknown_error = source_map.restore(assert(source_map.prepare("text")), "\255999\255")
+assert(not unknown and unknown_error == "unknown sentinel in rendered output")
+
 local trace, err = run_async(source_map.trace, 'hello {{ "world" }}!\n')
 assert(trace, err)
 assert(trace.output == "hello world!\n", vim.inspect(trace))
