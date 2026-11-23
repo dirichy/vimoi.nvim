@@ -182,7 +182,9 @@ require("vimoi").setup({
 ## 路径跳转
 
 模板及 symlink source 中的 `gf` 支持 include、共享模板、glob 和 symlink 路径；
-`gF` 还支持 `path:line[:column]`。多个匹配通过 picker 选择，受管理的 target 优先打开 source。
+`gF` 还支持 `path:line[:column]`。多个匹配通过 picker 选择，有本地 source 的 target 优先打开 source。
+source/target 跳转按文件名解析，不下载 externals，也不执行 ignore 规则。
+修改配置或文件属性后，如果已有映射过时，可按 `<leader>cr` 手动刷新。
 安装 [vim-matchup](https://github.com/andymass/vim-matchup) 并启用 Tree-sitter 匹配后，
 可用 `%` 跳转模板控制块。路径规则见 `:help vimoi-navigation`。
 

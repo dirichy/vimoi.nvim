@@ -123,12 +123,20 @@ source 类型时，应提前 setup，不只依赖该 filetype 触发。
 Neovim 内的保存，不能发现编辑器外的修改；强制开启而 watcher 实际正常时仍可能重复失效。
 
 source/target 路径查询和 `chezmoi data` 使用全局缓存，切换工作目录共享结果，缓存不
-自动过期。源文件消失时会重新查询路径；CLI 还统一缓存最多 32 条模板结构渲染结果，
+自动过期。普通路径映射从空缓存开始：任一方向缺项，或缓存中的 source 消失时，
+枚举本地非隐藏 source 文件，批量调用一次 `chezmoi target-path`，然后重新查找。
+每次重建都会补齐所有文件的双向映射，不缓存查空结果。
+成功重建后替换旧映射；查询失败保留旧缓存。路径查询不调用带 target 参数的
+`source-path`，不执行 ignore 规则，也不下载 externals；它描述文件名对应关系，而非
+部署状态，因此被 ignore 的本地文件仍可有对应路径。全量索引不包含隐藏条目、文件系统
+symlink 和仅存在于 external 归档中的文件；不支持文件名中的换行。发现多个本地 source
+对应同一 target 时报告冲突。已有条目保留到 source 消失或 paths/all 缓存失效。
+CLI 还统一缓存最多 32 条模板结构渲染结果，
 静态文本在本地恢复。其他模板执行默认不缓存，除非内部调用显式启用。
 最近一次全文未变时复用完整 source map，并检查 CLI 的失效版本；`chezmoi cat` 不缓存。
 插件监听配置目录和已发现的 data/模板目录，覆盖外部写入和原子保存。
 `.chezmoitemplates` 下的修改只清空模板结果及派生 source map，保留路径/data 缓存。
-`.chezmoiignore` 精确匹配，只清空路径对应关系；不会仅因文件名以 `.chezmoi` 开头就失效。
+`.chezmoiignore` 不影响本地路径索引；不会仅因文件名以 `.chezmoi` 开头就失效。
 模板、data 或配置失效后，会延迟刷新已打开的 diff/preview，包含其他 tab；初次渲染中的
 由 source session 调度重新渲染。刷新不写真实 source/target 文件，其他缓存仍按需重新加载。
 可调用 `require("vimoi.api").invalidate_cache()` 手动清空并
@@ -280,8 +288,8 @@ init 模板使用 --init；已有哨兵限制仍适用。
 
                                                                *:VimoiDiff*
 :VimoiDiff
-    为当前 target 或 chezmoi source 文件打开 Diff。插件通过 `chezmoi source-path`
-    或 `chezmoi target-path` 自动找到另一侧路径。
+    为当前 target 或 chezmoi source 文件打开 Diff。插件通过本地 source/target 索引及
+    `chezmoi target-path` 自动找到另一侧路径。
 
 :VimoiDiff {source} {target}
     为明确指定的两个文件打开 Diff，适合测试以及已经知道两侧路径的集成。
@@ -537,9 +545,9 @@ buffer-local `gf`。相对路径使用与 chezmoi 一致的基准目录：
 匹配，则通过 |vim.ui.select()| 选择。无法识别为 chezmoi 路径或者没有匹配文件时，会
 回退到 Neovim 原生 `gf`。
 
-从 destination directory 解析出的路径还会经过 `chezmoi source-path`。受管理的 target
-默认打开 source-state 文件，避免修改在下次 apply 时被覆盖。只有目标未受管理或没有
-实体 source 时才打开 destination 路径，这在 ignore 和 remove 条目中很常见。
+从 destination directory 解析出的路径使用共享的本地路径索引。有对应本地 source 时
+默认打开 source，否则打开 destination 路径。路径查询不执行 ignore 规则，也不下载
+externals；仅存在于 external 归档中的文件没有可索引的本地 source。
 
 `gF` 使用相同的解析器，并额外识别 `path:line` 和 `path:line:column`。没有位置后缀时，
 它与增强版 `gf` 相同。两个映射都可以独立换键或关闭。

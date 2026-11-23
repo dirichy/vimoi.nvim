@@ -30,8 +30,6 @@ local default_rules = {
   { pattern = "/%.chezmoitemplates/", scope = "templates", watch = "tree" },
   { pattern = "/%.chezmoidata/", scope = "all", watch = "tree" },
   { pattern = "/%.chezmoidata%.[^/]+/$", scope = "all", watch = "parent" },
-  -- Ignore rules affect managed-path lookups, not data or template execution.
-  { pattern = "/%.chezmoiignore/$", scope = "paths", watch = "parent" },
 }
 
 ---@return VimoiWatchRule?

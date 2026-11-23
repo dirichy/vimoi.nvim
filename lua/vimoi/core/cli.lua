@@ -176,7 +176,15 @@ function M.run(args, opts)
   return finish(job.run(argv, command_opts))
 end
 
----Map a source file to its target, or a target file back to its source.
+-- Hidden entries are source metadata, not ordinary target filenames. Do not
+-- walk .git, shared templates, or other hidden source directories.
+---@param relative string
+---@return boolean
+local function is_source_entry(relative)
+  return relative ~= "" and relative:sub(1, 1) ~= "." and not relative:find("/%.")
+end
+
+---Map local source/target files. Ignore rules and externals are not evaluated.
 ---@param path string
 ---@return string? counterpart
 ---@return string? error
@@ -186,42 +194,54 @@ function M.counterpart_path(path)
   if not source_root then
     return nil, "vimoi.nvim is not initialized"
   end
-  local is_source = vim.fs.relpath(source_root, path) ~= nil
+  local relative = vim.fs.relpath(source_root, path)
+  local is_source = relative ~= nil
   local paths = cache.paths
   local cached = paths[path]
   if cached and vim.uv.fs_stat(is_source and path or cached) then
     return cached
   end
-  local output, err = M.run({ is_source and "target-path" or "source-path", path })
-  if not output then
-    return nil, err
+  if relative and (not is_source_entry(relative) or not vim.uv.fs_stat(path)) then
+    return ""
   end
-  local counterpart = vim.trim(output)
-  if counterpart == "" then
-    return "" -- Never cache absence: the file may be added later.
-  end
-  counterpart = util.normalize_path(counterpart)
-
-  if is_source then
-    -- target-path also returns plausible paths for ignored and special source
-    -- files. Only a reverse source-path lookup confirms an active target.
-    local active_source, reverse_error = M.run({ "source-path", counterpart })
-    if not active_source then
-      return nil, reverse_error
-    end
-    if util.normalize_path(vim.trim(active_source)) ~= path then
-      return nil, "chezmoi target does not map back to this source file"
+  local sources = {}
+  for name, kind in vim.fs.dir(source_root, { depth = math.huge, skip = is_source_entry }) do
+    if kind == "file" and is_source_entry(name) then
+      if name:find("\n", 1, true) then
+        return nil, "cannot resolve source filenames containing newlines"
+      end
+      sources[#sources + 1] = vim.fs.joinpath(source_root, name)
     end
   end
-
-  if vim.uv.fs_stat(is_source and path or counterpart) then
-    paths[path] = counterpart
-    paths[counterpart] = path
+  table.sort(sources)
+  local targets = {}
+  if #sources > 0 then
+    local output, err = M.run(vim.list_extend({ "target-path", "--" }, sources))
+    if not output then
+      return nil, err
+    end
+    -- Preserve spaces in filenames; target-path emits one line per argument.
+    targets = vim.split(output, "\n", { plain = true, trimempty = true })
+    if #targets ~= #sources then
+      return nil, "chezmoi target-path returned an unexpected number of paths"
+    end
   end
-  return counterpart
+  -- Build separately so a failed query or conflict preserves the old cache.
+  -- Successful rebuilds drop deleted/renamed entries and retain init mappings.
+  local refreshed = vim.deepcopy(initial_paths)
+  for index, source in ipairs(sources) do
+    local target = util.normalize_path(targets[index])
+    local previous = refreshed[target]
+    if previous and previous ~= source and vim.uv.fs_stat(previous) then
+      return nil, "multiple source files correspond to " .. target
+    end
+    refreshed[source], refreshed[target] = target, source
+  end
+  cache.paths = refreshed
+  return refreshed[path] or "" -- Do not cache misses: a new source may appear later.
 end
 
----Resolve a managed source/target pair; path identity and caches belong here.
+---Resolve a local source/target pair; path identity and caches belong here.
 ---@param path string
 ---@return string? source
 ---@return string? target
@@ -233,7 +253,7 @@ function M.resolve_paths(path)
   path = util.normalize_path(path)
   local counterpart, err = M.counterpart_path(path)
   if not counterpart or counterpart == "" then
-    return nil, nil, err or "current file is not managed by chezmoi"
+    return nil, nil, err or "current file has no local source/target counterpart"
   end
   if vim.fs.relpath(M.source_root, path) ~= nil then
     return path, counterpart

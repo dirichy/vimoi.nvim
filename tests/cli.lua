@@ -2,7 +2,8 @@ local run_async = dofile("tests/helpers/await.lua")
 local cli = require("vimoi.core.cli")
 local source_root = vim.fn.getcwd() .. "/tests/fixtures/environment/source"
 local source_file = source_root .. "/dot_diff_target.tmpl"
-local ignored_source = source_root .. "/dot_ignored"
+local missing_source = source_root .. "/dot_missing"
+local batch_queries = 0
 local calls = {}
 local forced_result
 local last_options
@@ -15,9 +16,17 @@ vim.system = function(argv, opts, callback)
   calls[key] = (calls[key] or 0) + 1
   local output = ""
   if argv[2] == "source-path" then
-    output = argv[3] and (argv[3] == "/tmp/missing" and "" or source_file) or source_root
+    assert(argv[3] == nil, "path lookups must never load source state")
+    output = source_root
   elseif argv[2] == "target-path" then
-    output = argv[3] == ignored_source and "/tmp/.ignored" or "/tmp/vimoi-cli-target"
+    assert(argv[3] == "--")
+    batch_queries = batch_queries + (#argv > 4 and 1 or 0)
+    local targets = {}
+    for index = 4, #argv do
+      targets[#targets + 1] = argv[index] == source_file and "/tmp/vimoi-cli-target"
+        or "/tmp/vimoi-cli-" .. vim.fs.basename(argv[index])
+    end
+    output = table.concat(targets, "\n") .. "\n"
   elseif argv[2] == "data" then
     output = vim.json.encode({
       chezmoi = {
@@ -32,9 +41,7 @@ vim.system = function(argv, opts, callback)
   elseif argv[2] == "execute-template" and argv[3] == "{{ .chezmoi.configFile }}" then
     output = "/tmp/vimoi-cli-config"
   end
-  local result = forced_result
-    or (argv[2] == "source-path" and argv[3] == "/tmp/.ignored" and { code = 1, stdout = "", stderr = "not managed" })
-    or { code = 0, stdout = output, stderr = "" }
+  local result = forced_result or { code = 0, stdout = output, stderr = "" }
   if callback then
     vim.schedule(function()
       callback(result)
@@ -57,26 +64,27 @@ assert(cli.counterpart_path(source_file) == "/tmp/vimoi-cli-target")
 assert(cli.counterpart_path(source_file) == "/tmp/vimoi-cli-target")
 assert(cli.counterpart_path(source_root .. "/./dot_diff_target.tmpl") == "/tmp/vimoi-cli-target")
 assert(cli.counterpart_path(source_root .. "/unused/../dot_diff_target.tmpl") == "/tmp/vimoi-cli-target")
-assert(calls["fake target-path " .. source_file] == 1)
-assert(calls["fake source-path /tmp/vimoi-cli-target"] == 1, "source target must be validated")
+assert(calls["fake target-path -- " .. source_file] == nil, "forward misses must query the whole source tree")
 assert(cli.counterpart_path("/tmp/vimoi-cli-target") == source_file)
-assert(calls["fake source-path /tmp/vimoi-cli-target"] == 1, "reverse mapping should be cached")
+assert(batch_queries == 1, "a forward miss must rebuild once and populate the reverse cache")
 
-assert(cli.counterpart_path("/tmp/target") == source_file)
-assert(cli.counterpart_path("/tmp/target") == source_file)
-assert(calls["fake source-path /tmp/target"] == 1)
+local plain_source = source_root .. "/dot_plain"
+assert(cli.counterpart_path("/tmp/vimoi-cli-dot_plain") == plain_source)
+assert(cli.counterpart_path("/tmp/vimoi-cli-dot_plain") == plain_source)
+assert(batch_queries == 1, "the first rebuild must populate all reverse entries")
+assert(cli.counterpart_path(plain_source) == "/tmp/vimoi-cli-dot_plain")
+assert(calls["fake target-path -- " .. plain_source] == nil, "rebuild must populate forward entries too")
 assert(cli.counterpart_path("/tmp/missing") == "")
 assert(cli.counterpart_path("/tmp/missing") == "")
-assert(calls["fake source-path /tmp/missing"] == 2, "missing source paths must not be cached")
+assert(batch_queries == 3, "reverse misses must rescan instead of caching absence")
 
-local ignored_target, ignored_error = cli.counterpart_path(ignored_source)
-assert(ignored_target == nil and ignored_error and ignored_error:find("not managed", 1, true))
-assert(cli.counterpart_path(ignored_source) == nil)
-assert(calls["fake target-path " .. ignored_source] == 2, "inactive targets must not be cached")
+assert(cli.counterpart_path(missing_source) == "")
+assert(cli.counterpart_path(source_root .. "/.chezmoitemplates/missing") == "")
+assert(batch_queries == 3, "missing/source-only source paths must not enumerate")
 
 local sibling_path = source_root .. "-other/dot_file"
-assert(cli.counterpart_path(sibling_path) == source_file)
-assert(calls["fake source-path " .. sibling_path] == 1, "source-root prefix must end at a directory boundary")
+assert(cli.counterpart_path(sibling_path) == "")
+assert(batch_queries == 4, "source-root prefix must end at a directory boundary")
 
 assert(run_async(cli.data).chezmoi.sourceDir == source_root)
 assert(run_async(cli.data).chezmoi.sourceDir == source_root)
@@ -92,7 +100,7 @@ assert(run_async(cli.data).chezmoi.sourceDir == source_root)
 assert(cli.counterpart_path("/tmp/vimoi-cli-target") == source_file)
 vim.api.nvim_set_current_dir(working_directory)
 assert(calls["fake data --format=json"] == 1, "changing cwd must reuse cached data")
-assert(calls["fake source-path /tmp/vimoi-cli-target"] == 1, "changing cwd must reuse cached paths")
+assert(batch_queries == 4, "changing cwd must reuse cached paths")
 
 run_async(cli.run, { "cat", "/tmp/target" })
 run_async(cli.run, { "cat", "/tmp/target" })

@@ -31,6 +31,7 @@ require("vimoi").setup({ chezmoi_executable = wrapper, diagnostics = { enabled =
 local filetype = require("vimoi.editor.filetype")
 local cli = require("vimoi.core.cli")
 
+local initial_queries = #vim.fn.readfile(log)
 for name, expected in pairs({
   ["dot_zshrc.tmpl"] = "zsh",
   ["private_dot_bashrc.tmpl"] = "sh",
@@ -39,11 +40,10 @@ for name, expected in pairs({
   ["readonly_dot_bash_profile"] = "sh",
   ["private_dot_config/plain.lua"] = "lua",
 }) do
-  local before = #vim.fn.readfile(log)
   assert(filetype.host_filetype(source .. "/" .. name) == expected, name)
-  assert(#vim.fn.readfile(log) == before + 2, "expected target-path and reverse source-path lookup")
+  assert(#vim.fn.readfile(log) == initial_queries + 1, "all source types must share one batch query")
   assert(filetype.host_filetype(source .. "/" .. name) == expected, name)
-  assert(#vim.fn.readfile(log) == before + 2, "host detection did not reuse the CLI path cache")
+  assert(#vim.fn.readfile(log) == initial_queries + 1, "host detection did not reuse the CLI path cache")
 end
 assert(not vim.uv.fs_stat(destination), "type detection must not create the target")
 
@@ -58,7 +58,7 @@ assert(filetype.host_filetype(source .. "/unmanaged.lua.tmpl") == "lua", "failed
 cli.invalidate("paths")
 before = #vim.fn.readfile(log)
 assert(filetype.host_filetype(source .. "/dot_zshrc.tmpl") == "zsh")
-assert(#vim.fn.readfile(log) == before + 2, "path invalidation did not refresh host detection")
+assert(#vim.fn.readfile(log) == before + 1, "path invalidation did not refresh host detection")
 
 for name, expected in pairs({
   dot_zprofile = "zsh",

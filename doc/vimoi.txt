@@ -151,8 +151,19 @@ detect edits made outside this Neovim instance. Forced mode can duplicate events
 if filesystem watching is actually working.
 
 Path lookups and `chezmoi data` share a global cache across working directories
-with no automatic expiry. Source paths are queried again if their source files
-disappear. The CLI also caches up to 32 rendered template structures; literal
+with no automatic expiry. Ordinary path mappings start empty. A miss in either
+direction, including a missing cached source, enumerates local non-hidden source
+files and resolves them in one `chezmoi target-path` call before trying again.
+The rebuild fills both directions for all files. Misses are not cached.
+Successful rebuilds replace old mappings; query failures preserve the old cache.
+Path lookup never calls `source-path` with targets, evaluates ignore rules, or
+fetches externals. It describes filename correspondence, not deployment status;
+ignored local files can still have counterparts. Hidden entries, filesystem
+symlinks and archive-only external entries are not part of the enumerated index.
+Filenames containing newlines cannot be indexed. Multiple local sources for one
+target report a conflict when discovered. Existing entries remain cached until
+their source disappears or the paths/all cache is invalidated.
+The CLI also caches up to 32 rendered template structures; literal
 text is restored locally. Template execution is otherwise uncached unless
 explicitly requested internally. Unchanged text can reuse the last complete
 source map, checked against the CLI's invalidation version. `chezmoi cat`
@@ -160,8 +171,8 @@ is never cached. Configuration
 and discovered data/template directories are watched for changes, including
 external writes and atomic saves. Changes below `.chezmoitemplates` clear only
 template results and derived source maps, preserving cached paths/data.
-Exact `.chezmoiignore` files invalidate only path mappings. Other `.chezmoi*`
-names are not treated as cache dependencies merely because of their prefix.
+Ignore files do not affect the local path index. Other `.chezmoi*` names are not
+treated as cache dependencies merely because of their prefix.
 Template/data/config invalidation also schedules refreshes of open diff/preview
 views, including other tabs. Source sessions schedule fresh rendering for loading
 views too. Refresh never writes a real source or target file. Other cached queries
@@ -365,7 +376,7 @@ COMMANDS                                                       *vimoi-commands*
                                                                *:VimoiDiff*
 :VimoiDiff
     Open a diff for the current target or chezmoi source file. The other path
-    is resolved using `chezmoi source-path` or `chezmoi target-path`.
+    is resolved through the local source/target index using `chezmoi target-path`.
 
 :VimoiDiff {source} {target}
     Open a diff for an explicit pair of files. This is useful for testing and
@@ -691,11 +702,11 @@ glob or template name has multiple matches, |vim.ui.select()| chooses the
 destination. When the text is not a recognized chezmoi path, or no matching
 file exists, the mapping falls back to Neovim's original `gf` behavior.
 
-Paths resolved in the destination directory are passed through `chezmoi
-source-path`. A managed target therefore opens its source-state file by
-default, avoiding edits that a later apply would overwrite. The destination
-path is used only when the target is unmanaged or has no concrete source
-file, which is common for ignore and remove entries.
+Paths resolved in the destination directory use the shared local path index.
+A target with a corresponding local source opens that source by default. If no
+local source exists, the destination path is used. Path lookup does not evaluate
+ignore rules or fetch externals; archive-only external entries have no indexed
+local source file.
 
 The `gF` mapping uses the same resolver and additionally recognizes
 `path:line` and `path:line:column`. Without a location suffix it behaves like

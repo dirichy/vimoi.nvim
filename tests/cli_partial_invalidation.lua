@@ -16,9 +16,13 @@ cli.run = function(args, opts)
   elseif command == "execute-template" then
     output = tostring(calls[command])
   elseif command == "target-path" then
-    output = "/tmp/vimoi-partial-target"
-  elseif command == "source-path" then
-    output = source_file
+    assert(args[2] == "--" and #args > 3)
+    local targets = {}
+    for index = 3, #args do
+      targets[#targets + 1] = args[index] == source_file and "/tmp/vimoi-partial-target"
+        or "/tmp/vimoi-partial-" .. vim.fs.basename(args[index])
+    end
+    output = table.concat(targets, "\n") .. "\n"
   else
     error("unexpected command: " .. command)
   end

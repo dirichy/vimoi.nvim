@@ -191,7 +191,9 @@ are shown as `[runtime value]` because they can differ during template execution
 ## Path navigation
 
 In templates and symlink sources, `gf` follows includes, shared templates, globs, and symlink paths;
-`gF` also supports `path:line[:column]`. Multiple matches open a picker; managed targets open their source preferentially.
+`gF` also supports `path:line[:column]`. Multiple matches open a picker; targets with local source files open their source preferentially.
+Source/target navigation resolves filenames without downloading externals or evaluating ignore rules.
+After changing configuration or attributes, press `<leader>cr` if an existing mapping is stale.
 Optional [vim-matchup](https://github.com/andymass/vim-matchup), with Tree-sitter matching enabled,
 provides `%` for template blocks. See `:help vimoi-navigation` for path rules.
 

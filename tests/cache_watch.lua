@@ -147,16 +147,13 @@ for _, path in ipairs({
   vim.api.nvim_exec_autocmds("BufWritePost", { pattern = path, modeline = false })
   assert(cli.context_generation == generation, "rule crossed a directory/name boundary: " .. path)
 end
--- Exact ignore rules clear cached source/target mappings, not data or renders.
+-- Local filename correspondence does not evaluate ignore rules or discard the
+-- corresponding local file. Ignore edits do not affect data/render generations.
 local ignore_path = source_root .. "/.chezmoiignore"
 assert(cli.counterpart_path(managed_source) == test_root .. "/target/.watch_target")
 vim.fn.writefile({ ".watch_target" }, ignore_path)
-assert(
-  vim.wait(2000, function()
-    return cli.counterpart_path(managed_source) == nil
-  end, 20),
-  "ignore changes must expire a previously cached path"
-)
+vim.api.nvim_exec_autocmds("BufWritePost", { pattern = ignore_path, modeline = false })
+assert(cli.counterpart_path(managed_source) == test_root .. "/target/.watch_target")
 assert(cli.context_generation == generation and run_async(cli.data) == cached_data)
 
 vim.fn.writefile({}, ignore_path)
