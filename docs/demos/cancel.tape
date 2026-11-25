@@ -16,6 +16,7 @@ Type ":VimoiPreview"
 Enter
 Sleep 1800ms
 Screenshot docs/demos/output/cancel.png
+Sleep 300ms
 Hide
 Type ":lua _G.vimoi_demo_cancel_job = require('vimoi.render').get(vim.fn.bufnr(vim.g.vimoi_demo.source)).job"
 Enter

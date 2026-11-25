@@ -8,7 +8,7 @@
 
 原 `lua/vimoi/gotmpl/` 同时包含渲染、窗口和写回逻辑，不能整体准确地称为 render。
 内部模块按五个主要职责归组；顶层只保留 `init.lua`、`api.lua`、`blink.lua` 和 `health.lua`
-这四个配置、用户操作及 Neovim 集成入口。顶层另有实验性 `parser.lua`，只提供
+这些配置、用户操作及 Neovim 集成入口，另有可选的 `conform.lua` 格式化适配。顶层另有实验性 `parser.lua`，只提供
 `collect_template_tags(source)`；它不实现 AST，也不模拟 Tree-sitter 的节点 API。
 
 | 目录 | 模块与职责 |
@@ -17,7 +17,7 @@
 | `render/` | `init` 按 source session 管理 source 级校验、渲染、输出 buffer、防抖、缓存和订阅；`source_map` 管理模板结构、哨兵和位置映射 |
 | `compare/` | `init` 统一打开 diff/preview 并管理窗口生命周期；`diff_hunks` 计算差异块及 source 投射；`native_diff`、`sync_scroll` 处理原生 diff 适配及滚动同步 |
 | `merge/` | `init` 统一显式写回流程；`plan` 负责模板合并规划与转义 |
-| `editor/` | `filetype`、`lazyload` 管理文件类型与加载；`highlight`、`host_highlight`、`diagnostic`、`goto` 管理高亮、诊断和导航 |
+| `editor/` | `filetype`、`lazyload` 管理文件类型与加载；`highlight`、`host_highlight`、`diagnostic`、`goto` 管理高亮、诊断和导航；`format` 用 gotmpl 语法树整理行首标签缩进 |
 
 `render/init.lua` 是共享渲染服务入口，直接加载为 `require("vimoi.render")`；
 内部每个 source 的渲染状态仍称 session，相关类型和生命周期保持不变。
@@ -46,6 +46,33 @@
   调度模块，避免为了依赖分层再引入生命周期协议。
 真正的 `gotmpl` filetype、Tree-sitter parser 和 query 仍使用原名。
 这轮整理不改变渲染算法，不据此声称性能提升。
+
+## 模板标签格式化
+
+`editor/format.lua` 由 `api.format` / `VimoiFormat` 显式调用，不注册自动格式化或默认键位。
+独立解析 gotmpl 语法树；有语法错误或缺少 parser 时拒绝，不使用边界收集器降级。
+按控制节点层级遍历，else/else if/end 属于原控制节点；define/block 正文也可整理。
+对行首只有空白的第一个单行 action 修改缩进，保留尾部文本及同一行后续标签。
+控制节点自己的 if/else/end 保持块层级；直接属于块正文的普通 action 增加一层，
+break/continue/template 等子节点则沿语法树继承正文层级。左 trim 标签修改行首空格/tab，使用
+外部缩进，并将表达式前的内部空白规范为一个空格；这些外部空白必然被当前标签
+的左 trim 消除，因此不改变输出。非左 trim 标签保留外部空白，内部仅补足
+`max(0, depth * width - outer_width)` 个额外空格；必需的一个分隔空格不计为缩进。
+外部宽度超过目标时不删除输出空白。`outer_width` 在指定 buffer 上下文中调用
+原生 `strdisplaywidth` 计算，遵循 tabstop/vartabstop，不手写 tab 展开规则。
+只改空格/tab，不改换行或 trim 标记；至少保留一个内部空格以保持左 trim 有效。
+该语法的 `{{-` token 包含后随空白，内部修改起点必须取实际分隔符字节长度，
+不能直接使用 token 的结束位置。行首修改和内部修改按源码顺序生成字节编辑。
+不改输出文本、表达式 token 或字符串，不执行用户模板。注释不能在 {{ 和 /*
+之间插入缩进，因此保留其内部间距；仅带左 trim 的单行注释允许调整外部缩进。`format_text` 对传入
+文本快照返回候选和字节修改，仅借助传入 buffer 计算 tab 显示宽度，不读取其文本
+或修改 buffer；命令入口和 `vimoi.conform` 共享
+此函数。Conform adapter 只实现 Lua formatter 回调，处理它传入的 lines，包括前序
+formatter 的输出；由 Conform 应用修改、dry-run、范围过滤和过期结果检查，不另建
+scratch buffer，也不自动注册或加载 Conform。命令通过共享
+`buffer_edits.apply` 局部更新，保留 extmark 并合成一次撤销。测试独立执行原始和
+格式化后的模板，对照不同条件、空/重复循环、define/block 与 trim 的输出。
+语法树检查不替代 chezmoi 的函数和表达式验证。
 
 ## 简化配置、滚动与计时
 

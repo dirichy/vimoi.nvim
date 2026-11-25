@@ -10,6 +10,7 @@ README 使用 GIF 直接展示，MP4 保留原始清晰度。录制使用独立 
 | [diff.tape](diff.tape) | 循环展开后的双向同步滚动、原生折叠、do/dp、插入位置选择与撤销 |
 | [readd.tape](readd.tape) | 双向同步滚动，批量写回静态修改并保留动态表达式 |
 | [preview.tape](preview.tape) | 未保存模板实时预览、双向同步滚动、分支切换、撤销和错误恢复 |
+| [format.tape](format.tape) | 控制标签格式化：左 trim 外部缩进、已有外部缩进扣除、撤销/重做，预览输出保持不变 |
 | [highlighting.tape](highlighting.tape) | rendered 宿主高亮、未执行分支、撤销恢复及模板 action 背景 |
 | [completion.tape](completion.tape) | 真实 blink.cmp 菜单：data、函数、局部变量、路径和块 snippet |
 | [diagnostics.tape](diagnostics.tape) | 模板语法及执行错误，nvim-lint + luac 宿主诊断及修复 |
@@ -27,14 +28,14 @@ symlink 路径及原生跳转回退仍由测试覆盖。LSP 与 nvim-lint 的宿
 这套实录使用真实 nvim-lint；chezmoi merge 外部编辑器流程不另录。
 
 顶部只展示 diff、静态写回和 preview 三段主演示；其余实录放在 README
-对应功能介绍中，另外两种高亮模式提供 MP4 链接；全部十三个场景参与构建和发布。高亮配置在启动时一次传入，不在回放中重复 setup。
+对应功能介绍中，另外两种高亮模式提供 MP4 链接；全部十四个场景参与构建和发布。高亮配置在启动时一次传入，不在回放中重复 setup。
 
 ## 本地构建与查看
 
 从仓库根目录运行：
 
 ```sh
-# 构建全部十三段：录制、回放验证、GIF 转换、播放索引和本地 README。
+# 构建全部十四段：录制、回放验证、GIF 转换、播放索引和本地 README。
 python3 docs/demos/build.py
 
 # 只重录指定场景。
@@ -72,7 +73,10 @@ Lua 测试支持 Neovim 0.11+，可通过 `--nvim /path/to/nvim` 选择版本；
 
 `verify.lua` 检查真实回放结果：补全菜单、snippet、诊断、模板表达式保留、依赖刷新、跳转记录、未保存修改、上下分屏和真实任务取消等。
 三段核心演示共用 [common/scroll.tape](common/scroll.tape)，验证 source 和 output 两个方向都确实带动对侧视口。
-验证失败或未运行到验证步骤时构建失败。直接运行 VHS 需自行提供 `VIMOI_DEMO` 和 `VIMOI_DEMO_RESULT`，建议统一使用构建脚本。
+验证失败或未运行到验证步骤时构建失败。重录前会清除该场景旧的 JSON、PNG、MP4 和 GIF，
+避免旧产物掩盖截图或编码失败。VHS 的 `Screenshot` 预约下一帧，截图后须保留 300ms 的
+可见录制，再执行后续操作或 `Hide`，避免截图遗漏或截到下一阶段。
+直接运行 VHS 需自行提供 `VIMOI_DEMO` 和 `VIMOI_DEMO_RESULT`，建议统一使用构建脚本。
 
 ## 依赖
 

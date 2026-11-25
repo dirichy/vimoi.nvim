@@ -53,6 +53,7 @@ opts = {
 
 See `:help vimoi-setup` for all options. Configure the plugin once at startup;
 restart Neovim after changing options.
+See [Plugin integrations](#plugin-integrations) for optional plugin setup.
 
 ## Usage
 
@@ -130,33 +131,10 @@ See `:help vimoi-highlighting` and `:help vimoi-diagnostics`.
 
 ## Completion
 
-Register the source in your blink.cmp configuration:
-
-```lua
-require("blink.cmp").setup({
-  completion = {
-    accept = {
-      auto_brackets = {
-        blocked_filetypes = { "gotmpl" },
-      },
-    },
-  },
-  sources = {
-    default = { "lsp", "path", "snippets", "buffer", "vimoi" },
-    providers = {
-      vimoi = {
-        name = "Vimoi",
-        module = "vimoi.blink",
-        score_offset = 100,
-      },
-    },
-  },
-})
-```
+For setup, see [Plugin integrations → blink.cmp](#blinkcmp).
 
 Completes functions, data fields, local variables, paths, and block snippets. With no `gotmpl` parser, completion falls
 back to line-local action detection and buffer-wide variable-name matching, so the menu may contain extra candidates.
-`blocked_filetypes` prevents automatic parentheses on template function completions.
 
 Control value masking in vimoi's setup options:
 
@@ -194,8 +172,8 @@ In templates and symlink sources, `gf` follows includes, shared templates, globs
 `gF` also supports `path:line[:column]`. Multiple matches open a picker; targets with local source files open their source preferentially.
 Source/target navigation resolves filenames without downloading externals or evaluating ignore rules.
 After changing configuration or attributes, press `<leader>cr` if an existing mapping is stale.
-Optional [vim-matchup](https://github.com/andymass/vim-matchup), with Tree-sitter matching enabled,
-provides `%` for template blocks. See `:help vimoi-navigation` for path rules.
+Enable `%` matching for template blocks through the [vim-matchup integration](#vim-matchup).
+See `:help vimoi-navigation` for path rules.
 
 ![Source/target switching preserves unsaved edits; gf/gF navigation and vim-matchup block matching](https://github.com/dirichy/vimoi.nvim/releases/download/demos/navigation.gif)
 
@@ -220,6 +198,112 @@ waits can be canceled and have no default timeout.
 
 [Full-resolution dependency refresh demo (MP4)](https://github.com/dirichy/vimoi.nvim/releases/download/demos/dependencies.mp4)
 
+## Template formatting
+
+Run `:VimoiFormat`, or call `require("vimoi.api").format()`, to indent single-line
+actions at the start of a line according to template block nesting. This includes
+assignments, variable output, function and `template` calls, and control actions.
+Trailing text is allowed; only the first action on each line is formatted:
+
+```gotmpl
+{{- if .enabled }}
+  {{- $items := .items }}
+  {{- range $items }}
+{{     .name }}: enabled
+  {{- end }}
+{{- end }}
+```
+
+Requires the `gotmpl` Tree-sitter parser. Actions with left trim (`{{- … }}`) use
+external indentation and one space before the expression inside the action. Other
+actions preserve existing external whitespace and add only the missing indentation
+inside the action. Total indentation is the external display width plus extra
+internal spaces; the required single separator before the expression is not counted.
+If external indentation already exceeds the target, only that separator remains
+inside. Tab display widths follow the buffer's `tabstop` / `vartabstop`. Right
+trim alone (`{{ … -}}`) does not permit external indentation. Uses spaces and the
+buffer's `shiftwidth` (`tabstop` when zero). Newlines, output text, trim markers,
+expression tokens, and comment contents stay untouched. Actions after host text,
+later actions on the same line, and multiline actions are skipped. Comments keep
+their internal spacing; only single-line comments with left trim can have their
+external indentation changed. Tree-sitter syntax errors prevent edits. The command
+does not execute templates, format the host language, or save files. Undo restores
+the whole change. No default mapping is installed; `=` and `gq` retain their usual behavior.
+
+For Conform setup, see [Plugin integrations → conform.nvim](#conformnvim).
+
+![Format template controls, undo and redo while preview output stays unchanged](https://github.com/dirichy/vimoi.nvim/releases/download/demos/format.gif)
+
+[Formatting demo (MP4)](https://github.com/dirichy/vimoi.nvim/releases/download/demos/format.mp4)
+
+## Plugin integrations
+
+These plugins are optional. Install the ones you need and merge the examples into
+each plugin's existing configuration.
+
+### blink.cmp
+
+Register Vimoi's completion source in [blink.cmp](https://github.com/Saghen/blink.cmp):
+
+```lua
+require("blink.cmp").setup({
+  completion = {
+    accept = {
+      auto_brackets = {
+        blocked_filetypes = { "gotmpl" },
+      },
+    },
+  },
+  sources = {
+    default = { "lsp", "path", "snippets", "buffer", "vimoi" },
+    providers = {
+      vimoi = {
+        name = "Vimoi",
+        module = "vimoi.blink",
+        score_offset = 100,
+      },
+    },
+  },
+})
+```
+
+`blocked_filetypes` prevents automatic parentheses on template function completions.
+See [Completion](#completion) for features and value masking options.
+
+### vim-matchup
+
+Install [vim-matchup](https://github.com/andymass/vim-matchup) and enable Tree-sitter
+matching before loading it:
+
+```lua
+vim.g.matchup_treesitter_enabled = true
+```
+
+Requires the `gotmpl` Tree-sitter parser. Vimoi supplies template block matching
+queries so `%` can navigate `if` / `else` / `end`, `range`, `with`, `define`, and `block`.
+
+### conform.nvim
+
+To use [conform.nvim](https://github.com/stevearc/conform.nvim), merge these fields
+into your existing Conform configuration:
+
+```lua
+require("conform").setup({
+  formatters_by_ft = {
+    gotmpl = { "vimoi" },
+  },
+  formatters = {
+    vimoi = require("vimoi.conform"),
+  },
+})
+```
+
+Then use `require("conform").format()` or your existing formatting mapping.
+Format on save follows Conform's `format_on_save` configuration. No additional
+executable is needed. This formatter uses the same template indentation
+rules as `:VimoiFormat`, without formatting the host language.
+See [Template formatting](#template-formatting) for behavior and a demo.
+
 ## Lua API
 
 `require("vimoi.api").diff_buffers(source_buf, target_buf, { filetype = "yaml" })`
@@ -242,7 +326,8 @@ and template navigation. Their focus differs. This comparison uses
 | Host highlighting | Rendered output projection by default, optional injection | Tree-sitter injection |
 | Diagnostics | Template checks as you edit, plus LSP / nvim-lint host checks | Template execution checks on save |
 | Completion | Functions, data fields, locals, paths, block snippets; optional filtered data value docs | Functions, data fields with value docs, sensitive-field masking, block snippets |
-| Template formatting, target icons, transparent encryption | Not provided | Conform, mini.icons, optional decrypt/encrypt |
+| Template formatting | Indent line-leading actions, preserving output text | Conform host formatting and directive indentation |
+| Target icons, transparent encryption | Not provided | mini.icons, optional decrypt/encrypt |
 | File selection and deployment | Managed-file picker and source / target toggle; deploy with the CLI | Multiple file pickers, apply commands, apply on save by default |
 | Default mappings | Global shortcuts, can be disabled | Opt-in source-buffer mappings |
 | Neovim requirement | 0.11+ | 0.10+ |
@@ -257,7 +342,7 @@ See the [implementation comparison and historical research](docs/plugin-comparis
 - Custom template delimiters and templates producing different results under `chezmoi cat` and `apply` are unsupported.
 - Source templates and rendered output must be valid UTF-8 text.
 - Encrypted files, symlinks, and script sources are unsupported by plain text ReAdd.
-- Formatting, icons, file browsing, and apply commands are not provided; deploy with the chezmoi CLI.
+- Host-language formatting, icons, file browsing, and apply commands are not provided; deploy with the chezmoi CLI.
 - Transparent editing of chezmoi-encrypted source is not provided. For repository encryption, we recommend [git-crypt](https://github.com/AGWA/git-crypt): unlocked templates are directly editable, and the local working tree is plaintext. See [chezmoi transparent encryption](https://www.chezmoi.io/user-guide/encryption/transparent/).
 
 See `:help vimoi-limitations` for further constraints.

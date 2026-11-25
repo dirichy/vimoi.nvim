@@ -42,7 +42,9 @@ output.mkdir(exist_ok=True)
 for name in selected:
     result = output / f"{name}.json"
     if not args.check:
-        result.unlink(missing_ok=True)
+        # Require fresh primary artifacts; old local media must not hide a failed capture.
+        for extension in ["json", "png", "mp4", "gif"]:
+            (output / f"{name}.{extension}").unlink(missing_ok=True)
     env = dict(os.environ, VIMOI_DEMO=name, VIMOI_DEMO_RESULT=str(result))
     print(f"{'Checking' if args.check else 'Recording'} {name} ...", flush=True)
     with tempfile.TemporaryDirectory(prefix="vimoi-record-") as state:

@@ -50,6 +50,7 @@ opts = {
 ```
 
 全部选项见 `:help vimoi-setup`。配置在启动时一次传入，修改后重启 Neovim。
+可选插件的配置统一见[插件整合](#插件整合)。
 
 ## 使用
 
@@ -124,33 +125,10 @@ Injection 模式缺少宿主 parser 时，直接在模板上使用 Vim syntax，
 
 ## 补全
 
-在 blink.cmp 配置中注册 source：
-
-```lua
-require("blink.cmp").setup({
-  completion = {
-    accept = {
-      auto_brackets = {
-        blocked_filetypes = { "gotmpl" },
-      },
-    },
-  },
-  sources = {
-    default = { "lsp", "path", "snippets", "buffer", "vimoi" },
-    providers = {
-      vimoi = {
-        name = "Vimoi",
-        module = "vimoi.blink",
-        score_offset = 100,
-      },
-    },
-  },
-})
-```
+补全配置见[插件整合 → blink.cmp](#blinkcmp)。
 
 补全函数、data 字段、局部变量、路径和模板块 snippet。没有 `gotmpl` parser 时，action 判断退回当前行正则，变量名从整个
 buffer 搜索，因此菜单可能出现额外候选。
-`blocked_filetypes` 防止补全模板函数时自动添加圆括号。
 
 在 vimoi 的 setup 选项中控制值的遮盖：
 
@@ -185,8 +163,8 @@ require("vimoi").setup({
 `gF` 还支持 `path:line[:column]`。多个匹配通过 picker 选择，有本地 source 的 target 优先打开 source。
 source/target 跳转按文件名解析，不下载 externals，也不执行 ignore 规则。
 修改配置或文件属性后，如果已有映射过时，可按 `<leader>cr` 手动刷新。
-安装 [vim-matchup](https://github.com/andymass/vim-matchup) 并启用 Tree-sitter 匹配后，
-可用 `%` 跳转模板控制块。路径规则见 `:help vimoi-navigation`。
+模板控制块的 `%` 匹配可通过 [vim-matchup 整合](#vim-matchup) 启用。
+路径规则见 `:help vimoi-navigation`。
 
 ![切换 source/target 保留未保存修改，gf/gF 跳转及 vim-matchup 块匹配](https://github.com/dirichy/vimoi.nvim/releases/download/demos/navigation.gif)
 
@@ -209,6 +187,105 @@ data、配置和已发现的共享模板变化后自动刷新。若结果未更�
 
 [完整清晰度的依赖刷新实录（MP4）](https://github.com/dirichy/vimoi.nvim/releases/download/demos/dependencies.mp4)
 
+## 模板格式化
+
+执行 `:VimoiFormat`，或调用 `require("vimoi.api").format()`，按控制块层级整理行首
+的单行标签，包括赋值、变量输出、函数和 `template` 调用，以及控制标签。
+标签后可以有文本，只调整每行第一个标签：
+
+```gotmpl
+{{- if .enabled }}
+  {{- $items := .items }}
+  {{- range $items }}
+{{     .name }}: enabled
+  {{- end }}
+{{- end }}
+```
+
+需要 `gotmpl` Tree-sitter parser。带左 trim 的 `{{- … }}` 使用标签外部缩进，
+内部表达式前保留一个空格；其他标签保留原有外部空白，仅在内部补足目标层级
+尚缺的缩进。总缩进按“外部显示宽度 + 内部额外空格”计算，不计表达式前必需的
+一个分隔空格。外部缩进已超过目标时，内部只留分隔空格，不删外部空白。
+tab 宽度遵循该 buffer 的 `tabstop` / `vartabstop`。仅带右 trim 的
+`{{ … -}}` 不使用外部缩进。宽度遵循当前 buffer 的 `shiftwidth`（为 0 时取
+`tabstop`），始终使用空格。不改换行、输出文本、trim 标记、表达式和注释。
+行首有宿主文本时、同一行后续的标签及多行标签均跳过。注释内容和内部间距保持原样；
+单行注释仅在带左 trim 时调整外部缩进。Tree-sitter 检出语法错误时拒绝修改。
+不执行模板、不格式化宿主语言、不自动保存；一次撤销可恢复。
+此命令不设默认快捷键，也不接管 `=` 或 `gq`。
+
+Conform 配置见[插件整合 → conform.nvim](#conformnvim)。
+
+![控制标签格式化、撤销和重做，预览输出保持不变](https://github.com/dirichy/vimoi.nvim/releases/download/demos/format.gif)
+
+[格式化演示（MP4）](https://github.com/dirichy/vimoi.nvim/releases/download/demos/format.mp4)
+
+## 插件整合
+
+以下插件均为可选依赖，按需安装，并将配置合并到各插件的现有配置中。
+
+### blink.cmp
+
+使用 [blink.cmp](https://github.com/Saghen/blink.cmp) 时，注册 Vimoi 补全 source：
+
+```lua
+require("blink.cmp").setup({
+  completion = {
+    accept = {
+      auto_brackets = {
+        blocked_filetypes = { "gotmpl" },
+      },
+    },
+  },
+  sources = {
+    default = { "lsp", "path", "snippets", "buffer", "vimoi" },
+    providers = {
+      vimoi = {
+        name = "Vimoi",
+        module = "vimoi.blink",
+        score_offset = 100,
+      },
+    },
+  },
+})
+```
+
+`blocked_filetypes` 防止补全模板函数时自动添加圆括号。
+补全能力和值遮盖选项见[补全](#补全)。
+
+### vim-matchup
+
+安装 [vim-matchup](https://github.com/andymass/vim-matchup)，并在其加载前启用
+Tree-sitter 匹配：
+
+```lua
+vim.g.matchup_treesitter_enabled = true
+```
+
+需要 `gotmpl` Tree-sitter parser。Vimoi 提供模板块匹配查询，`%` 可在
+`if` / `else` / `end`、`range`、`with`、`define` 和 `block` 之间跳转。
+
+### conform.nvim
+
+接入 [conform.nvim](https://github.com/stevearc/conform.nvim)，将以下配置合并到现有
+Conform 配置中：
+
+```lua
+require("conform").setup({
+  formatters_by_ft = {
+    gotmpl = { "vimoi" },
+  },
+  formatters = {
+    vimoi = require("vimoi.conform"),
+  },
+})
+```
+
+之后继续使用 `require("conform").format()` 或已有格式化快捷键；保存时格式化遵循
+Conform 的 `format_on_save` 配置。无需额外可执行文件。
+与 `:VimoiFormat` 使用相同的模板标签缩进规则，不格式化宿主语言。
+具体行为和演示见[模板格式化](#模板格式化)。
+
 ## Lua API
 
 `require("vimoi.api").diff_buffers(source_buf, target_buf, { filetype = "yaml" })`
@@ -230,7 +307,8 @@ data、配置和已发现的共享模板变化后自动刷新。若结果未更�
 | 宿主高亮 | 默认映射渲染结果，也可 injection | Tree-sitter injection |
 | 诊断 | 编辑时模板检查，以及 LSP / nvim-lint 宿主检查 | 保存时模板执行检查 |
 | 补全 | 函数、data 字段、局部变量、路径和块片段；可选 data 值说明与过滤 | 函数、data 字段与值说明、敏感字段遮盖、块片段 |
-| 模板格式化、目标图标、透明加密 | 未提供 | Conform、mini.icons、可选加解密 |
+| 模板格式化 | 行首标签缩进，保留输出文本 | Conform 宿主格式化及指令缩进 |
+| 目标图标、透明加密 | 未提供 | mini.icons、可选加解密 |
 | 文件选择与部署 | 受管理文件选择、source / target 切换，部署使用 CLI | 多种文件 picker、apply 命令，默认保存后 apply |
 | 默认键位 | 全局快捷键，可关闭 | 可选的 source buffer 局部键位 |
 | Neovim 要求 | 0.11+ | 0.10+ |
@@ -244,7 +322,7 @@ data、配置和已发现的共享模板变化后自动刷新。若结果未更�
 - 不支持自定义模板分隔符，或在 `chezmoi cat` 与 `apply` 下产生不同结果的模板。
 - source 模板和渲染结果须为合法 UTF-8 文本。
 - 加密文件、symlink 和脚本 source 不支持普通文本 ReAdd。
-- 不提供格式化、图标、文件浏览或 apply 命令，部署继续使用 chezmoi CLI。
+- 不提供宿主语言格式化、图标、文件浏览或 apply 命令，部署继续使用 chezmoi CLI。
 - 不提供 chezmoi 加密 source 的透明编辑。若只需保护仓库内容，更推荐 [git-crypt](https://github.com/AGWA/git-crypt)：解锁后的模板可直接编辑，本地工作区以明文落盘。参见 [chezmoi 透明加密说明](https://www.chezmoi.io/user-guide/encryption/transparent/)。
 
 更多限制见 `:help vimoi-limitations`。

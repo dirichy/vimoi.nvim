@@ -36,6 +36,7 @@
 | 宿主语言高亮 | 普通模板按真实 target 路径识别宿主语言，复用 CLI 路径缓存；默认渲染高亮、可选 gotmpl injection、模板背景色、脚本 shebang 与无 parser 时的 syntax 回退，特殊文件保留自身规则 |
 | 路径跳转 | 增强 gf / gF，支持 include、includeTemplate、template、glob、ignore/remove、symlink 等；多匹配使用 picker |
 | blink.cmp 补全 | 常用模板函数、data 字段、局部变量和 chezmoi 路径；action 外有 if/ifelse/range/with/define/block/comment snippet。可选 data 值说明，通过布尔值或完整字段路径函数控制展示并过滤嵌套值。目前只集成 blink |
+| 模板格式化 | `VimoiFormat` / `api.format`，可选 `vimoi.conform` 集成；基于 gotmpl 语法树，调整行首单行标签缩进，包括赋值、输出、调用及控制标签；保留尾部文本，左 trim 标签采用外部缩进，其余采用内部缩进；支持嵌套与单步撤销，保留输出文本和 trim，不执行模板 |
 | 模板块匹配 | 为可选 vim-matchup 提供 Tree-sitter 查询，支持 trim、嵌套和 else 链；不自行覆盖 `%` |
 | 缓存失效与监听 | 配置、已发现的 data / include 模板目录及 ignore 路径监听；支持编辑器外变化、按 scope 失效和保存事件兜底。渲染上下文失效后自动刷新所有打开的视图，不写回真实文件 |
 | init 模板 | 识别 `.chezmoi.{toml,yaml,yml,json,jsonc}.tmpl`，映射 config 路径，使用 `execute-template --init` |

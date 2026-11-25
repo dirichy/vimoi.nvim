@@ -1,5 +1,15 @@
 local M = {}
 
+---Indent line-leading template actions without changing output text.
+---@param buf? integer Defaults to the current buffer.
+---@return boolean? changed Nil on failure.
+function M.format(buf)
+  if not buf or buf == 0 then
+    buf = vim.api.nvim_get_current_buf()
+  end
+  return require("vimoi.editor.format").format(buf)
+end
+
 ---Discard selected cached results and rescan file watches.
 ---@param scope? VimoiCacheScope Defaults to all; data also clears templates.
 function M.invalidate_cache(scope)
@@ -170,6 +180,9 @@ end
 ---Register commands and global entry mappings during plugin setup.
 ---@private
 M.register = require("vimoi.core.util").once(function()
+  vim.api.nvim_create_user_command("VimoiFormat", function()
+    M.format()
+  end, { desc = "Indent line-leading template actions without changing output text" })
   vim.api.nvim_create_user_command("VimoiFiles", M.files, { desc = "Pick a managed chezmoi source file" })
   vim.api.nvim_create_user_command("VimoiToggle", function(args)
     M.toggle(args.fargs[1])

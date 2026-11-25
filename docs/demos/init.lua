@@ -100,6 +100,7 @@ local titles = {
   cancel = "Cancel slow work and keep editing",
   injection = "Injection highlighting / both branches",
   disabled = "Template highlighting / host colors disabled",
+  format = "Format template controls / undo / redo",
 }
 vim.g.vimoi_demo_stage = ""
 vim.opt.statusline = " vimoi.nvim / %{g:vimoi_demo_stage == '' ? "
@@ -189,7 +190,9 @@ assert(vim.uv.fs_chmod(wrapper, 493))
 local source = source_root .. "/app.yaml.tmpl"
 local fixture = { config = config, source_root = source_root, target_root = target_root }
 
-local template_fixture = demo == "diff" and "diff.yaml.tmpl" or "app.yaml.tmpl"
+local template_fixture = demo == "format" and "format.yaml.tmpl"
+  or demo == "diff" and "diff.yaml.tmpl"
+  or "app.yaml.tmpl"
 vim.fn.writefile(vim.fn.readfile("docs/demos/" .. template_fixture), source)
 if demo == "diff" or demo == "readd" then
   local target = target_root .. "/app.yaml"
@@ -299,6 +302,27 @@ if demo == "buffers" then
   vim.api.nvim_set_current_buf(fixture.source_buf)
 else
   vim.cmd.edit(vim.fn.fnameescape(source))
+end
+
+if demo == "format" then
+  vim.bo.shiftwidth = 2
+  local source_buf = vim.api.nvim_get_current_buf()
+  local original = table.concat(vim.api.nvim_buf_get_lines(source_buf, 0, -1, false), "\n")
+  observed.format_states = { original }
+  vim.api.nvim_create_autocmd("TextChanged", {
+    buffer = source_buf,
+    callback = function()
+      local text = table.concat(vim.api.nvim_buf_get_lines(source_buf, 0, -1, false), "\n")
+      if observed.format_states[#observed.format_states] ~= text then
+        observed.format_states[#observed.format_states + 1] = text
+      end
+    end,
+  })
+  local rendered = vim
+    .system({ wrapper, "--config", config, "execute-template" }, { text = true, stdin = original .. "\n" })
+    :wait()
+  assert(rendered.code == 0, rendered.stderr)
+  fixture.format_output = rendered.stdout
 end
 
 vim.g.vimoi_demo = fixture

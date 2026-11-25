@@ -8,7 +8,42 @@ local ok, result = xpcall(function()
   assert(vim.api.nvim_buf_is_loaded(source_buf), "source is no longer loaded")
   local source = table.concat(vim.api.nvim_buf_get_lines(source_buf, 0, -1, false), "\n")
   assert(vim.v.errmsg == "" or (demo == "cancel" and vim.v.errmsg == "vimoi preview: command cancelled"), vim.v.errmsg)
-  if demo == "navigation" then
+  if demo == "format" then
+    local original = table.concat(vim.fn.readfile(fixture.source), "\n")
+    local expected = table.concat({
+      "# Left trim: move indentation outside tags",
+      "servers:",
+      "{{- if true }}",
+      '  {{- range (list "alpha" "beta") }}',
+      '    {{- if ne . "" }}',
+      "  - {{ . | quote }}",
+      "    {{- end }}",
+      "  {{- end }}",
+      "{{- else }}",
+      "  - none",
+      "{{- end }}",
+      "",
+      "# No left trim: keep outside, fill inside",
+      "{{ if true}}",
+      "  {{ if true}}",
+      "    {{ with .name}}",
+      "name: {{ . | quote }}",
+      "    {{ end}}",
+      "  {{ end}}",
+      "{{ end}}",
+    }, "\n")
+    assert(source == expected, "formatting produced unexpected indentation")
+    assert(
+      vim.deep_equal(observed.format_states, { original, expected, original, expected }),
+      "format / undo / redo states were not observed"
+    )
+    assert(vim.bo[source_buf].modified, "formatting saved the source")
+    assert(view and view.preview and not view.loading, "format preview is not ready")
+    assert(
+      require("vimoi.core.util").buffer_text(view.target_buf) == fixture.format_output,
+      "formatting changed rendered output"
+    )
+  elseif demo == "navigation" then
     for _, name in ipairs({
       fixture.target_root .. "/app.yaml",
       fixture.source_root .. "/notes.txt",
@@ -109,6 +144,7 @@ local ok, result = xpcall(function()
     host_lines = vim.tbl_keys(observed.host_lines or {}),
     visits = vim.tbl_keys(observed.visits),
     matches = vim.tbl_keys(observed.matches),
+    format_states = observed.format_states,
   }
   return result
 end, debug.traceback)

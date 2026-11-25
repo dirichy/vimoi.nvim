@@ -314,6 +314,41 @@ init 模板使用 --init；已有哨兵限制仍适用。
     也可调用
     `require("vimoi.api").cancel_command()`。没有运行中的命令时不做任何事。
 
+                                                          *:VimoiFormat*
+:VimoiFormat
+    按块层级整理当前 buffer 中行首的单行模板标签。带左 trim 的 {{- … }} 使用外部
+    缩进，内部表达式前保留一个空格；其他标签保留原有外部空白，仅在内部补足
+    目标层级尚缺的缩进。内部额外空格 = max(0, 层级 * 缩进宽度 - 外部显示宽度)，
+    不计表达式前必需的一个分隔空格。外部缩进超过目标时保留外部空白，内部
+    只留分隔空格。tab 宽度遵循该 buffer 的 tabstop / vartabstop。
+    仅带右 trim 不满足外部缩进条件。只改空格/tab，不改换行或 trim 标记。
+    按 if/range/with/define/block 嵌套层级对齐，else/end 与开头对齐，else if
+    不增加层级。赋值、输出、调用、break 和 continue 等普通标签按块正文层级缩进。
+    行首标签后可以有文本，尾部文本保持原样；前面已有宿主文本或其他标签的标签、
+    多行标签均跳过，但仍按完整语法树计算层级。保留输出文本和表达式 token。
+    注释内容及内部间距保持原样；单行注释仅在带左 trim 时调整外部缩进。
+    需要 gotmpl Tree-sitter parser；缺少 parser、检测到 Tree-sitter 语法错误或
+    buffer 只读/不可修改时拒绝操作。不以实验性标签收集器代替语法树。
+    始终使用空格，宽度取 buffer 的 shiftwidth（为 0 时取 tabstop）。
+    不执行模板、不格式化宿主语言、不自动保存；一次撤销可恢复。
+    无默认快捷键，不覆盖 = 或 gq。此操作不替代 chezmoi 的表达式校验。
+    Lua：`require("vimoi.api").format({buf})`。
+
+Conform 接入                                                *vimoi-conform*
+
+将下列字段合并到已有 Conform 配置： >lua
+
+    require("conform").setup({
+      formatters_by_ft = { gotmpl = { "vimoi" } },
+      formatters = { vimoi = require("vimoi.conform") },
+    })
+<
+之后使用 require("conform").format() 或已有快捷键；保存时格式化由 Conform 的
+format_on_save 配置控制。Conform 可选，不需要额外可执行文件。与 :VimoiFormat
+共享规则；只返回格式化后的文本，由 Conform 负责应用修改、dry-run、范围过滤及
+撤销。缩进宽度使用 Conform 的 buffer 上下文。语法错误通过 Conform 错误回调报告。
+范围格式化由 Conform 对全文结果过滤，嵌套深度始终根据完整模板计算。
+
                                                           *:VimoiReAdd*
 :VimoiReAdd [path]
     将 target 修改写回 source，保留模板结构。path 可指定 source 或 target，省略时
@@ -610,7 +645,7 @@ ignore/remove 内容作为 destination patterns、symlink 内容作为链接目�
 定义，供路径跳转和事件注册复用。
 `highlight` 统一负责模板颜色、buffer 高亮、宿主语言注入及 Vim syntax 回退。顶层
 setup 启动 CLI 与 watch；CLI 负责查询缓存，包括共享模板目录的发现结果。
-公开接口只包括 setup、下文列出的 vimoi.api 操作及 vimoi.blink 集成。
+公开接口只包括 setup、下文列出的 vimoi.api 操作及 vimoi.blink / vimoi.conform 集成。
 其他模块、session 表及调试数据属于内部实现，不承诺稳定。diff、diff_files、diff_buffers 和 preview
 始终返回 nil，不返回 session；模板渲染异步完成。交互写回操作在等待渲染或选择时也会
 返回 nil，不能据此判断最终成功与否；目前不提供完成回调或 promise。
@@ -751,6 +786,11 @@ require("vimoi.api").get_hunk()
     将另一侧的 hunk 取入当前窗口，等价于 do：source 取入 target 修改，target 取入
     渲染结果。立即成功返回 true，立即取消选择返回 false；失败或等待渲染/选择时返回 nil。
     两个操作都不自动保存文件。
+
+                                         *vimoi.api.format()*
+require("vimoi.api").format({buf})
+    格式化行首模板标签，详见 |:VimoiFormat|。buf 可选，省略或为 0 时取当前
+    buffer。修改返回 true，无需修改返回 false，失败返回 nil 并通知。
 
                                          *vimoi.api.readd()*
 require("vimoi.api").readd({path})

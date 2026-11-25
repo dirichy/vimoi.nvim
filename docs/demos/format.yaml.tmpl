@@ -1,0 +1,20 @@
+# Left trim: move indentation outside tags
+servers:
+  {{- if true }}
+{{-     range (list "alpha" "beta") }}
+{{-   if ne . "" }}
+  - {{ . | quote }}
+    {{- end }}
+{{- end }}
+ {{- else }}
+  - none
+ {{- end }}
+
+# No left trim: keep outside, fill inside
+{{if true}}
+  {{       if true}}
+    {{      with .name}}
+name: {{ . | quote }}
+    {{ end}}
+  {{end}}
+{{end}}

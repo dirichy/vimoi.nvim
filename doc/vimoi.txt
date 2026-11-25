@@ -406,6 +406,49 @@ COMMANDS                                                       *vimoi-commands*
     Default mapping: <leader>cx. Lua: `require("vimoi.api").cancel_command()`.
     Do nothing when no command is running.
 
+                                                          *:VimoiFormat*
+:VimoiFormat
+    Indent line-leading single-line template actions in the current buffer. Actions
+    with left trim ({{- … }}) use external indentation and one internal space
+    before the expression. Other actions preserve existing external whitespace and
+    add only the missing indentation inside. Extra internal spaces equal
+    max(0, depth * shiftwidth - external display width), excluding the required
+    single separator before the expression. Existing external indentation wider
+    than the target stays intact. Tab widths follow the buffer's tabstop and
+    vartabstop. Right trim alone does not permit external indentation.
+    Only spaces/tabs change, never newlines or trim markers.
+    Nesting follows if/range/with/define/block; else/end align with their opener
+    and else if does not add a level. Assignments, output, calls, break and continue
+    inside a block use the body's level. Trailing text after a leading tag is
+    allowed and stays untouched. Actions after host text or earlier tags, and
+    multiline actions, are skipped; their nesting still contributes to depth.
+    Expression tokens and comment contents/spacing stay untouched. Single-line
+    comments may change only external indentation consumed by their left trim.
+    Requires the gotmpl Tree-sitter parser. Missing parsers, Tree-sitter syntax
+    errors and readonly/non-modifiable buffers prevent edits. The experimental
+    boundary collector is not used as a fallback.
+    Uses spaces with the buffer's shiftwidth (tabstop when zero). Does not execute
+    templates, format host text or save files. One undo restores the change.
+    No default mapping; = and gq are unchanged. Does not replace chezmoi expression
+    validation. Lua: `require("vimoi.api").format({buf})`.
+
+Conform integration                                        *vimoi-conform*
+
+Merge these fields into your existing Conform configuration: >lua
+
+    require("conform").setup({
+      formatters_by_ft = { gotmpl = { "vimoi" } },
+      formatters = { vimoi = require("vimoi.conform") },
+    })
+<
+Use require("conform").format() or your existing mapping. Format on save follows
+Conform's format_on_save setting. Conform is optional; no extra executable is
+needed. The adapter shares :VimoiFormat rules and returns text without editing
+the buffer; Conform owns edits, dry runs, range filtering and undo. Indentation
+uses Conform's buffer context. Syntax errors use Conform's error callback.
+For range formatting, Conform filters the full result; nesting depth is always
+computed from the complete template.
+
                                                           *:VimoiReAdd*
 :VimoiReAdd [path]
     Re-add target changes to source. Accept a source
@@ -798,8 +841,8 @@ LUA API                                                            *vimoi-api*
 
 `require("vimoi.api")` contains user actions intended for configuration,
 keymaps, and commands. Module-specific integration and diagnostic functions
-remain internal, except for the documented vimoi.blink integration. Only setup,
-the listed vimoi.api operations and that integration form the public surface.
+remain internal, except for the documented vimoi.blink and vimoi.conform integrations.
+Only setup, the listed vimoi.api operations and these integrations form the public surface.
 Session tables and debugging data are internal. diff, diff_files, diff_buffers and preview
 always return nil, without a session handle; template rendering is asynchronous.
 Interactive writeback also returns nil while rendering or selection is pending,
@@ -994,6 +1037,12 @@ require("vimoi.api").get_hunk()
     Source gets target changes; target gets rendered output. Returns true on
     immediate success, false on immediate choice cancellation, and nil on failure
     or while rendering/selection is pending. Neither operation saves files.
+
+                                         *vimoi.api.format()*
+require("vimoi.api").format({buf})
+    Format line-leading template actions; see |:VimoiFormat|. Optional buf defaults
+    to the current buffer; 0 also means current. Returns true when changed,
+    false when unchanged, or nil on failure with an error notification.
 
                                          *vimoi.api.readd()*
 require("vimoi.api").readd({path})
