@@ -59,6 +59,11 @@ local cli = require("vimoi.core.cli")
 ---@type table<integer, VimoiSyntaxCache>
 local buffer_syntax_cache = {}
 local delimiter_is_opening = { ["{{"] = true, ["{{-"] = true, ["}}"] = false, ["-}}"] = false }
+-- Go's empty-definition check uses Unicode whitespace; trim markers below
+-- remove only the four ASCII whitespace bytes.
+local definition_space = " \t\r\n\v\f"
+  .. vim.fn.list2str({ 0x85, 0xA0, 0x1680, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000 })
+  .. vim.fn.list2str(vim.fn.range(0x2000, 0x200A))
 
 -- Include touching boundaries for zero-width edits so insertion/deletion cannot leave stale tags.
 local function overlaps(start_byte, end_byte, other_start_byte, other_end_byte)
@@ -68,7 +73,7 @@ local function overlaps(start_byte, end_byte, other_start_byte, other_end_byte)
   return start_byte < other_end_byte and end_byte > other_start_byte
 end
 
--- Definitions and blocks stay opaque so their output belongs to the call site.
+-- Defines stay opaque so their output belongs to the call site.
 -- Other control nodes are split into sibling delimiter pairs, preserving body slots.
 -- Partial scans start at complete cached tags or new syntax ranges reported by the parser.
 ---@param node TSNode
@@ -77,7 +82,7 @@ end
 ---@param range_end_byte? integer
 ---@return integer visited_nodes
 local function collect_tags(node, result, range_start_byte, range_end_byte)
-  if node:type() == "define_action" or node:type() == "block_action" then
+  if node:type() == "define_action" then
     local _, _, start_byte = node:start()
     local _, _, end_byte = node:end_()
     result[#result + 1] = {
@@ -362,11 +367,27 @@ function M.parse(source, buf)
     return nil, err
   end
   -- Export fresh objects so later byte shifts cannot mutate an existing trace.
-  local template_tags = {}
+  local template_tags, stack = {}, {}
+  local blocks = { ["if"] = true, range = true, with = true, block = true }
   local controls = { ["if"] = true, range = true, with = true, ["else"] = true, ["end"] = true }
-  for _, tag in ipairs(cached_tags) do
+  for index, tag in ipairs(cached_tags) do
     local text = source:sub(tag.start_byte + 1, tag.end_byte)
-    local keyword = text:match("^{{%-?%s*([%a]+)")
+    local keyword, after = text:match("^{{%-?%s*([%a_][%w_]*)()")
+    if after and (text:byte(after) or 0) >= 128 then
+      keyword = nil
+    end
+    local frame = stack[#stack]
+    if frame and frame.empty then
+      local previous = cached_tags[index - 1]
+      -- A comment is empty; any other action or non-whitespace text makes
+      -- the block nonempty. Nested controls mark their parent before being pushed.
+      if
+        vim.fn.trim(source:sub(previous.end_byte + 1, tag.start_byte), definition_space) ~= ""
+        or (keyword ~= "end" and not text:match("^{{%-?%s*/%*"))
+      then
+        frame.empty = false
+      end
+    end
     template_tags[#template_tags + 1] = {
       start_byte = tag.start_byte,
       end_byte = tag.end_byte,
@@ -375,6 +396,26 @@ function M.parse(source, buf)
       text = text,
       control = controls[keyword] and keyword or nil,
     }
+    if blocks[keyword] then
+      stack[#stack + 1] = { index = #template_tags, keyword = keyword, empty = keyword == "block" }
+    elseif keyword == "end" and frame then
+      table.remove(stack)
+      if frame.empty then
+        -- Keep empty block definitions opaque so tokens cannot change Go's
+        -- whitespace/comment-only redefinition semantics.
+        local opening = template_tags[frame.index]
+        opening.end_byte, opening.right_trim = tag.end_byte, tag.right_trim
+        opening.text = source:sub(opening.start_byte + 1, tag.end_byte)
+        for inner = #template_tags, frame.index + 1, -1 do
+          template_tags[inner] = nil
+        end
+      end
+    end
+  end
+  for _, frame in ipairs(stack) do
+    if frame.keyword == "block" then
+      return nil, "unclosed template definition/block at byte " .. template_tags[frame.index].start_byte
+    end
   end
   local literal_parts = {}
   -- Keep empty slots at file ends and between adjacent tags for boundary insertions and sentinels.

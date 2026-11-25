@@ -60,33 +60,41 @@ for _, case in ipairs(dofile("tests/fixtures/sentinel_cases.lua")) do
   local source = case[2]
   local opts = type(case[3]) == "table" and case[3] or nil
   local baseline = check(source, opts)
-  for changed = 1, #baseline.literal_parts do
-    for _, replacement in ipairs({ "", "new static text\n", " \t 新行\r\n " }) do
-      local previous, following = baseline.template_tags[changed - 1], baseline.template_tags[changed]
-      local first = previous and previous.end_byte or 0
-      local last = following and following.start_byte or #source
-      local edited = source:sub(1, first) .. replacement .. source:sub(last + 1)
-      local before = executions
-      check(edited, opts)
-      assert(executions == before, "literal edit spawned chezmoi: " .. edited)
-      local rebuilt = assert(source_map.rebuild(baseline, edited))
-      assert(rebuilt.output == assert(run_async(source_map.trace, edited, opts)).output)
-      reused = reused + 1
+  -- Block empty/nonempty transitions are covered separately.
+  if not source:match("{{%-?%s*block%s") then
+    for changed = 1, #baseline.literal_parts do
+      for _, replacement in ipairs({ "", "new static text\n", " \t 新行\r\n " }) do
+        local previous, following = baseline.template_tags[changed - 1], baseline.template_tags[changed]
+        local first = previous and previous.end_byte or 0
+        local last = following and following.start_byte or #source
+        local edited = source:sub(1, first) .. replacement .. source:sub(last + 1)
+        local before = executions
+        check(edited, opts)
+        assert(executions == before, "literal edit spawned chezmoi: " .. edited)
+        local rebuilt = assert(source_map.rebuild(baseline, edited))
+        assert(rebuilt.output == assert(run_async(source_map.trace, edited, opts)).output)
+        reused = reused + 1
+      end
     end
   end
 end
 
--- Calls own the whole output of opaque definitions/blocks. No body slot may
--- appear as repeated static text or become a candidate for source writeback.
+-- Defines stay opaque; blocks expose their repeated body slots.
+-- Editing just one execution must not write back to a shared body.
 for _, keyword in ipairs({ "define", "block" }) do
   local argument = keyword == "block" and ' "initial"' or ""
   local definition = "{{ " .. keyword .. ' "item"' .. argument .. " }}static={{ . }};{{ end }}"
   local first_call, second_call = '{{ template "item" "first" }}', '{{ template "item" "second" }}'
   local source = definition .. "\nbefore\n" .. first_call .. "\nmiddle\n" .. second_call .. "\nafter\n"
   local trace = check(source)
-  assert(#trace.template_tags == 3 and trace.template_tags[1].text == definition)
-  for _, part in ipairs(trace.literal_parts) do
-    assert(#part.output_ranges == 1, "opaque bodies must not export repeated slots")
+  if keyword == "define" then
+    assert(#trace.template_tags == 3 and trace.template_tags[1].text == definition)
+    for _, part in ipairs(trace.literal_parts) do
+      assert(#part.output_ranges == 1, "opaque bodies must not export repeated slots")
+    end
+  else
+    assert(#trace.template_tags == 5)
+    assert(#trace.literal_parts[2].output_ranges == 3)
   end
   local output_by_tag = {}
   for _, region in ipairs(source_map.rendered_regions(trace)) do
@@ -95,17 +103,23 @@ for _, keyword in ipairs({ "define", "block" }) do
       output_by_tag[tag] = trace.output:sub(region.output_range.start_byte + 1, region.output_range.end_byte)
     end
   end
-  assert(output_by_tag[first_call] == "static=first;")
-  assert(output_by_tag[second_call] == "static=second;")
-  assert(output_by_tag[definition] == (keyword == "block" and "static=initial;" or nil))
+  if keyword == "define" then
+    assert(output_by_tag[first_call] == "static=first;")
+    assert(output_by_tag[second_call] == "static=second;")
+  end
   local modified = trace.output:gsub("static=first;", "edited=first;")
   local plan = merge_plan.plan(trace, modified, diff_hunks.compute(modified, trace))
   assert(#plan.edits == 0 and #plan.choices == 0 and #plan.skipped > 0, "call output must require manual body edits")
   local edited = source:gsub("static=", "changed=")
-  assert(source_map.rebuild(trace, edited) == nil, "body edits must invalidate the skeleton")
+  local rebuilt = source_map.rebuild(trace, edited)
+  if keyword == "define" then
+    assert(not rebuilt, "define body edits must invalidate the skeleton")
+  else
+    assert(rebuilt and rebuilt.output == trace.output:gsub("static=", "changed="))
+  end
   local before = executions
   check(edited)
-  assert(executions == before + 1, "body edits must render the changed definition")
+  assert(executions == before + (keyword == "define" and 1 or 0))
 end
 
 -- Parser-specific text-node splits must not affect a literal slot's mapping.

@@ -103,6 +103,7 @@ ignore 规则；查询耗时较长时可用 `:VimoiCancel` 取消。
 
 默认同时显示模板语法和宿主语言高亮；未执行分支显示为注释颜色。
 Rendered 模式从完整渲染结果读取 Tree-sitter 或 Vim syntax 颜色，再映射到模板。
+非空 `block` 正文像普通文本一样参与高亮、滚动、diff 和合并。
 可通过 `highlight.mode` 改用 `"injection"`，或设为 `"disabled"` 只保留模板高亮。
 `highlight.template_bg` 可调整模板 action 的背景。
 Injection 模式缺少宿主 parser 时，直接在模板上使用 Vim syntax，属于尽力而为的回退。
@@ -318,7 +319,7 @@ Conform 的 `format_on_save` 配置。无需额外可执行文件。
 
 ## 范围与限制
 
-- 动态、重复输出及 `define` / `block` 正文中的修改通常需要手动编辑 source。
+- 动态、重复输出及 `define` 正文中的修改通常需要手动编辑 source。
 - 不支持自定义模板分隔符，或在 `chezmoi cat` 与 `apply` 下产生不同结果的模板。
 - source 模板和渲染结果须为合法 UTF-8 文本。
 - 加密文件、symlink 和脚本 source 不支持普通文本 ReAdd。

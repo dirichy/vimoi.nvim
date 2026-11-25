@@ -1,14 +1,17 @@
 # 实验性标签收集回退
 
 `lua/vimoi/parser.lua` 只有 `collect_template_tags(source)` 这个接口，返回零起点、右开
-区间以及左右 trim 标志。普通 action 独立返回；define/block 与正文合成不透明区间，
-保持现有 source map 的写回边界。
+区间以及左右 trim 标志。普通 action 和 block 的开闭标签独立返回；define 与正文
+合成不透明区间。source map 在构建片段时折叠纯空白/仅注释的空 block，避免哨兵改变
+Go 的空定义覆盖语义；非空 block 保持透明，其正文复用现有映射和缓存。
 
 内部 tokenizer 流式返回有效的开闭分隔符，不建立 token 数组。它跳过 Go 的双引号字符串、
 字符常量、原始字符串与注释中的伪分隔符；普通文本直接查找下一个 `{{`，正文里的引号或
-反斜杠不会转义它。只在 define/block 内计数控制块嵌套，不建立表达式树、不处理变量作用域，
+反斜杠不会转义它。只在 define 内计数控制块嵌套，不建立表达式树、不处理变量作用域，
 也不验证 pipeline。词法边界按 Go 的 text/template lexer 规则处理，trim 只识别
 空格、tab、CR、LF。未闭合字符串、注释、action 或不透明定义返回错误，不能猜测边界。
+block 的配对、空性判断和未闭合检查由 source map 统一处理，两个解析后端共用。
+空性遵循 Go 的 Unicode 空白规则，与上述 trim 仅移除四种 ASCII 空白的规则不同。
 
 `render/source_map.lua` 继续优先使用原生 Tree-sitter 及已有增量缓存；只有无法获得 gotmpl
 parser 时才调用这个收集器。Tree-sitter 报出的语法错误不会被回退掩盖。这个收集器本身无状态，

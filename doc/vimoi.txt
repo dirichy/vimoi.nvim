@@ -48,7 +48,7 @@ Without gotmpl, an experimental tag collector supports rendering, source
 mapping, preview, diff and static write-back. Completion falls back to
 line-local action detection and buffer-wide `$name` matching, so it may return
 extra candidates and does not provide scope accuracy. The collector only
-recognizes tag boundaries and opaque define/block ranges; chezmoi validates
+recognizes tag boundaries and opaque define ranges; chezmoi validates
 expressions. It does not provide a syntax tree or replace AST-based template
 reference navigation. Tree-sitter syntax errors do not trigger this fallback;
 only an unavailable parser does.
@@ -706,8 +706,9 @@ follow source edits while rendering is pending; successful results replace them.
 Temporary template errors retain the last successful colors. Literal text not executed in the current
 render uses Comment; template actions retain gotmpl highlighting. Loop bodies use
 their first execution, even when later executions have different syntax contexts.
-Opaque define/block bodies have no host-color projection. Use injection mode to
-highlight their contents. Host colors may be absent until the first successful
+Opaque define bodies have no host-color projection. Use injection mode to
+highlight their contents. Nonempty block bodies map like ordinary text, including
+repeated calls, and participate in scroll, diff and merge mappings. Host colors may be absent until the first successful
 render; rendering can execute template functions and invoke password helpers.
 LSP semantic tokens, conceal_lines and spell
 navigation are not projected. Vim syntax projection reads native syntax groups;
@@ -890,12 +891,14 @@ does not register commands or load the diff and path-navigation implementations.
 source-to-output mappings, including incremental syntax and render reuse.
 It also projects literal occurrences and intervening dynamic output into rendered regions.
 Its syntax cache stores complete tag ranges, located through sibling delimiter
-tokens. Entire define/block nodes are opaque tags; other control-action nodes
-are split into individual tags so their bodies retain literal mappings.
+tokens. Entire define nodes are opaque tags; nonempty blocks and other
+control-action nodes are split so their bodies retain literal mappings. Empty
+blocks are collapsed after collection; Tree-sitter and fallback share this check.
 Literal text, including empty insertion slots, is derived from adjacent tags
 after applying whitespace trim.
-Opaque bodies remain unchanged in the skeleton, preserving empty-definition
-semantics. Their edits change the skeleton and require rendering again. Only
+Define bodies and whitespace/comment-only blocks remain unchanged in the
+skeleton, preserving empty-definition semantics. Nonempty block literal edits
+reuse the rendered skeleton; changing block emptiness requires rendering again. Only
 the opening tag's left trim and closing end tag's right trim affect outer slots.
 
 `vimoi.compare.native_diff` adapts mapped hunks to Neovim's diffexpr
@@ -1112,11 +1115,12 @@ see these injected values too. This does not run chezmoi apply or change files.
 Unnamed buffers, unmanaged/source-only files, raw string traces, and init
 templates retain their native execute-template context.
 
-Entire define/block bodies are opaque to source mapping. Each template call
-maps its whole output to its call site, and a block's initial output maps to
-the whole block. Body text, including static text, requires manual source edits.
-No sentinels are inserted inside these bodies, preserving Go's whitespace/comment-only
-empty-definition semantics.
+Entire define bodies remain opaque to source mapping, including blocks inside
+them. Their calls map output to call sites and require manual body edits.
+Nonempty blocks outside define are transparent: static text executed once can
+be merged automatically; repeated executions use the same restrictions as range.
+No sentinels are inserted inside whitespace/comment-only block bodies, preserving
+Go's Unicode-whitespace empty-definition semantics.
 
 Source templates and rendered output must be valid UTF-8 text; binary output
 and other encodings are unsupported. Sentinels use the fixed byte 0xFF around a

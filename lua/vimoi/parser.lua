@@ -96,7 +96,7 @@ local function tokenize(source)
   end
 end
 
----Collect only action boundaries and opaque define/block ranges.
+---Collect action boundaries and opaque define ranges; block bodies remain visible.
 ---Offsets are zero-based and end-exclusive, matching the Tree-sitter collector.
 ---@param source string
 ---@return VimoiTemplateTagRange[]? tags
@@ -139,7 +139,7 @@ function M.collect_template_tags(source)
             opaque = nil
           end
         end
-      elseif keyword == "define" or keyword == "block" then
+      elseif keyword == "define" then
         opaque, depth = tag, 1
       end
     end

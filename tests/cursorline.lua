@@ -11,7 +11,10 @@ for _, case in ipairs({
   -- Adjacent actions keep the original selection of one mapped block.
   { '{{ "one\\n" }}{{ "two" }}', 1, { 1 } },
   { '{{ define "rows" }}one\ntwo\nthree{{ end }}\n{{ template "rows" . }}\ntail\n', 4, { 2, 3, 4 } },
-  { '{{ block "rows" . }}one\ntwo\nthree{{ end }}\ntail\n', 1, { 1, 2, 3 } },
+  -- Transparent block headers emit no text; body rows map individually.
+  { '{{ block "rows" . }}one\ntwo\nthree{{ end }}\ntail\n', 1, {} },
+  { '{{ block "rows" . }}one\ntwo\nthree{{ end }}\ntail\n', 2, { 2 } },
+  { '{{ block "rows" . }}one\ntwo\nthree{{ end }}\ntail\n', 3, { 3 } },
   { "first\nsecond\nthird\n", 2, { 2 } },
   { "{{ if false }}\nignored\n{{ end }}\ntail\n", 2, {} },
   { 'value={{ "one" }}\ntail\n', 1, { 1, 2, 3 }, "value=two\nextra\nextra\ntail\n" },

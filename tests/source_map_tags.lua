@@ -1,7 +1,7 @@
 local source_map = require("vimoi.render.source_map")
 local util = require("vimoi.core.util")
 
--- Only definitions and blocks include their bodies in a single tag.
+-- Defines and empty blocks are opaque; nonempty blocks expose their bodies.
 local cases = {
   {
     "{{- if true -}}a{{ else if false }}b{{ else }}c{{- end -}}",
@@ -13,7 +13,7 @@ local cases = {
   },
   {
     '{{ define "x" }}a{{ end }}{{ block "y" . }}b{{ end }}{{ template "x" . }}',
-    { '{{ define "x" }}a{{ end }}', '{{ block "y" . }}b{{ end }}', '{{ template "x" . }}' },
+    { '{{ define "x" }}a{{ end }}', '{{ block "y" . }}', "{{ end }}", '{{ template "x" . }}' },
   },
   {
     '{{ define "x" }}{{ if true }}{{ "}}" }}{{ else }}other{{ end }}{{ end }}',
@@ -21,7 +21,7 @@ local cases = {
   },
   {
     '{{ block "x" . }}{{ block "y" . }}nested{{ end }}{{ end }}',
-    { '{{ block "x" . }}{{ block "y" . }}nested{{ end }}{{ end }}' },
+    { '{{ block "x" . }}', '{{ block "y" . }}', "{{ end }}", "{{ end }}" },
   },
   {
     "{{ range (list 1 2) }}{{ if eq . 1 }}{{ continue }}{{ end }}{{ break }}{{ end }}",
@@ -77,11 +77,18 @@ assert(trimmed.literal_parts[2].source.start_byte == trimmed.literal_parts[2].so
 for _, keyword in ipairs({ "define", "block" }) do
   local argument = keyword == "block" and " ." or ""
   local outer_trim = parse("before \n{{- " .. keyword .. ' "x"' .. argument .. " }} body {{ end -}}\n after")
-  assert(outer_trim.template_tags[1].left_trim and outer_trim.template_tags[1].right_trim)
-  assert(outer_trim.literal_parts[1].text == "before" and outer_trim.literal_parts[2].text == "after")
+  assert(outer_trim.template_tags[1].left_trim and outer_trim.template_tags[#outer_trim.template_tags].right_trim)
+  assert(
+    outer_trim.literal_parts[1].text == "before" and outer_trim.literal_parts[#outer_trim.literal_parts].text == "after"
+  )
   local inner_trim = parse("before \n{{ " .. keyword .. ' "x"' .. argument .. " -}} body {{- end }}\n after")
-  assert(not inner_trim.template_tags[1].left_trim and not inner_trim.template_tags[1].right_trim)
-  assert(inner_trim.literal_parts[1].text == "before \n" and inner_trim.literal_parts[2].text == "\n after")
+  assert(
+    not inner_trim.template_tags[1].left_trim and not inner_trim.template_tags[#inner_trim.template_tags].right_trim
+  )
+  assert(
+    inner_trim.literal_parts[1].text == "before \n"
+      and inner_trim.literal_parts[#inner_trim.literal_parts].text == "\n after"
+  )
 end
 vim.api.nvim_buf_delete(buf, { force = true })
 print("source map tags: control actions, expressions, comments, trim, and snapshot isolation verified")

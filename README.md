@@ -108,6 +108,7 @@ then run `chezmoi apply` to deploy.
 
 Template and host-language highlighting are enabled by default; inactive branches use comment colors.
 Rendered mode reads Tree-sitter or Vim syntax colors from complete output and maps them onto the template.
+Nonempty `block` bodies map like ordinary text for highlighting, scrolling, diff and merge.
 Set `highlight.mode = "injection"` to highlight host fragments directly, or `"disabled"`
 to keep only template highlighting. Customize action backgrounds with `highlight.template_bg`.
 In injection mode, missing host parsers use Vim syntax directly on the template as a best-effort fallback.
@@ -338,7 +339,7 @@ See the [implementation comparison and historical research](docs/plugin-comparis
 
 ## Scope and limitations
 
-- Changes to dynamic or repeated output and `define` / `block` bodies usually need manual source edits.
+- Changes to dynamic or repeated output and `define` bodies usually need manual source edits.
 - Custom template delimiters and templates producing different results under `chezmoi cat` and `apply` are unsupported.
 - Source templates and rendered output must be valid UTF-8 text.
 - Encrypted files, symlinks, and script sources are unsupported by plain text ReAdd.
