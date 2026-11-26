@@ -92,6 +92,17 @@ local checked = 0
 for _, case in ipairs(cases) do
   local trace = assert(await(map.trace, case[2], case[3]))
   local regions = expanded(trace)
+  local literals, part_index = map_objects.literals(trace), 0
+  local tokens = map_objects.sentinels(trace)
+  for slot, first, last, output, repeated in map.source_parts(trace) do
+    part_index = part_index + 1
+    local part = assert(literals[part_index])
+    local occurrence = part.occurrences[1]
+    assert(slot > 1 and first == part.source_byte and last == first + #part.text)
+    assert(output == (occurrence and tokens[occurrence].output_byte or nil))
+    assert(repeated == (#part.occurrences > 1))
+  end
+  assert(part_index == #literals, "unbounded iteration dropped empty literal anchors")
   assert(vim.deep_equal(map.rendered_regions(trace), regions), case[1])
   for id, part in ipairs(map_objects.literals(trace)) do
     for _, occurrence in ipairs(part.occurrences) do
@@ -101,6 +112,25 @@ for _, case in ipairs(cases) do
     end
   end
   for byte = 0, #trace.source + 1 do
+    local visible, expected_visible = {}, {}
+    local viewport_end = math.min(#trace.source, byte + 3)
+    for _, first, last, output, repeated in map.source_parts(trace, byte, viewport_end) do
+      if first < last then
+        visible[#visible + 1] = { first, last, output, repeated }
+      end
+    end
+    for _, part in ipairs(literals) do
+      if part.source_byte < viewport_end and part.source_byte + #part.text > byte and #part.text > 0 then
+        local occurrence = part.occurrences[1]
+        expected_visible[#expected_visible + 1] = {
+          part.source_byte,
+          part.source_byte + #part.text,
+          occurrence and tokens[occurrence].output_byte or nil,
+          #part.occurrences > 1,
+        }
+      end
+    end
+    assert(vim.deep_equal(visible, expected_visible), case[1] .. ": literal viewport projection")
     local actual = { map.source_span(trace, byte) }
     local expected = { source_span(trace, regions, byte) }
     assert(vim.deep_equal(actual, expected), vim.inspect({ case[1], "source", byte, actual, expected }))

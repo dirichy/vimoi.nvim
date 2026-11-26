@@ -3,6 +3,39 @@
 当前保留平行数组，暂不实现节点对象、树、增量槽位更新或内容 interning。
 已有 Tree-sitter 语法增量收集、骨架执行复用和共享 session 生命周期不变。
 
+## 恢复与消费者边界 / Restoration and consumer boundaries
+
+`restore` 只在全部哨兵解码成功后提交重复类型和输出字段；返回失败时 prepared 对象保持
+原样，可以重试。成功后仍原地完成同一对象，重复调用直接返回已有结果。
+重复类型通过解码成功后再遍历一次已有 `output_slots` 提交，增加一次线性遍历，不增加数组。
+
+`source_parts(map, first?, last?)` 按源码顺序返回槽位、源码起止字节、首次输出字节和是否
+重复。首次输出为 nil 表示跳过，0 是有效输出位置。省略边界会包含全部空字面量锚点；
+视口查询保留起点二分，不扫描视口前的槽位。merge 和 highlight 共用这一路径，不自行
+解读 `output_indices` 对字面量、TAG/TRIMMED 的不同含义。TAG 的源码边界仍是公开的
+平行数组数据，merge 按快照读取动作文本，不新增动作索引或缓存。
+
+session 的 `set_prepared` 统一切换骨架执行键、取消旧请求并失效执行结果/错误。
+字面量修改保留相同执行键及在途请求；等待新结果期间保留最后成功的 map/output。
+恢复建图、全量字面量扫描仍是线性复杂度；点查询和视口起点仍是二分，无新增持久数据。
+
+`restore` commits repeated kinds and output fields only after every sentinel decodes successfully.
+A failed call leaves the prepared object unchanged for retry. Successful restoration still completes
+the same object in place, and subsequent calls return that completed result.
+Committing repeated kinds takes one additional linear pass over the existing `output_slots`, with no
+additional array.
+
+`source_parts(map, first?, last?)` yields slot, source start/end bytes, first output byte, and repeated
+status in source order. A nil output means skipped; zero is a valid output position. Unbounded
+iteration includes empty literal anchors. Viewport queries retain binary search at the start.
+Merge and highlighting share this query instead of interpreting the overloaded `output_indices`.
+Tag source boundaries remain public parallel-array data; merge reads action text from its snapshot.
+
+The session's `set_prepared` owns execution-key changes, cancellation, and result/error invalidation.
+Literal edits retain the same key and pending request; the last successful map/output remains while
+new results are pending. Restoration and full literal scans remain linear, point queries and viewport
+starts retain binary search, and no persistent index, cache, or abstraction layer is added.
+
 ## 数据
 
 | 字段 | 含义 |

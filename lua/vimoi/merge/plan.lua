@@ -357,21 +357,14 @@ local function static_byte_edit_candidates(trace, modified, hunk)
     if before:sub(1, offset) .. replacement .. before:sub(offset + removed_bytes + 1) == after then
       local rendered_start_byte = hunk_rendered_start_byte + offset
       local rendered_end_byte = rendered_start_byte + removed_bytes
-      for slot, kind in ipairs(trace.source_types) do
-        local occurrence = trace.output_indices[slot]
-        local start_byte = trace.output_bytes[occurrence]
-        local end_byte = start_byte and start_byte + trace.source_bytes[slot + 1] - trace.source_bytes[slot]
-        if
-          kind == source_map.LITERAL
-          and occurrence > 0
-          and rendered_start_byte >= start_byte
-          and rendered_end_byte <= end_byte
-        then
+      for slot, source_first, source_last, start_byte, repeated in source_map.source_parts(trace) do
+        local end_byte = start_byte and start_byte + source_last - source_first
+        if not repeated and start_byte and rendered_start_byte >= start_byte and rendered_end_byte <= end_byte then
           local boundary = removed_bytes == 0 and (rendered_start_byte == start_byte or rendered_start_byte == end_byte)
           touches_boundary = touches_boundary or boundary
           local existing = candidates_by_literal_part[slot]
           if not existing or (existing.boundary and not boundary) then
-            local source_start_byte = trace.source_bytes[slot] + rendered_start_byte - start_byte
+            local source_start_byte = source_first + rendered_start_byte - start_byte
             local candidate = {
               start_byte = source_start_byte,
               end_byte = source_start_byte + removed_bytes,

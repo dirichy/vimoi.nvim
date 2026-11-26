@@ -578,8 +578,6 @@ function M.restore(prepared_trace, rendered_skeleton, render_error)
       output_bytes[execution], output_slots[execution] = position - 1 + byte_delta, slot
       if indices[slot] == 0 then
         indices[slot] = execution
-      else
-        types[slot] = M.REPEATED
       end
       byte_delta = byte_delta + #text - (#sentinel_prefix * 2 + #ordinal)
       return text -- Replacement strings are not scanned again: literal {{ stays literal.
@@ -587,6 +585,14 @@ function M.restore(prepared_trace, rendered_skeleton, render_error)
   )
   if decode_error then
     return nil, decode_error
+  end
+  -- Commit slot kinds only after all sentinels have been validated, so a
+  -- failed restore leaves the prepared input unchanged and safe to retry.
+  for execution = 2, #output_slots do
+    local slot = output_slots[execution]
+    if indices[slot] ~= execution then
+      types[slot] = M.REPEATED
+    end
   end
   -- Virtual anchors do not change the CLI skeleton or empty-definition semantics.
   local eof = #output_bytes + 1
@@ -849,22 +855,28 @@ function M.source_slot(map, byte)
   return high
 end
 
----Iterate visible literals without scanning slots before the viewport.
+---Iterate source literals and their first execution; nil output means skipped.
+---Bounds skip slots before the viewport; omitted bounds include empty literals.
 ---@param map VimoiSourceMap
----@param first integer
----@param last integer Exclusive.
----@return fun(): integer?
+---@param first? integer
+---@param last? integer Exclusive.
+---@return fun(): (integer?, integer?, integer?, integer?, boolean?) # Slot, source start/end, output start, repeated.
 function M.source_parts(map, first, last)
-  local index = math.max(1, M.source_slot(map, first)) - 1
+  local index = first and math.max(1, M.source_slot(map, first)) - 1 or 0
   return function()
     while index < #map.source_types do
       index = index + 1
-      if map.source_bytes[index] >= last then
+      if last and map.source_bytes[index] >= last then
         return
       end
       local kind = map.source_types[index]
       if kind == M.LITERAL or kind == M.REPEATED then
-        return index
+        local execution = map.output_indices[index]
+        return index,
+          map.source_bytes[index],
+          map.source_bytes[index + 1],
+          execution > 0 and map.output_bytes[execution] or nil,
+          kind == M.REPEATED
       end
     end
   end

@@ -19,6 +19,17 @@ assert(not reserved and reserved_error == "template contains the renderer's rese
 local unknown, unknown_error = source_map.restore(assert(source_map.prepare("text")), "\255999\255")
 assert(not unknown and unknown_error == "unknown sentinel in rendered output")
 
+-- Failed decoding must leave the prepared input reusable, including slot kinds.
+local retry = assert(source_map.prepare("text"))
+local untouched = vim.deepcopy(retry)
+local failed, failed_error = source_map.restore(retry, "\2551\255\2551\255\255999\255")
+assert(not failed and failed_error == "unknown sentinel in rendered output")
+assert(vim.deep_equal(retry, untouched), "failed restore mutated its prepared input")
+local retried = assert(source_map.restore(retry, "\2551\255"))
+assert(retried == retry and retried.output == "text")
+assert(retried.source_types[retried.sentinel_slots[1]] == source_map.LITERAL)
+assert(source_map.restore(retry, "ignored") == retry, "successful restoration must remain idempotent")
+
 local trace, err = run_async(source_map.trace, 'hello {{ "world" }}!\n')
 assert(trace, err)
 assert(trace.output == "hello world!\n", vim.inspect(trace))

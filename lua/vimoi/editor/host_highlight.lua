@@ -59,14 +59,11 @@ local function decorations(state, top, bottom)
   local source_first = map.source_starts[top + 1] or map.source_size
   local source_last = map.source_starts[bottom + 1] or map.source_size
   local visible, ranges, marks = {}, {}, {}
-  for slot in source_map.source_parts(map, source_first, source_last) do
-    local source_byte = map.source_bytes[slot]
+  for _, source_byte, source_end, output_byte in source_map.source_parts(map, source_first, source_last) do
     local first = math.max(source_first, source_byte)
-    local last = math.min(source_last, map.source_bytes[slot + 1])
+    local last = math.min(source_last, source_end)
     if first < last then
-      local occurrence = map.output_indices[slot]
-      if occurrence > 0 then
-        local output_byte = map.output_bytes[occurrence]
+      if output_byte then
         visible[#visible + 1] = {
           source_byte = source_byte,
           output_byte = output_byte,

@@ -178,6 +178,24 @@ local function cancel_request(state)
   end
 end
 
+-- One owner switches the execution key and retires its cached result/request.
+---@param state VimoiSourceSession
+---@param prepared VimoiPreparedTrace
+---@return boolean changed
+local function set_prepared(state, prepared)
+  local changed = state.skeleton ~= prepared.skeleton
+    or state.init ~= prepared.init
+    or state.context_generation ~= prepared.context_generation
+  if changed then
+    cancel_request(state)
+    state.rendered_skeleton, state.error = nil, nil
+  end
+  state.prepared = prepared
+  state.skeleton, state.prefix, state.init = prepared.skeleton, prepared.prefix, prepared.init
+  state.context_generation = prepared.context_generation
+  return changed
+end
+
 ---@param source integer
 ---@param trace VimoiSourceMapTrace Temporary completed render or merge candidate.
 ---@return VimoiSourceSession
@@ -244,20 +262,9 @@ function M.rebuild(source)
   if not prepared then
     return nil, true
   end
-  if
-    prepared.skeleton ~= state.skeleton
-    or prepared.init ~= state.init
-    or prepared.context_generation ~= state.context_generation
-  then
-    cancel_request(state)
-    state.prepared = prepared
-    state.skeleton, state.prefix, state.init = prepared.skeleton, prepared.prefix, prepared.init
-    state.context_generation = prepared.context_generation
-    state.rendered_skeleton, state.error = nil, nil
-    return nil, true
-  end
+  local changed = set_prepared(state, prepared)
   if not state.rendered_skeleton then
-    return nil, false
+    return nil, changed
   end
   local trace = renderer.restore(prepared, state.rendered_skeleton)
   if trace then
@@ -427,17 +434,8 @@ local function check(buf, state)
     state.root, state.prepared, state.error, state.skeleton = root, nil, prepare_error, nil
     return { tick = api.nvim_buf_get_changedtick(buf), eol = eol }
   end
-  state.prepared, state.root, state.tick = prepared, root, vim.api.nvim_buf_get_changedtick(buf)
-  if
-    state.skeleton ~= prepared.skeleton
-    or state.init ~= prepared.init
-    or state.context_generation ~= cli.context_generation
-  then
-    cancel_request(state)
-    state.rendered_skeleton, state.error = nil, nil
-  end
-  state.skeleton, state.prefix, state.init = prepared.skeleton, prepared.prefix, prepared.init
-  state.context_generation = prepared.context_generation
+  set_prepared(state, prepared)
+  state.root, state.tick = root, vim.api.nvim_buf_get_changedtick(buf)
   if state.rendered_skeleton ~= nil or state.error then
     return { tick = state.tick, eol = assert(state.prepared).source:sub(-1) == "\n" }
   end
