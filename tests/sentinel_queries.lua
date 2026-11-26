@@ -94,11 +94,11 @@ for _, case in ipairs(cases) do
   local regions = expanded(trace)
   local literals, part_index = map_objects.literals(trace), 0
   local tokens = map_objects.sentinels(trace)
-  for slot, first, last, output, repeated in map.source_parts(trace) do
+  for first, last, output, repeated in map.first_text_outputs(trace) do
     part_index = part_index + 1
     local part = assert(literals[part_index])
     local occurrence = part.occurrences[1]
-    assert(slot > 1 and first == part.source_byte and last == first + #part.text)
+    assert(first == part.source_byte and last == first + #part.text)
     assert(output == (occurrence and tokens[occurrence].output_byte or nil))
     assert(repeated == (#part.occurrences > 1))
   end
@@ -114,7 +114,7 @@ for _, case in ipairs(cases) do
   for byte = 0, #trace.source + 1 do
     local visible, expected_visible = {}, {}
     local viewport_end = math.min(#trace.source, byte + 3)
-    for _, first, last, output, repeated in map.source_parts(trace, byte, viewport_end) do
+    for first, last, output, repeated in map.first_text_outputs(trace, byte, viewport_end) do
       if first < last then
         visible[#visible + 1] = { first, last, output, repeated }
       end
@@ -163,50 +163,50 @@ print(("sentinel queries: %d byte positions and boundary windows matched the lin
 -- Check derived indexes against exhaustive execution scans, not production helpers.
 for _, case in ipairs(cases) do
   local prepared = assert(map.prepare(case[2], case[3]))
-  local syntax_before = vim.deepcopy({ prepared.source_bytes, prepared.trim_flags })
+  local syntax_before = vim.deepcopy({ prepared._index.source_bytes, prepared._index.trim_flags })
   local trace = assert(await(map.trace, case[2], case[3]))
-  assert(vim.deep_equal({ trace.source_bytes, trace.trim_flags }, syntax_before), "rendering changed syntax metadata")
-  assert(#trace.source_bytes == #trace.source_types + 1)
-  assert(trace.source_bytes[1] == 0 and trace.source_bytes[#trace.source_bytes] == #trace.source)
-  assert(trace.source_types[1] == map.BOUNDARY and trace.source_types[#trace.source_types] == map.BOUNDARY)
-  assert(trace.output_slots[1] == 1 and trace.output_slots[#trace.output_slots] == #trace.source_types)
-  assert(#trace.output_bytes == #trace.output_slots)
+  assert(
+    vim.deep_equal({ trace._index.source_bytes, trace._index.trim_flags }, syntax_before),
+    "rendering changed syntax metadata"
+  )
+  assert(#trace._index.source_bytes == #trace._index.source_types + 1)
+  assert(trace._index.source_bytes[1] == 0 and trace._index.source_bytes[#trace._index.source_bytes] == #trace.source)
+  assert(
+    trace._index.source_types[1] == map.BOUNDARY
+      and trace._index.source_types[#trace._index.source_types] == map.BOUNDARY
+  )
+  assert(
+    trace._index.output_slots[1] == 1
+      and trace._index.output_slots[#trace._index.output_slots] == #trace._index.source_types
+  )
+  assert(#trace._index.output_bytes == #trace._index.output_slots)
   local firsts, counts = {}, {}
-  for execution, slot in ipairs(trace.output_slots) do
+  for execution, slot in ipairs(trace._index.output_slots) do
     firsts[slot] = firsts[slot] or execution
     counts[slot] = (counts[slot] or 0) + 1
-    local kind = trace.source_types[slot]
+    local kind = trace._index.source_types[slot]
     assert(kind == map.LITERAL or kind == map.REPEATED or kind == map.BOUNDARY)
-    assert(execution == 1 or trace.output_bytes[execution - 1] <= trace.output_bytes[execution])
+    assert(execution == 1 or trace._index.output_bytes[execution - 1] <= trace._index.output_bytes[execution])
   end
-  for slot, kind in ipairs(trace.source_types) do
-    assert(trace.source_bytes[slot] <= trace.source_bytes[slot + 1])
+  for slot, kind in ipairs(trace._index.source_types) do
+    assert(trace._index.source_bytes[slot] <= trace._index.source_bytes[slot + 1])
     if kind == map.LITERAL or kind == map.REPEATED or kind == map.BOUNDARY then
-      assert(trace.output_indices[slot] == (firsts[slot] or 0))
-      assert((trace.source_types[slot] == map.REPEATED) == ((counts[slot] or 0) > 1))
+      assert(trace._index.output_indices[slot] == (firsts[slot] or 0))
+      assert((trace._index.source_types[slot] == map.REPEATED) == ((counts[slot] or 0) > 1))
     else
       local expected
-      for execution, source_slot in ipairs(trace.output_slots) do
+      for execution, source_slot in ipairs(trace._index.output_slots) do
         if source_slot >= slot then
           expected = execution
           break
         end
       end
-      assert(trace.output_indices[slot] == expected)
+      assert(trace._index.output_indices[slot] == expected)
     end
     if kind == map.TRIMMED then
-      local text = trace.source:sub(trace.source_bytes[slot] + 1, trace.source_bytes[slot + 1])
+      local text = trace.source:sub(trace._index.source_bytes[slot] + 1, trace._index.source_bytes[slot + 1])
       assert(#text > 0 and not text:find("[^ \t\r\n]"))
     end
-  end
-  for byte = 0, #trace.source do
-    local expected = 0
-    for slot = 1, #trace.source_types do
-      if trace.source_bytes[slot] <= byte then
-        expected = slot
-      end
-    end
-    assert(map.source_slot(trace, byte) == expected)
   end
 end
 print("parallel indexes: unified anchors, duplicate starts and EOF boundaries verified")

@@ -1,6 +1,7 @@
 -- Adapt source-mapped template hunks to Neovim's native diff protocol.
 local M = {}
 local util = require("vimoi.core.util")
+local source_map = require("vimoi.render.source_map")
 local sync_scroll = require("vimoi.compare.sync_scroll")
 
 ---Line ranges use the same vim.text.diff convention as VimoiDiffHunk.
@@ -15,9 +16,9 @@ local diffexpr_dispatcher = "v:lua.require'vimoi.compare'._diffexpr()"
 ---@type string?
 local previous_diffexpr
 
----@param source_starts integer[]
+---@param map VimoiSourceMap
 ---@param ranges VimoiDiffRange[]
-local function source_line_range(source_starts, ranges)
+local function source_line_range(map, ranges)
   if #ranges == 0 then
     return 0, 0
   end
@@ -27,8 +28,8 @@ local function source_line_range(source_starts, ranges)
     start_byte = math.min(start_byte, ranges[index].start_byte)
     end_byte = math.max(end_byte, ranges[index].end_byte)
   end
-  local start_row, start_col = util.byte_to_position(nil, start_byte, source_starts)
-  local end_row, end_col = util.byte_to_position(nil, end_byte, source_starts)
+  local start_row, start_col = source_map.byte_to_position(map, "source", start_byte)
+  local end_row, end_col = source_map.byte_to_position(map, "source", end_byte)
   if start_byte == end_byte then
     if start_col == 0 then
       return start_row, 0
@@ -45,7 +46,7 @@ end
 local function projected_hunks(map, hunks)
   local result = {}
   for _, hunk in ipairs(hunks) do
-    local source_start_line, source_line_count = source_line_range(map.source_starts, hunk.display_ranges)
+    local source_start_line, source_line_count = source_line_range(map, hunk.display_ranges)
     result[#result + 1] = {
       source_start_line = source_start_line,
       source_line_count = source_line_count,

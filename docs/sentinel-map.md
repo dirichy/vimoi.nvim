@@ -3,40 +3,73 @@
 当前保留平行数组，暂不实现节点对象、树、增量槽位更新或内容 interning。
 已有 Tree-sitter 语法增量收集、骨架执行复用和共享 session 生命周期不变。
 
-## 恢复与消费者边界 / Restoration and consumer boundaries
+## 所有权与数学接口 / Ownership and mathematical contract
 
-`restore` 只在全部哨兵解码成功后提交重复类型和输出字段；返回失败时 prepared 对象保持
-原样，可以重试。成功后仍原地完成同一对象，重复调用直接返回已有结果。
-重复类型通过解码成功后再遍历一次已有 `output_slots` 提交，增加一次线性遍历，不增加数组。
+source_map 是索引的唯一构造和解释者。源码槽位、输出执行、行首数组封装在私有
+`_index` 中；完成恢复后只读。`mapping(trace)` 发布不含完整文本的映射，
+`snapshot(map, source, output)` 为操作添加临时文本，两者共享同一索引，不复制数组。
+render session 负责 buffer 版本、上下文、失效、取消和发布；消费者用
+`render.is_current(source, map)` 判断某个结果能否使用，不自行维护 map 的有效期。
 
-`source_parts(map, first?, last?)` 按源码顺序返回槽位、源码起止字节、首次输出字节和是否
-重复。首次输出为 nil 表示跳过，0 是有效输出位置。省略边界会包含全部空字面量锚点；
-视口查询保留起点二分，不扫描视口前的槽位。merge 和 highlight 共用这一路径，不自行
-解读 `output_indices` 对字面量、TAG/TRIMMED 的不同含义。TAG 的源码边界仍是公开的
-平行数组数据，merge 按快照读取动作文本，不新增动作索引或缓存。
+数学模型是两段文本的 **0-based 字节位置和半开区间**，不是行对应或 AST 节点对应：
 
-session 的 `set_prepared` 统一切换骨架执行键、取消旧请求并失效执行结果/错误。
-字面量修改保留相同执行键及在途请求；等待新结果期间保留最后成功的 map/output。
-恢复建图、全量字面量扫描仍是线性复杂度；点查询和视口起点仍是二分，无新增持久数据。
+- `regions(map, first?, last?)` 按输出顺序投影区间，保留所有执行。
+  `static/repeated` 是等长、逐字节的精确关系；`repeated` 表示同一源码文本有多个输出。
+  `dynamic` 仅给生成输出与源码间隙的包络，不保证区间内部逐字节对应；
+  `ambiguous` 表示执行跨越了源码顺序，不能据此安全写回。插入点保留两侧接触的区间。
+- `first_text_outputs(map, first?, last?)` 按源码顺序查询字面文本，返回源码起止、
+  **首次**输出起点及重复状态。nil 表示未输出，0 是有效输出位置；省略边界包含空文本。
+  它显式选择第一次执行，不代表完整的一对多关系。视口起点二分定位，不遍历此前文本。
+- `tags(parts, first?, last?, reverse?)` 是独立的语法查询，返回完全包含在查询范围内的
+  tag 源码边界；prepared 输入额外返回骨架位置。是否执行、是否输出都不影响结果。
+  `text_gaps(parts)` 查询 tag 之间的原始文本，包括被 trim 的空白；merge 据此转义括号。
+- `first_output_span(map, byte)` 是供滚动使用的简化查询：字面文本取首次执行，其他
+  源码位置尝试返回相邻输出锚点界定的生成区间。`approximate_source_position(map, byte)`
+  在字面文本中精确，在生成区间中按偏移截断近似定位。旧点查询名称保留为别名。
+- `byte_to_position`、`position_to_byte`、`line_range` 统一使用索引内的行首缓存。
+  行列为 0-based 字节坐标；无效行返回 nil，由调用方决定是否截断到 EOF。
+  `line_range` 使用 0-based 起始行和行数，零行数表示该行首的插入点。
 
-`restore` commits repeated kinds and output fields only after every sentinel decodes successfully.
-A failed call leaves the prepared object unchanged for retry. Successful restoration still completes
-the same object in place, and subsequent calls return that completed result.
-Committing repeated kinds takes one additional linear pass over the existing `output_slots`, with no
-additional array.
+高亮使用首次文本输出；滚动使用明确命名的简化定位；diff/merge/host 诊断使用区域关系。
+merge 通过 tag 边界从操作快照按需识别控制关键字；模板报错也通过 tag 查询取得骨架位置。
+消费者不读取槽位 ID、类型编码或 first/right 索引。语法查询不混入数学映射的精确性判断。
 
-`source_parts(map, first?, last?)` yields slot, source start/end bytes, first output byte, and repeated
-status in source order. A nil output means skipped; zero is a valid output position. Unbounded
-iteration includes empty literal anchors. Viewport queries retain binary search at the start.
-Merge and highlighting share this query instead of interpreting the overloaded `output_indices`.
-Tag source boundaries remain public parallel-array data; merge reads action text from its snapshot.
+`restore` 验证全部哨兵后才提交重复类型与输出字段；失败保持 prepared 对象原样以便重试，
+成功原地完成对象。prepared 输入只消费第一次成功恢复：之后调用忽略新的输出和错误参数，
+直接返回第一次完成的结果；需要恢复另一轮执行时必须重新 prepare。没有新增缓存、节点或展开范围表。
 
-The session's `set_prepared` owns execution-key changes, cancellation, and result/error invalidation.
-Literal edits retain the same key and pending request; the last successful map/output remains while
-new results are pending. Restoration and full literal scans remain linear, point queries and viewport
-starts retain binary search, and no persistent index, cache, or abstraction layer is added.
+The source-map module alone builds and interprets its private parallel-array index. Completed
+indexes are immutable. `mapping(trace)` publishes domain lengths and the shared index without
+retaining full text; `snapshot(map, source, output)` attaches temporary text for an operation.
+The render session owns versions, context validity, cancellation and publication; consumers use
+`render.is_current(source, map)` rather than maintaining a separate validity lifecycle.
 
-## 数据
+The contract uses zero-based byte positions and half-open intervals. `regions` enumerates every
+output execution: static/repeated regions are exact equal-length relations, dynamic regions are
+coarse envelopes, and ambiguous regions cannot justify source writes. Touching insertion boundaries
+remain visible. `first_text_outputs` explicitly selects the first output for each source literal,
+including skipped and repeated status; it is not the complete one-to-many relation.
+
+`tags` independently queries complete source actions, optionally in reverse order, with skeleton
+positions on prepared inputs. `text_gaps` preserves raw inter-tag text including trimmed whitespace.
+Merge reads control keywords from these ranges on demand; template errors use the same tag query.
+`first_output_span` and `approximate_source_position` express scrolling's simplifying choices in
+their names; existing point-query names remain aliases. Coordinate conversion and zero-based row
+spans use the map-owned line index. Consumers never interpret slot IDs or encoded index fields.
+Restoration remains atomic and idempotent; no new cache or expanded range table is introduced.
+
+## 所有权改动实测
+
+与修改前 `e322e71` 的干净工作区快照比较，3 轮独立进程、相同输入与查询校验和，原始结果见
+[before](benchmarks/map-ownership-before.json) / [after](benchmarks/map-ownership-after.json)。
+1 万个 tag 的 512 次 source/output 查询 CPU 中位数为 0.258/0.150 → 0.258/0.157 ms，
+建图为 6.566 → 6.487 ms，保留索引约 1536 KiB。整体基本持平；端到端 CLI 耗时有明显
+进程噪声，不将其变化算作本次收益。纯文本案例受 JIT 路径影响较大，不据此声称加速。
+收益主要是封装所有权、集中坐标转换和分离文本/语法查询；代码增加来自明确的接口和说明。
+
+## 私有数据
+
+以下字段只由 source_map 解释；测试中的独立线性 oracle 可以检查其不变量。
 
 | 字段 | 含义 |
 | --- | --- |
@@ -95,11 +128,13 @@ output_slots   = { 1, 2, 4, 5 }
 
 | API | 方法 | 成本 |
 | --- | --- | --- |
-| `source_slot(map, byte)` | 二分源码起点，重复起点取最后一个 | O(log P) |
-| `source_span(map, byte)` | 字面量首次执行；动作/trim 用自身右锚点构造动态范围 | O(log P) |
-| `output_position(map, byte)` | 二分输出位置，计算文字偏移或动态间隙 | O(log E) |
-| `source_parts(map, first, last)` | 二分视口起点，迭代相关字面量 ID | O(log P + V) |
+| 私有 `source_slot(index, byte)` | 二分源码起点，重复起点取最后一个 | O(log P) |
+| `first_output_span(map, byte)` | 字面量首次执行；动作/trim 用自身右锚点构造动态范围 | O(log P) |
+| `approximate_source_position(map, byte)` | 二分输出位置，计算文字偏移或动态间隙 | O(log E) |
+| `first_text_outputs(map, first, last)` | 二分视口起点，迭代相关文本范围 | O(log P + V) |
 | `regions(map, first, last)` | 二分输出边界，局部生成字面量和间隙范围 | O(log E + K) |
+| `tags(parts, first, last, reverse)` | 二分起点，跳过非 TAG 槽位；支持逆序 | O(log P + V) |
+| `text_gaps(parts)` | 顺序扫描 tag，返回原始文本间隙 | O(P) |
 
 未执行字面量的 output_indices 为 0，读取紧邻后续槽位的锚点兜底；切分保证后面是动作、
 trim 或 EOF，不需扫描。动态范围由右锚点 k 与其前一条输出执行 k-1 构造，最后检查
@@ -315,3 +350,21 @@ library 和全部诊断，无新增问题，原有 core/cli.lua 的 5 项诊断�
 
 原始记录：[提交基线](benchmarks/source-map-before.json)、
 [最终实现](benchmarks/source-map-after.json)。
+
+## Merge 局部候选查询
+
+`static_byte_edit_candidates` 对每个等价编辑位置查询 output regions，只选完整包含编辑的
+static 区间，包含接触边界与零长度锚点。局部结果按源码位置排序，再使用原来的源码起点
+去重及内部候选替换边界候选规则；单次执行也可能跨循环倒序输出，不能直接采用输出顺序。
+复杂度从每个等价位置扫描全部源码文本，变为 O(log E + K + K log K)，K 为局部区间数。
+
+与修改前实现对照，248 个完整 merge plan（含相邻空锚点、重复、跳过和非单调输出）完全一致。
+独立进程中，一万个 tag 的单处编辑规划 100 次，CPU 为 256.7 → 239.4 ms；这是包含 diff
+等工作的完整规划耗时，不能当作局部查询加速倍数。48 个固定种子的随机模板另验证直接
+chezmoi 渲染、字面量缓存重建和转义 merge 重建的输出，以及重建与新建映射的一致性。
+
+A prepared input consumes its first successful restoration only; subsequent restore calls ignore
+new output/error arguments. Failed decoding remains retryable. Prepare again for another execution.
+Merge candidates now use local output-region queries, preserving empty/touching anchors, source
+ordering, deduplication and interior-over-boundary preference. Seeded random templates compare direct
+rendering with literal-cache and escaped-merge rebuilds, including their reconstructed mappings.

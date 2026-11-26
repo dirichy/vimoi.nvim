@@ -67,7 +67,9 @@ for _, size in ipairs({ 8, 1000 }) do
     prepare_count, restore_count = calls.prepare, calls.restore
   end
   local cached_regions = renderer.rendered_regions(trace)
-  trace.output_starts = util.line_starts(trace.output)
+  if not trace._index then
+    trace.output_starts = util.line_starts(trace.output)
+  end
   for repeat_index = 1, 133 do
     local cpu = os.clock()
     assert(#hunks.compute(trace.output .. "tail\n", trace) == 1)

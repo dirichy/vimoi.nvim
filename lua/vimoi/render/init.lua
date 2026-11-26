@@ -15,8 +15,6 @@ local cli = require("vimoi.core.cli")
 ---@field source_size integer
 ---@field output_size integer
 ---@field source_eol boolean
----@field source_starts integer[]
----@field output_starts integer[]
 
 ---@class VimoiSessionOptions
 ---@field once? boolean Unregister after the first result.
@@ -135,25 +133,12 @@ function M.snapshot(source)
     return
   end
   local map = assert(state.map)
-  return {
-    source = util.buffer_text(source),
-    output = util.buffer_text(state.buf),
-    source_bytes = map.source_bytes,
-    source_types = map.source_types,
-    trim_flags = map.trim_flags,
-    output_indices = map.output_indices,
-    output_bytes = map.output_bytes,
-    output_slots = map.output_slots,
-    source_size = map.source_size,
-    output_size = map.output_size,
-    output_starts = map.output_starts,
-    source_starts = map.source_starts,
-    skeleton = assert(state.skeleton),
-    prefix = assert(state.prefix),
-    init = state.init == true,
-    context_generation = map.context_generation,
-    rendered_skeleton = assert(state.rendered_skeleton),
-  }
+  local snapshot =
+    require("vimoi.render.source_map").snapshot(map, util.buffer_text(source), util.buffer_text(state.buf))
+  ---@cast snapshot VimoiSourceMapTrace
+  snapshot.skeleton, snapshot.prefix, snapshot.init = assert(state.skeleton), assert(state.prefix), state.init == true
+  snapshot.context_generation, snapshot.rendered_skeleton = map.context_generation, assert(state.rendered_skeleton)
+  return snapshot
 end
 
 -- Snapshot callbacks so registering/unregistering inside a callback is safe.
@@ -220,24 +205,12 @@ function M.update(source, trace)
       error(err)
     end
   end
-  state.map = {
-    tick = api.nvim_buf_get_changedtick(source),
-    validate = state.validate,
-    validation_target = state.validation_target,
-    path = api.nvim_buf_get_name(source),
-    context_generation = trace.context_generation,
-    source_size = #trace.source,
-    output_size = #trace.output,
-    source_eol = trace.source:sub(-1) == "\n",
-    source_starts = util.line_starts(trace.source),
-    output_starts = util.line_starts(trace.output),
-    source_bytes = trace.source_bytes,
-    source_types = trace.source_types,
-    trim_flags = trace.trim_flags,
-    output_indices = trace.output_indices,
-    output_bytes = trace.output_bytes,
-    output_slots = trace.output_slots,
-  }
+  local map = require("vimoi.render.source_map").mapping(trace)
+  ---@cast map VimoiOutputMap
+  map.tick, map.path = api.nvim_buf_get_changedtick(source), api.nvim_buf_get_name(source)
+  map.validate, map.validation_target = state.validate, state.validation_target
+  map.context_generation, map.source_eol = trace.context_generation, trace.source:sub(-1) == "\n"
+  state.map = map
   state.skeleton, state.prefix, state.init = trace.skeleton, trace.prefix, trace.init
   state.context_generation, state.rendered_skeleton = trace.context_generation, trace.rendered_skeleton
   state.prepared, state.root, state.error_parts, state.error = nil, nil, nil, nil
@@ -257,8 +230,8 @@ function M.rebuild(source)
   if state.error or state.initialized ~= true or not state.map or state.map.path ~= api.nvim_buf_get_name(source) then
     return nil, true
   end
-  local renderer = require("vimoi.render.source_map")
-  local prepared = renderer.prepare(util.buffer_text(source), { buf = source, init = state.init })
+  local source_map = require("vimoi.render.source_map")
+  local prepared = source_map.prepare(util.buffer_text(source), { buf = source, init = state.init })
   if not prepared then
     return nil, true
   end
@@ -266,7 +239,7 @@ function M.rebuild(source)
   if not state.rendered_skeleton then
     return nil, changed
   end
-  local trace = renderer.restore(prepared, state.rendered_skeleton)
+  local trace = source_map.restore(prepared, state.rendered_skeleton)
   if trace then
     M.update(source, trace)
   end
@@ -297,7 +270,7 @@ local function construct(source, state)
       return
     end
     util.async(function()
-      local renderer = require("vimoi.render.source_map")
+      local source_map = require("vimoi.render.source_map")
       local target = assert(state.validation_target or state.target_path)
       local source_path = api.nvim_buf_get_name(source)
       local baseline, err = util.read_file(source_path)
@@ -349,9 +322,9 @@ local function construct(source, state)
             end,
           })
           if not settled then
-            jobs[2] = renderer.trace_async(
+            jobs[2] = source_map.trace_async(
               baseline,
-              { prefix = renderer.context_prefix(source, false) },
+              { prefix = source_map.context_prefix(source, false) },
               function(result, error)
                 trace, render_error = result, error
                 finish()

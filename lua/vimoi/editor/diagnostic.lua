@@ -44,11 +44,9 @@ end
 ---@return vim.Diagnostic[]
 local function project(map, diagnostics, filetype)
   local projected, seen = {}, {}
-  local output_starts = map.output_starts
-  local source_starts = map.source_starts
   for _, diagnostic in ipairs(diagnostics) do
-    local first_line = output_starts[diagnostic.lnum + 1]
-    local last_line = output_starts[(diagnostic.end_lnum or diagnostic.lnum) + 1]
+    local first_line = source_map.position_to_byte(map, "output", diagnostic.lnum)
+    local last_line = source_map.position_to_byte(map, "output", diagnostic.end_lnum or diagnostic.lnum)
     if first_line and last_line then
       local first = math.min(first_line + diagnostic.col, map.output_size)
       local last = math.max(first, math.min(last_line + (diagnostic.end_col or diagnostic.col), map.output_size))
@@ -75,8 +73,8 @@ local function project(map, diagnostics, filetype)
           source_first = math.max(source_first - 1, 0)
         end
         local item = vim.deepcopy(diagnostic)
-        item.lnum, item.col = util.byte_to_position(nil, source_first, source_starts)
-        item.end_lnum, item.end_col = util.byte_to_position(nil, source_last, source_starts)
+        item.lnum, item.col = source_map.byte_to_position(map, "source", source_first)
+        item.end_lnum, item.end_col = source_map.byte_to_position(map, "source", source_last)
         item.bufnr, item.namespace = nil, nil
         item.message = ("[host:%s] %s"):format(filetype, item.message)
         if generated then
@@ -238,26 +236,23 @@ local function render_error(buf, state)
   local byte = column and first + tonumber(column)
   local candidates = {}
   local parts = assert(state.error_parts)
-  for slot, kind in ipairs(parts.source_types) do
-    if kind == source_map.TAG then
-      local source_first, source_last = parts.source_bytes[slot], parts.source_bytes[slot + 1]
-      local start_byte = assert(parts.skeleton_starts[slot])
-      local end_byte = start_byte + source_last - source_first
-      if byte and byte >= start_byte and byte < end_byte then
-        local source_byte = source_first + byte - start_byte
-        local row, col = util.byte_to_position(source, source_byte)
-        local node = root and root:named_descendant_for_range(row, col, row, col)
-        local diagnostic = node_diagnostic(node or root, assert(message))
-        diagnostic.lnum, diagnostic.col = row, col
-        local node_end = node and select(3, node:end_())
-        if not node or node_end > source_last then
-          diagnostic.end_lnum, diagnostic.end_col = row, col + 1
-        end
-        return diagnostic
+  for source_first, source_last, skeleton_start in source_map.tags(parts) do
+    local start_byte = assert(skeleton_start)
+    local end_byte = start_byte + source_last - source_first
+    if byte and byte >= start_byte and byte < end_byte then
+      local source_byte = source_first + byte - start_byte
+      local row, col = util.byte_to_position(source, source_byte)
+      local node = root and root:named_descendant_for_range(row, col, row, col)
+      local diagnostic = node_diagnostic(node or root, assert(message))
+      diagnostic.lnum, diagnostic.col = row, col
+      local node_end = node and select(3, node:end_())
+      if not node or node_end > source_last then
+        diagnostic.end_lnum, diagnostic.end_col = row, col + 1
       end
-      if not byte and start_byte < last and end_byte > first then
-        candidates[#candidates + 1] = { start_byte = source_first, end_byte = source_last }
-      end
+      return diagnostic
+    end
+    if not byte and start_byte < last and end_byte > first then
+      candidates[#candidates + 1] = { start_byte = source_first, end_byte = source_last }
     end
   end
   if byte then

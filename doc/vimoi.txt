@@ -907,11 +907,22 @@ blocks are collapsed after collection; Tree-sitter and fallback share this check
 Literal text, including empty insertion slots, is derived from adjacent tags
 after applying whitespace trim.
 Execution mapping stores source sentinel positions and an output-ordered token
-log, not output ranges. source_span() and output_position() locate neighboring
-sentinels by binary search. source_parts() selects source viewports; regions()
-projects only requested output intervals, preserving equal insertion endpoints.
-rendered_regions() materializes a complete projection when explicitly requested.
-The source session owns all indexes and shares them with operation snapshots.
+log, not output ranges. source_map alone constructs and interprets its private
+index, shared read-only by published maps and operation snapshots. The source
+session owns versions, context validity, invalidation and publication; consumers
+check is_current() before using results.
+The contract uses zero-based bytes and half-open intervals. regions() preserves
+all executions: static/repeated relations are byte-exact, dynamic regions are
+coarse generated envelopes, and ambiguous relations cannot justify source writes.
+first_text_outputs() explicitly selects the first output of each source literal.
+tags() independently queries complete syntax actions; text_gaps() includes raw
+trimmed whitespace. first_output_span() and approximate_source_position() name
+scrolling's first-execution/approximate choices; old point-query names remain
+callable. byte_to_position()/position_to_byte() hide line indexes; line_range()
+uses a zero-based row and line count. Consumers never read slot IDs, type codes
+or index arrays. See docs/sentinel-map.md for the complete internal contract.
+restore() consumes the first success in place; later output/error arguments are ignored.
+Prepare again for another execution; failures remain retryable.
 Define bodies and whitespace/comment-only blocks remain unchanged in the
 skeleton, preserving empty-definition semantics. Nonempty block literal edits
 reuse the rendered skeleton; changing block emptiness requires rendering again. Only

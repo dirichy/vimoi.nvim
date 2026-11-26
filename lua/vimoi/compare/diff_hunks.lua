@@ -73,14 +73,17 @@ function M.compute(modified, trace)
     algorithm = "histogram",
   })
   assert(type(raw_hunks) == "table")
-  local rendered_line_starts = trace.output_starts or util.line_starts(trace.output)
   local target_line_starts = util.line_starts(modified)
   local hunks = {}
 
   for index, raw_hunk in ipairs(raw_hunks) do
     local rendered_start_line, rendered_line_count, target_start_line, target_line_count = unpack(raw_hunk)
-    local hunk_rendered_start_byte, hunk_rendered_end_byte =
-      util.line_range(trace.output, rendered_line_starts, rendered_start_line, rendered_line_count)
+    local hunk_rendered_start_byte, hunk_rendered_end_byte = source_map.line_range(
+      trace,
+      "output",
+      rendered_start_line - (rendered_line_count > 0 and 1 or 0),
+      rendered_line_count
+    )
     local target_start_byte, target_end_byte =
       util.line_range(modified, target_line_starts, target_start_line, target_line_count)
     local prefix, old_end = util.changed_bytes(

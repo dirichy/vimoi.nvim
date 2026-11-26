@@ -2,7 +2,6 @@
 -- Native Tree-sitter captures or Vim syntax groups share the same projection.
 local M = {}
 local api = vim.api
-local util = require("vimoi.core.util")
 local sessions = require("vimoi.render")
 local source_map = require("vimoi.render.source_map")
 local namespace = api.nvim_create_namespace("vimoi-host-highlight")
@@ -56,10 +55,10 @@ end
 ---@return table[]
 local function decorations(state, top, bottom)
   local map = state.map
-  local source_first = map.source_starts[top + 1] or map.source_size
-  local source_last = map.source_starts[bottom + 1] or map.source_size
+  local source_first = source_map.position_to_byte(map, "source", top) or map.source_size
+  local source_last = source_map.position_to_byte(map, "source", bottom) or map.source_size
   local visible, ranges, marks = {}, {}, {}
-  for _, source_byte, source_end, output_byte in source_map.source_parts(map, source_first, source_last) do
+  for source_byte, source_end, output_byte in source_map.first_text_outputs(map, source_first, source_last) do
     local first = math.max(source_first, source_byte)
     local last = math.min(source_last, source_end)
     if first < last then
@@ -71,8 +70,8 @@ local function decorations(state, top, bottom)
           last = output_byte + last - source_byte,
         }
       else
-        local row, col = util.byte_to_position(nil, first, map.source_starts)
-        local end_row, end_col = util.byte_to_position(nil, last, map.source_starts)
+        local row, col = source_map.byte_to_position(map, "source", first)
+        local end_row, end_col = source_map.byte_to_position(map, "source", last)
         marks[#marks + 1] = {
           row = row,
           col = col,
@@ -92,8 +91,8 @@ local function decorations(state, top, bottom)
     return a.first < b.first
   end)
   for _, part in ipairs(visible) do
-    local row = util.byte_to_position(nil, part.first, map.output_starts)
-    local end_row = util.byte_to_position(nil, part.last - 1, map.output_starts) + 1
+    local row = source_map.byte_to_position(map, "output", part.first)
+    local end_row = source_map.byte_to_position(map, "output", part.last - 1) + 1
     local previous = ranges[#ranges]
     if previous and row <= previous[2] then
       previous[2] = math.max(previous[2], end_row)
@@ -125,8 +124,8 @@ local function decorations(state, top, bottom)
       local a, b = math.max(first, part.first), math.min(last, part.last)
       if a < b then
         local offset = part.source_byte - part.output_byte
-        local row, col = util.byte_to_position(nil, a + offset, map.source_starts)
-        local end_row, end_col = util.byte_to_position(nil, b + offset, map.source_starts)
+        local row, col = source_map.byte_to_position(map, "source", a + offset)
+        local end_row, end_col = source_map.byte_to_position(map, "source", b + offset)
         local mark = {
           row = row,
           col = col,
@@ -165,14 +164,15 @@ local function decorations(state, top, bottom)
     if state.syntax then
       api.nvim_buf_call(state.output_buf, function()
         for _, part in ipairs(visible) do
-          local row = util.byte_to_position(nil, part.first, map.output_starts)
+          local row = source_map.byte_to_position(map, "output", part.first)
           local position = part.first
           while position < part.last do
             local line = api.nvim_buf_get_lines(state.output_buf, row, row + 1, false)[1] or ""
-            local finish = math.min(part.last, map.output_starts[row + 1] + #line)
+            local line_start = assert(source_map.position_to_byte(map, "output", row))
+            local finish = math.min(part.last, line_start + #line)
             local group, first = 0, position
             for byte = position, finish - 1 do
-              local current = vim.fn.synID(row + 1, byte - map.output_starts[row + 1] + 1, 1)
+              local current = vim.fn.synID(row + 1, byte - line_start + 1, 1)
               if current ~= group then
                 if group ~= 0 then
                   project(first, byte, { hl_group = group, priority = vim.hl.priorities.syntax })
@@ -184,7 +184,7 @@ local function decorations(state, top, bottom)
               project(first, finish, { hl_group = group, priority = vim.hl.priorities.syntax })
             end
             row = row + 1
-            position = map.output_starts[row + 1] or part.last
+            position = source_map.position_to_byte(map, "output", row) or part.last
           end
         end
       end)

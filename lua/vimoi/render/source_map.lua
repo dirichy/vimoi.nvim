@@ -1,6 +1,7 @@
 -- Locate source and output bytes through ordered sentinel occurrences.
 local M = {}
 local cli = require("vimoi.core.cli")
+local util = require("vimoi.core.util")
 
 ---Zero-based, half-open byte offsets [start_byte, end_byte); equal ends mark an insertion anchor.
 ---@class VimoiByteRange
@@ -10,38 +11,47 @@ local cli = require("vimoi.core.cli")
 -- Source slots share parallel arrays; REPEATED marks multiple executions of one literal.
 M.LITERAL, M.REPEATED, M.TAG, M.TRIMMED, M.BOUNDARY = 1, 2, 3, 4, 5
 
----@class VimoiTemplateParts
----@field source string Temporary source snapshot, absent from the published map.
----@field source_bytes integer[] Source-ordered starts, including zero-length BOF/EOF; one extra entry is EOF.
+-- Only this module reads/writes index arrays. Completed indexes are shared,
+-- never mutated; render sessions own their version and publication lifetime.
+---@class VimoiMapIndex
+---@field source_bytes integer[] Slot starts plus a final EOF entry.
 ---@field source_types integer[] LITERAL, REPEATED, TAG, TRIMMED or BOUNDARY.
 ---@field trim_flags integer[] TAG slots: 1 = left trim, 2 = right, 3 = both.
+---@field output_indices integer[] Literal: first execution/zero; tag/trim: earliest execution to the right.
+---@field output_bytes integer[] Output order, including virtual BOF/EOF anchors.
+---@field output_slots integer[] Source slot for each output position.
+---@field source_starts integer[] Source line starts.
+---@field output_starts integer[] Output line starts.
+
+---@class VimoiTemplateParts
+---@field source string Temporary snapshot, absent from the published map.
+---@field _index VimoiMapIndex Implementation detail; use text/tag queries.
+---@field source_size integer
+---@field skeleton_starts? table<integer, integer> Private positions on prepared render inputs.
 
 ---@class VimoiSourceMap
----@field source_bytes integer[]
----@field source_types integer[]
----@field trim_flags integer[]
----@field output_indices integer[] Literal: first execution or zero. TAG/TRIMMED: earliest execution to the right.
----@field output_bytes integer[] Output-ordered positions, including virtual BOF/EOF anchors.
----@field output_slots integer[] Source slot for each output position.
+---@field _index VimoiMapIndex Implementation detail; shared immutable index after restoration.
 ---@field source_size integer
 ---@field output_size integer
 
 ---@class VimoiPreparedTrace: VimoiTemplateParts
 ---@field skeleton string Actions with literals replaced by stable ordinal sentinels.
----@field skeleton_starts table<integer, integer> TAG positions for template errors.
----@field sentinel_slots integer[] Ordinal-to-source-slot lookup, independent of trim slot count.
+---@field skeleton_starts table<integer, integer> Private TAG positions for template errors.
+---@field sentinel_slots integer[] Private ordinal-to-slot lookup for restoration.
 ---@field prefix string
 ---@field init boolean
 ---@field context_generation integer
 ---@field output? string Present after decoding; restoration is idempotent.
 
----@class VimoiSourceMapTrace: VimoiPreparedTrace, VimoiSourceMap
+---@class VimoiMappedText: VimoiSourceMap
+---@field source string
+---@field output string
+
+---@class VimoiSourceMapTrace: VimoiPreparedTrace, VimoiMappedText
 ---@field sentinel_slots? integer[] Only prepared renders need ordinal decoding data.
 ---@field skeleton_starts? table<integer, integer> Only prepared renders need template-error positions.
 ---@field output string
 ---@field rendered_skeleton string
----@field source_starts? integer[] Source line starts.
----@field output_starts? integer[] Output line starts.
 
 ---@class VimoiSyntaxEdit
 ---@field start_byte integer
@@ -448,7 +458,13 @@ function M.parse(source, buf)
   end
   starts[#types + 1], types[#types + 1] = #source, M.BOUNDARY
   starts[#types + 1] = #source
-  return { source = source, source_bytes = starts, source_types = types, trim_flags = trims }, nil, visited_nodes
+  return {
+    source = source,
+    source_size = #source,
+    _index = { source_bytes = starts, source_types = types, trim_flags = trims },
+  },
+    nil,
+    visited_nodes
 end
 
 -- 0xFF cannot occur in valid UTF-8 output and survives execute-template unchanged.
@@ -518,14 +534,14 @@ function M.prepare(source, opts)
   end
   local skeleton_parts, skeleton_bytes = { prefix }, #prefix
   local sentinel_slots, skeleton_starts = {}, {}
-  for id, kind in ipairs(template_parts.source_types) do
+  for id, kind in ipairs(template_parts._index.source_types) do
     if kind == M.LITERAL then
       sentinel_slots[#sentinel_slots + 1] = id
       local sentinel = sentinel_prefix .. #sentinel_slots .. sentinel_prefix
       skeleton_parts[#skeleton_parts + 1] = sentinel
       skeleton_bytes = skeleton_bytes + #sentinel
     elseif kind == M.TAG then
-      local text = source:sub(template_parts.source_bytes[id] + 1, template_parts.source_bytes[id + 1])
+      local text = source:sub(template_parts._index.source_bytes[id] + 1, template_parts._index.source_bytes[id + 1])
       skeleton_starts[id] = skeleton_bytes
       skeleton_parts[#skeleton_parts + 1] = text
       skeleton_bytes = skeleton_bytes + #text
@@ -539,7 +555,11 @@ function M.prepare(source, opts)
   return template_parts
 end
 
--- A skipped branch leaves no token; loops repeat tokens. Decode each occurrence into an output range.
+-- A prepared input consumes only its first successful restoration, in place.
+-- Later calls return that same completed trace, ignoring new output/error arguments.
+-- Failed decoding leaves the input untouched and retryable. Prepare a fresh input
+-- to decode a different execution; published indexes must never be overwritten.
+-- A skipped branch leaves no token; loops repeat tokens.
 ---@param prepared_trace VimoiPreparedTrace
 ---@param rendered_skeleton string?
 ---@param render_error? string
@@ -554,7 +574,7 @@ function M.restore(prepared_trace, rendered_skeleton, render_error)
     return nil, render_error
   end
   local byte_delta = 0
-  local starts, types = prepared_trace.source_bytes, prepared_trace.source_types
+  local starts, types = prepared_trace._index.source_bytes, prepared_trace._index.source_types
   local output_bytes, output_slots, indices, texts = { 0 }, { 1 }, {}, {}
   for slot = 1, #types do
     indices[slot] = 0
@@ -606,9 +626,11 @@ function M.restore(prepared_trace, rendered_skeleton, render_error)
       right = math.min(right, execution)
     end
   end
-  prepared_trace.output_indices = indices
-  prepared_trace.output_bytes, prepared_trace.output_slots = output_bytes, output_slots
+  prepared_trace._index.output_indices = indices
+  prepared_trace._index.output_bytes, prepared_trace._index.output_slots = output_bytes, output_slots
   prepared_trace.source_size, prepared_trace.output_size = #prepared_trace.source, #output
+  prepared_trace._index.source_starts = util.line_starts(prepared_trace.source)
+  prepared_trace._index.output_starts = util.line_starts(output)
   prepared_trace.output = output
   prepared_trace.rendered_skeleton = rendered_skeleton
   ---@cast prepared_trace VimoiSourceMapTrace
@@ -657,27 +679,27 @@ function M.rebuild_after_edits(trace, source, edits)
   end
   local replacements, slot, new_ordinal, edit_index, byte_delta = {}, 1, 0, 1, 0
   local ordinal = 0
-  for old_slot, old_kind in ipairs(trace.source_types) do
+  for old_slot, old_kind in ipairs(trace._index.source_types) do
     if old_kind == M.LITERAL or old_kind == M.REPEATED then
       ordinal = ordinal + 1
       local following = old_slot + 1
-      while trace.source_types[following] == M.TRIMMED do
+      while trace._index.source_types[following] == M.TRIMMED do
         following = following + 1
       end
-      local boundary = trace.source_bytes[following]
+      local boundary = trace._index.source_bytes[following]
       while edits[edit_index] and edits[edit_index].end_byte <= boundary do
         local edit = edits[edit_index]
         byte_delta = byte_delta + #edit.replacement - (edit.end_byte - edit.start_byte)
         edit_index = edit_index + 1
       end
       local new_boundary, replacement = boundary + byte_delta, {}
-      while prepared.source_types[slot] do
-        local kind = prepared.source_types[slot]
+      while prepared._index.source_types[slot] do
+        local kind = prepared._index.source_types[slot]
         if kind == M.TAG then
-          if prepared.source_bytes[slot] >= new_boundary then
+          if prepared._index.source_bytes[slot] >= new_boundary then
             break
           end
-          local text = source:sub(prepared.source_bytes[slot] + 1, prepared.source_bytes[slot + 1])
+          local text = source:sub(prepared._index.source_bytes[slot] + 1, prepared._index.source_bytes[slot + 1])
           local braces = text:match('^{{ "({+)" }}$')
           if not braces then
             return nil, "static edit changed a template tag"
@@ -690,11 +712,11 @@ function M.rebuild_after_edits(trace, source, edits)
         slot = slot + 1
       end
       replacements[ordinal] = table.concat(replacement)
-      if trace.source_types[following] == M.TAG then
+      if trace._index.source_types[following] == M.TAG then
         if
-          prepared.source_bytes[slot] ~= new_boundary
-          or source:sub(prepared.source_bytes[slot] + 1, prepared.source_bytes[slot + 1])
-            ~= trace.source:sub(trace.source_bytes[following] + 1, trace.source_bytes[following + 1])
+          prepared._index.source_bytes[slot] ~= new_boundary
+          or source:sub(prepared._index.source_bytes[slot] + 1, prepared._index.source_bytes[slot + 1])
+            ~= trace.source:sub(trace._index.source_bytes[following] + 1, trace._index.source_bytes[following + 1])
         then
           return nil, "static edit changed a template tag"
         end
@@ -772,7 +794,7 @@ end
 
 -- Regions are transient projections between neighboring sentinel points. The
 -- persistent map stores no expanded static/dynamic range table.
----@param map VimoiSourceMap
+---@param map VimoiMapIndex
 ---@param index integer Odd: gap before a sentinel; even: its restored literal.
 ---@return VimoiRenderedRegion
 local function region_at(map, index)
@@ -806,16 +828,17 @@ end
 ---@param last? integer
 ---@return fun(): VimoiRenderedRegion?
 function M.regions(map, first, last)
+  local data = map._index
   -- BOF/EOF records bound real regions; they do not add editable static ranges.
-  local low, high = 3, #map.output_bytes * 2 - 1
+  local low, high = 3, #data.output_bytes * 2 - 1
   if first then
     while low <= high do
       local middle = math.floor((low + high) / 2)
       local execution = math.floor((middle + 1) / 2)
-      local end_byte = map.output_bytes[execution]
+      local end_byte = data.output_bytes[execution]
       if middle % 2 == 0 then
-        local slot = map.output_slots[execution]
-        end_byte = end_byte + (map.source_bytes[slot + 1] - map.source_bytes[slot])
+        local slot = data.output_slots[execution]
+        end_byte = end_byte + (data.source_bytes[slot + 1] - data.source_bytes[slot])
       end
       if end_byte < first then
         low = middle + 1
@@ -824,12 +847,12 @@ function M.regions(map, first, last)
       end
     end
   end
-  local index, finish = low, #map.output_bytes * 2 - 1
+  local index, finish = low, #data.output_bytes * 2 - 1
   return function()
     if index > finish then
       return
     end
-    local region = region_at(map, index)
+    local region = region_at(data, index)
     if last and region.output_range.start_byte > last then
       return
     end
@@ -839,10 +862,10 @@ function M.regions(map, first, last)
 end
 
 ---Find the containing slot; equal starts choose the last slot, skipping empty anchors.
----@param map VimoiTemplateParts|VimoiSourceMap
+---@param map VimoiMapIndex
 ---@param byte integer
 ---@return integer
-function M.source_slot(map, byte)
+local function source_slot(map, byte)
   local low, high = 1, #map.source_types
   while low <= high do
     local middle = math.floor((low + high) / 2)
@@ -860,22 +883,22 @@ end
 ---@param map VimoiSourceMap
 ---@param first? integer
 ---@param last? integer Exclusive.
----@return fun(): (integer?, integer?, integer?, integer?, boolean?) # Slot, source start/end, output start, repeated.
-function M.source_parts(map, first, last)
-  local index = first and math.max(1, M.source_slot(map, first)) - 1 or 0
+---@return fun(): (integer?, integer?, integer?, boolean?) # Source start/end, first output start, repeated.
+function M.first_text_outputs(map, first, last)
+  local data = map._index
+  local index = first and math.max(1, source_slot(data, first)) - 1 or 0
   return function()
-    while index < #map.source_types do
+    while index < #data.source_types do
       index = index + 1
-      if last and map.source_bytes[index] >= last then
+      if last and data.source_bytes[index] >= last then
         return
       end
-      local kind = map.source_types[index]
+      local kind = data.source_types[index]
       if kind == M.LITERAL or kind == M.REPEATED then
-        local execution = map.output_indices[index]
-        return index,
-          map.source_bytes[index],
-          map.source_bytes[index + 1],
-          execution > 0 and map.output_bytes[execution] or nil,
+        local execution = data.output_indices[index]
+        return data.source_bytes[index],
+          data.source_bytes[index + 1],
+          execution > 0 and data.output_bytes[execution] or nil,
           kind == M.REPEATED
       end
     end
@@ -888,32 +911,33 @@ end
 ---@return integer? first
 ---@return integer? last Exclusive.
 ---@return boolean? literal
-function M.source_span(map, byte)
+function M.first_output_span(map, byte)
+  local data = map._index
   if byte < 0 or byte > map.source_size then
     return nil
   end
-  local slot = M.source_slot(map, byte)
-  local kind, execution = map.source_types[slot], map.output_indices[slot]
+  local slot = source_slot(data, byte)
+  local kind, execution = data.source_types[slot], data.output_indices[slot]
   if kind == M.BOUNDARY then
-    local position = map.output_bytes[execution]
+    local position = data.output_bytes[execution]
     return position, position, false
   end
   if kind == M.LITERAL or kind == M.REPEATED then
     if execution > 0 then
-      local output = map.output_bytes[execution]
-      return output + byte - map.source_bytes[slot],
-        output + (map.source_bytes[slot + 1] - map.source_bytes[slot]),
+      local output = data.output_bytes[execution]
+      return output + byte - data.source_bytes[slot],
+        output + (data.source_bytes[slot + 1] - data.source_bytes[slot]),
         true
     end
     -- Every literal is followed by an action, trim slot or EOF anchor.
-    execution = map.output_indices[slot + 1]
+    execution = data.output_indices[slot + 1]
   end
-  local right, left = map.output_slots[execution], map.output_slots[execution - 1]
-  local source_first = map.source_bytes[left + 1]
-  local source_last = map.source_bytes[right]
+  local right, left = data.output_slots[execution], data.output_slots[execution - 1]
+  local source_first = data.source_bytes[left + 1]
+  local source_last = data.source_bytes[right]
   if byte >= source_first and byte < source_last then
-    return map.output_bytes[execution - 1] + (map.source_bytes[left + 1] - map.source_bytes[left]),
-      map.output_bytes[execution],
+    return data.output_bytes[execution - 1] + (data.source_bytes[left + 1] - data.source_bytes[left]),
+      data.output_bytes[execution],
       false
   end
 end
@@ -921,28 +945,29 @@ end
 ---@param map VimoiSourceMap
 ---@param byte integer
 ---@return integer source_byte
-function M.output_position(map, byte)
+function M.approximate_source_position(map, byte)
+  local data = map._index
   if byte < 0 then
     return 0
   end
   if byte >= map.output_size then
     return map.source_size
   end
-  local low, high = 1, #map.output_bytes
+  local low, high = 1, #data.output_bytes
   while low <= high do
     local middle = math.floor((low + high) / 2)
-    if map.output_bytes[middle] <= byte then
+    if data.output_bytes[middle] <= byte then
       low = middle + 1
     else
       high = middle - 1
     end
   end
-  local left, right = map.output_slots[high], map.output_slots[high + 1]
-  local output_first = map.output_bytes[high] + (map.source_bytes[left + 1] - map.source_bytes[left])
+  local left, right = data.output_slots[high], data.output_slots[high + 1]
+  local output_first = data.output_bytes[high] + (data.source_bytes[left + 1] - data.source_bytes[left])
   if byte < output_first then
-    return map.source_bytes[left] + byte - map.output_bytes[high]
+    return data.source_bytes[left] + byte - data.output_bytes[high]
   end
-  local source_first, source_last = map.source_bytes[left + 1], map.source_bytes[right]
+  local source_first, source_last = data.source_bytes[left + 1], data.source_bytes[right]
   return source_first + math.min(byte - output_first, math.max(0, source_last - source_first))
 end
 
@@ -956,5 +981,112 @@ function M.rendered_regions(map)
   end
   return regions
 end
+
+---Publish an index without retaining the temporary full source/output strings.
+---@param trace VimoiSourceMap
+---@return VimoiSourceMap
+function M.mapping(trace)
+  return { _index = trace._index, source_size = trace.source_size, output_size = trace.output_size }
+end
+
+---Share a completed index with an operation's text snapshot. Session metadata
+---and rendering context are supplied by the session, not inferred by the map.
+---@param map VimoiSourceMap
+---@param source string
+---@param output string
+---@return VimoiMappedText
+function M.snapshot(map, source, output)
+  return {
+    _index = map._index,
+    source_size = map.source_size,
+    output_size = map.output_size,
+    source = source,
+    output = output,
+  }
+end
+
+---Coordinates are zero-based rows and byte columns in the captured snapshot.
+---@param map VimoiSourceMap
+---@param side "source"|"output"
+---@param byte integer
+---@return integer row
+---@return integer col
+function M.byte_to_position(map, side, byte)
+  return util.byte_to_position(nil, byte, map._index[side .. "_starts"])
+end
+
+---An invalid row returns nil; callers choose whether to clamp to EOF.
+---@param map VimoiSourceMap
+---@param side "source"|"output"
+---@param row integer
+---@param col? integer
+---@return integer?
+function M.position_to_byte(map, side, row, col)
+  local start = map._index[side .. "_starts"][row + 1]
+  return start and start + (col or 0)
+end
+
+---A zero-based row span; zero count is an insertion anchor at row.
+---@param map VimoiSourceMap
+---@param side "source"|"output"
+---@param row integer
+---@param count integer
+---@return integer first
+---@return integer last
+function M.line_range(map, side, row, count)
+  local starts, size = map._index[side .. "_starts"], map[side .. "_size"]
+  return starts[row + 1] or size, starts[row + count + 1] or size
+end
+
+---Syntax query, independent of whether a tag executes or produces output.
+---Return complete tags contained in [first,last), in source/reverse source order.
+---The optional skeleton position exists only on prepared render inputs.
+---@param parts VimoiTemplateParts|VimoiSourceMap
+---@param first? integer
+---@param last? integer
+---@param reverse? boolean
+---@return fun(): (integer?, integer?, integer?) # Source start/end, skeleton start.
+function M.tags(parts, first, last, reverse)
+  local data, skeleton_starts = parts._index, rawget(parts, "skeleton_starts")
+  local index = reverse and (last and source_slot(data, last) or #data.source_types) + 1
+    or (first and math.max(1, source_slot(data, first)) or 1) - 1
+  local step = reverse and -1 or 1
+  return function()
+    while true do
+      index = index + step
+      if index < 1 or index > #data.source_types then
+        return
+      end
+      local a, b = data.source_bytes[index], data.source_bytes[index + 1]
+      if (reverse and first and a < first) or (not reverse and last and a >= last) then
+        return
+      end
+      if data.source_types[index] == M.TAG and (not first or a >= first) and (not last or b <= last) then
+        return a, b, skeleton_starts and skeleton_starts[index]
+      end
+    end
+  end
+end
+
+---Raw text between tags, including trimmed whitespace and empty gaps.
+---@param parts VimoiTemplateParts
+---@return fun(): (integer?, integer?, boolean?) # Source start/end, followed by a tag.
+function M.text_gaps(parts)
+  local tags, first, done = M.tags(parts), 0, false
+  return function()
+    if done then
+      return
+    end
+    local a, b = tags()
+    local start = first
+    first, done = b or parts.source_size, a == nil
+    return start, a or parts.source_size, a ~= nil
+  end
+end
+
+-- Existing point-query names remain callable. New callers should name their
+-- first-execution/heuristic choice explicitly rather than treating it as exact.
+M.source_span = M.first_output_span
+M.output_position = M.approximate_source_position
 
 return M

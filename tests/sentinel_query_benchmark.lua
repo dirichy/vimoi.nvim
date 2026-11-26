@@ -30,9 +30,11 @@ end
 
 local function materialize(trace)
   trace.source_size, trace.output_size = #trace.source, #trace.output
-  trace.source_starts, trace.output_starts = util.line_starts(trace.source), util.line_starts(trace.output)
+  if not trace._index then
+    trace.source_starts, trace.output_starts = util.line_starts(trace.source), util.line_starts(trace.output)
+  end
   -- The baseline retains expanded regions; the new map retains sentinel points.
-  if not trace.sentinels and not trace.output_bytes then
+  if not trace._index and not trace.sentinels and not trace.output_bytes then
     return vim.tbl_extend("force", trace, { regions = renderer.rendered_regions(trace) })
   end
   return trace
@@ -72,10 +74,13 @@ for _, case in ipairs(cases) do
   local rendered = assert(render(prepared.skeleton))
   local trace = materialize(assert(renderer.restore(prepared, rendered)))
   local session = { map = trace, hunks = {}, source_win = 1, target_win = 2 }
+  local line_index = trace._index or trace
   local source_rows =
-    math.max(1, #trace.source_starts - (trace.source_starts[#trace.source_starts] == #source and 1 or 0))
-  local output_rows =
-    math.max(1, #trace.output_starts - (trace.output_starts[#trace.output_starts] == #trace.output and 1 or 0))
+    math.max(1, #line_index.source_starts - (line_index.source_starts[#line_index.source_starts] == #source and 1 or 0))
+  local output_rows = math.max(
+    1,
+    #line_index.output_starts - (line_index.output_starts[#line_index.output_starts] == #trace.output and 1 or 0)
+  )
   local source_times, output_times, builds = {}, {}, {}
   local source_sum, output_sum = 0, 0
   for sample = 1, 12 do
@@ -123,6 +128,7 @@ for _, case in ipairs(cases) do
   local candidate = materialize(assert(renderer.restore(assert(renderer.prepare(source, { buf = buf })), rendered)))
   local retained = {}
   for _, key in ipairs({
+    "_index",
     "literal_parts",
     "template_tags",
     "sentinels",

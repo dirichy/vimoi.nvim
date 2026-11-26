@@ -1,0 +1,330 @@
+{
+  "baseline_commit": null,
+  "baseline_directory": "/tmp/vimoi-before-map-ownership",
+  "variant": "sentinel",
+  "process_runs": 3,
+  "queries_per_sample": 512,
+  "environment": {
+    "platform": "Linux-7.3.5-arch1-1-x86_64-with-glibc2.44",
+    "chezmoi": "chezmoi version v2.74.2, built at 2026-11-23T11:51:33Z"
+  },
+  "cases": {
+    "tags_200": {
+      "output_bytes": 2692,
+      "map_kib": 24.796875,
+      "source_checksum": 618528,
+      "output_checksum": 618528,
+      "source_query_cpu_ms": 0.223000000000001,
+      "output_query_cpu_ms": 0.114000000000003,
+      "build_cpu_ms": 0.224000000000002,
+      "render_wall_ms": 26.777487,
+      "source_bytes": 4292
+    },
+    "skipped": {
+      "output_bytes": 14000,
+      "map_kib": 624.09375,
+      "source_checksum": 6261180,
+      "output_checksum": 12406656,
+      "source_query_cpu_ms": 0.16000000000016,
+      "output_query_cpu_ms": 0.1449999999998397,
+      "build_cpu_ms": 3.312999999999455,
+      "render_wall_ms": 44.789574,
+      "source_bytes": 96000
+    },
+    "repeated": {
+      "output_bytes": 60790,
+      "map_kib": 208.7265625,
+      "source_checksum": 760968,
+      "output_checksum": 623256,
+      "source_query_cpu_ms": 0.193999999999972,
+      "output_query_cpu_ms": 0.120000000000009,
+      "build_cpu_ms": 0.9309999999999596,
+      "render_wall_ms": 22.505496,
+      "source_bytes": 3122
+    },
+    "tags_10000": {
+      "output_bytes": 148894,
+      "map_kib": 1536.0390625,
+      "source_checksum": 30803328,
+      "output_checksum": 30803328,
+      "source_query_cpu_ms": 0.2579999999999805,
+      "output_query_cpu_ms": 0.1570000000000182,
+      "build_cpu_ms": 6.487000000000021,
+      "render_wall_ms": 51.7216,
+      "source_bytes": 228894
+    },
+    "tags_2000": {
+      "output_bytes": 28893,
+      "map_kib": 190.7265625,
+      "source_checksum": 6203328,
+      "output_checksum": 6203328,
+      "source_query_cpu_ms": 0.2140000000000059,
+      "output_query_cpu_ms": 0.1310000000000061,
+      "build_cpu_ms": 1.076999999999995,
+      "render_wall_ms": 40.122691,
+      "source_bytes": 44893
+    },
+    "plain": {
+      "output_bytes": 28000,
+      "map_kib": 31.1875,
+      "source_checksum": 6203328,
+      "output_checksum": 6203328,
+      "source_query_cpu_ms": 0.1940000000000032,
+      "output_query_cpu_ms": 0.09399999999999686,
+      "build_cpu_ms": 0.0470000000000019,
+      "render_wall_ms": 24.632587,
+      "source_bytes": 28000
+    }
+  },
+  "runs": [
+    {
+      "cases": {
+        "tags_200": {
+          "output_bytes": 2692,
+          "map_kib": 24.796875,
+          "source_checksum": 618528,
+          "output_checksum": 618528,
+          "source_query_cpu_ms": 0.222,
+          "output_query_cpu_ms": 0.111,
+          "build_cpu_ms": 0.224000000000002,
+          "render_wall_ms": 23.343508,
+          "source_bytes": 4292
+        },
+        "skipped": {
+          "output_bytes": 14000,
+          "map_kib": 624.09375,
+          "source_checksum": 6261180,
+          "output_checksum": 12406656,
+          "source_query_cpu_ms": 0.16000000000016,
+          "output_query_cpu_ms": 0.1490000000003988,
+          "build_cpu_ms": 3.354999999999997,
+          "render_wall_ms": 44.789574,
+          "source_bytes": 96000
+        },
+        "repeated": {
+          "output_bytes": 60790,
+          "map_kib": 208.7265625,
+          "source_checksum": 760968,
+          "output_checksum": 623256,
+          "source_query_cpu_ms": 0.189999999999968,
+          "output_query_cpu_ms": 0.120000000000009,
+          "build_cpu_ms": 0.9190000000000031,
+          "render_wall_ms": 16.427933,
+          "source_bytes": 3122
+        },
+        "tags_10000": {
+          "output_bytes": 148894,
+          "map_kib": 1536.0390625,
+          "source_checksum": 30803328,
+          "output_checksum": 30803328,
+          "source_query_cpu_ms": 0.2570000000000072,
+          "output_query_cpu_ms": 0.1550000000000162,
+          "build_cpu_ms": 6.600999999999968,
+          "render_wall_ms": 51.7216,
+          "source_bytes": 228894
+        },
+        "tags_2000": {
+          "output_bytes": 28893,
+          "map_kib": 190.7265625,
+          "source_checksum": 6203328,
+          "output_checksum": 6203328,
+          "source_query_cpu_ms": 0.2140000000000059,
+          "output_query_cpu_ms": 0.1329999999999942,
+          "build_cpu_ms": 1.111000000000001,
+          "render_wall_ms": 48.85637,
+          "source_bytes": 44893
+        },
+        "plain": {
+          "output_bytes": 28000,
+          "map_kib": 31.1875,
+          "source_checksum": 6203328,
+          "output_checksum": 6203328,
+          "source_query_cpu_ms": 0.1940000000000032,
+          "output_query_cpu_ms": 0.09399999999999686,
+          "build_cpu_ms": 0.0470000000000019,
+          "render_wall_ms": 24.632587,
+          "source_bytes": 28000
+        }
+      },
+      "rendering": "async notify, cache=false",
+      "variant": "sentinel",
+      "working_dir": "/tmp/vimoi-sentinel-benchmark-cwd",
+      "nvim": {
+        "patch": 6,
+        "major": 0,
+        "minor": 12,
+        "api_compatible": 0,
+        "api_level": 14,
+        "api_prerelease": false,
+        "build": "v0.12.6"
+      },
+      "queries_per_sample": 512
+    },
+    {
+      "cases": {
+        "plain": {
+          "map_kib": 31.1875,
+          "source_checksum": 6203328,
+          "output_checksum": 6203328,
+          "source_query_cpu_ms": 0.1530000000000004,
+          "output_query_cpu_ms": 0.06700000000000456,
+          "build_cpu_ms": 0.03500000000000031,
+          "render_wall_ms": 29.074643,
+          "output_bytes": 28000,
+          "source_bytes": 28000
+        },
+        "skipped": {
+          "map_kib": 624.09375,
+          "source_checksum": 6261180,
+          "output_checksum": 12406656,
+          "source_query_cpu_ms": 0.1579999999998805,
+          "output_query_cpu_ms": 0.1439999999996999,
+          "build_cpu_ms": 3.212999999999688,
+          "render_wall_ms": 53.652195,
+          "output_bytes": 14000,
+          "source_bytes": 96000
+        },
+        "tags_200": {
+          "map_kib": 24.796875,
+          "source_checksum": 618528,
+          "output_checksum": 618528,
+          "source_query_cpu_ms": 0.223000000000001,
+          "output_query_cpu_ms": 0.114000000000003,
+          "build_cpu_ms": 0.2049999999999969,
+          "render_wall_ms": 26.777487,
+          "output_bytes": 2692,
+          "source_bytes": 4292
+        },
+        "tags_10000": {
+          "map_kib": 1536.0390625,
+          "source_checksum": 30803328,
+          "output_checksum": 30803328,
+          "source_query_cpu_ms": 0.2579999999999805,
+          "output_query_cpu_ms": 0.1590000000000202,
+          "build_cpu_ms": 6.375999999999992,
+          "render_wall_ms": 56.631747,
+          "output_bytes": 148894,
+          "source_bytes": 228894
+        },
+        "tags_2000": {
+          "map_kib": 190.7265625,
+          "source_checksum": 6203328,
+          "output_checksum": 6203328,
+          "source_query_cpu_ms": 0.2140000000000197,
+          "output_query_cpu_ms": 0.1310000000000061,
+          "build_cpu_ms": 1.067000000000012,
+          "render_wall_ms": 40.122691,
+          "output_bytes": 28893,
+          "source_bytes": 44893
+        },
+        "repeated": {
+          "map_kib": 208.7265625,
+          "source_checksum": 760968,
+          "output_checksum": 623256,
+          "source_query_cpu_ms": 0.1989999999999492,
+          "output_query_cpu_ms": 0.120000000000009,
+          "build_cpu_ms": 0.9330000000000171,
+          "render_wall_ms": 34.876449,
+          "output_bytes": 60790,
+          "source_bytes": 3122
+        }
+      },
+      "rendering": "async notify, cache=false",
+      "variant": "sentinel",
+      "working_dir": "/tmp/vimoi-sentinel-benchmark-cwd",
+      "nvim": {
+        "major": 0,
+        "minor": 12,
+        "api_level": 14,
+        "api_prerelease": false,
+        "patch": 6,
+        "build": "v0.12.6",
+        "api_compatible": 0
+      },
+      "queries_per_sample": 512
+    },
+    {
+      "variant": "sentinel",
+      "working_dir": "/tmp/vimoi-sentinel-benchmark-cwd",
+      "nvim": {
+        "patch": 6,
+        "major": 0,
+        "minor": 12,
+        "api_prerelease": false,
+        "api_level": 14,
+        "build": "v0.12.6",
+        "api_compatible": 0
+      },
+      "queries_per_sample": 512,
+      "cases": {
+        "tags_10000": {
+          "output_checksum": 30803328,
+          "source_query_cpu_ms": 0.2719999999999945,
+          "output_query_cpu_ms": 0.1570000000000182,
+          "build_cpu_ms": 6.487000000000021,
+          "source_bytes": 228894,
+          "output_bytes": 148894,
+          "render_wall_ms": 51.297628,
+          "map_kib": 1536.0390625,
+          "source_checksum": 30803328
+        },
+        "plain": {
+          "output_checksum": 6203328,
+          "source_query_cpu_ms": 0.2720000000000014,
+          "output_query_cpu_ms": 0.1239999999999991,
+          "build_cpu_ms": 0.05899999999999656,
+          "source_bytes": 28000,
+          "output_bytes": 28000,
+          "render_wall_ms": 24.212541,
+          "map_kib": 31.1875,
+          "source_checksum": 6203328
+        },
+        "repeated": {
+          "output_checksum": 623256,
+          "source_query_cpu_ms": 0.193999999999972,
+          "output_query_cpu_ms": 0.122000000000011,
+          "build_cpu_ms": 0.9309999999999596,
+          "source_bytes": 3122,
+          "output_bytes": 60790,
+          "render_wall_ms": 22.505496,
+          "map_kib": 208.7265625,
+          "source_checksum": 760968
+        },
+        "tags_2000": {
+          "output_checksum": 6203328,
+          "source_query_cpu_ms": 0.2130000000000187,
+          "output_query_cpu_ms": 0.1279999999999892,
+          "build_cpu_ms": 1.076999999999995,
+          "source_bytes": 44893,
+          "output_bytes": 28893,
+          "render_wall_ms": 31.435094,
+          "map_kib": 190.7265625,
+          "source_checksum": 6203328
+        },
+        "tags_200": {
+          "output_checksum": 618528,
+          "source_query_cpu_ms": 0.2759999999999985,
+          "output_query_cpu_ms": 0.1450000000000062,
+          "build_cpu_ms": 0.2520000000000022,
+          "source_bytes": 4292,
+          "output_bytes": 2692,
+          "render_wall_ms": 31.86481,
+          "map_kib": 24.796875,
+          "source_checksum": 618528
+        },
+        "skipped": {
+          "output_checksum": 12406656,
+          "source_query_cpu_ms": 0.1639999999998309,
+          "output_query_cpu_ms": 0.1449999999998397,
+          "build_cpu_ms": 3.312999999999455,
+          "source_bytes": 96000,
+          "output_bytes": 14000,
+          "render_wall_ms": 19.852259,
+          "map_kib": 624.09375,
+          "source_checksum": 6261180
+        }
+      },
+      "rendering": "async notify, cache=false"
+    }
+  ]
+}

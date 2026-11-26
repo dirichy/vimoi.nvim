@@ -46,7 +46,6 @@ end
 local function choice_candidates(trace, choice)
   local merge_plan = require("vimoi.merge.plan")
   local candidates = {}
-  local source_starts = trace.source_starts or util.line_starts(trace.source)
   for _, edit in ipairs(choice.candidates) do
     local source, _, source_edits = merge_plan.apply_source_edits(trace, { edit })
     local predicted = source and source_map.rebuild_after_edits(trace, source, source_edits)
@@ -54,7 +53,7 @@ local function choice_candidates(trace, choice)
       .. edit.replacement
       .. trace.output:sub(edit.rendered_end_byte + 1)
     if predicted and predicted.output == expected then
-      local row, col = util.byte_to_position(nil, edit.start_byte, source_starts)
+      local row, col = source_map.byte_to_position(trace, "source", edit.start_byte)
       if edit.end_byte > edit.start_byte then
         edit.label = ("line %d:%d  replace %q with %q"):format(
           row + 1,
@@ -63,7 +62,7 @@ local function choice_candidates(trace, choice)
           edit.replacement
         )
       else
-        local first, last = util.line_range(trace.source, source_starts, row + 1, 1)
+        local first, last = source_map.line_range(trace, "source", row, 1)
         local line = trace.source:sub(first + 1, last):gsub("\n$", "")
         edit.label = ("line %d:%d  %s▸%s"):format(row + 1, col + 1, line:sub(1, col), line:sub(col + 1))
       end
@@ -186,10 +185,10 @@ local function merge(mode)
   end
   if to_target then
     local hunk = hunks[1]
-    local rendered_start, rendered_end = util.line_range(
-      trace.output,
-      trace.output_starts or util.line_starts(trace.output),
-      hunk.rendered_start_line,
+    local rendered_start, rendered_end = source_map.line_range(
+      trace,
+      "output",
+      hunk.rendered_start_line - (hunk.rendered_line_count > 0 and 1 or 0),
       hunk.rendered_line_count
     )
     local target_start, target_end =

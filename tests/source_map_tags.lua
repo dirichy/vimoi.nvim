@@ -102,14 +102,14 @@ print("source map tags: control actions, expressions, comments, trim, and snapsh
 local no_space = assert(source_map.parse('a{{- "x" -}}b'))
 assert(
   vim.deep_equal(
-    no_space.source_types,
+    no_space._index.source_types,
     { source_map.BOUNDARY, source_map.LITERAL, source_map.TAG, source_map.LITERAL, source_map.BOUNDARY }
   )
 )
-assert(no_space.trim_flags[3] == 3)
+assert(no_space._index.trim_flags[3] == 3)
 local adjacent = assert(source_map.parse('{{ "a" }}{{ "b" }}'))
-assert(adjacent.source_bytes[4] == adjacent.source_bytes[5])
-assert(source_map.source_slot(adjacent, adjacent.source_bytes[4]) == 5)
+assert(adjacent._index.source_bytes[4] == adjacent._index.source_bytes[5])
+assert(source_map.tags(adjacent, adjacent._index.source_bytes[4])() == adjacent._index.source_bytes[5])
 
 -- The same identifier reader serves parsing and on-demand merge classification.
 for _, case in ipairs({

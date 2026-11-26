@@ -1,5 +1,4 @@
 local M = {}
-local util = require("vimoi.core.util")
 local source_map = require("vimoi.render.source_map")
 
 -- Translate between target, rendered output, and source line numbers before moving
@@ -42,10 +41,10 @@ local function rendered_to_target_line(session, line)
 end
 
 local function rendered_to_source_line(session, rendered_line)
-  local rendered_line_starts = session.map.output_starts
-  local line_start_byte = rendered_line_starts[rendered_line] or session.map.output_size
-  local source_byte = source_map.output_position(session.map, line_start_byte)
-  return util.byte_to_position(nil, source_byte, session.map.source_starts) + 1
+  local line_start_byte = source_map.position_to_byte(session.map, "output", rendered_line - 1)
+    or session.map.output_size
+  local source_byte = source_map.approximate_source_position(session.map, line_start_byte)
+  return source_map.byte_to_position(session.map, "source", source_byte) + 1
 end
 
 local function target_to_source_line(session, line)
@@ -56,7 +55,7 @@ local function target_to_source_line(session, line)
       and line < hunk.target_start_line + hunk.target_line_count
     then
       if hunk.rendered_line_count == 0 and #hunk.source_ranges > 0 then
-        local row = util.byte_to_position(nil, hunk.source_ranges[1].start_byte, session.map.source_starts)
+        local row = source_map.byte_to_position(session.map, "source", hunk.source_ranges[1].start_byte)
         return row + 1
       end
       break
@@ -66,10 +65,8 @@ local function target_to_source_line(session, line)
 end
 
 local function source_to_rendered_range(session, source_line)
-  local source_starts = session.map.source_starts
-  local line_start_byte = source_starts[source_line] or session.map.source_size
-  local line_end_byte = source_starts[source_line + 1] or session.map.source_size
-  local first, last, literal = source_map.source_span(session.map, line_start_byte)
+  local line_start_byte, line_end_byte = source_map.line_range(session.map, "source", source_line - 1, 1)
+  local first, last, literal = source_map.first_output_span(session.map, line_start_byte)
   if not first or not last then
     return 1, 0
   end
@@ -77,8 +74,8 @@ local function source_to_rendered_range(session, source_line)
   if literal then
     last = math.min(last, first + line_end_byte - line_start_byte)
   end
-  local row = util.byte_to_position(nil, first, session.map.output_starts)
-  local end_row = last > first and util.byte_to_position(nil, last - 1, session.map.output_starts) + 1 or row
+  local row = source_map.byte_to_position(session.map, "output", first)
+  local end_row = last > first and source_map.byte_to_position(session.map, "output", last - 1) + 1 or row
   return row + 1, end_row
 end
 

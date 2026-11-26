@@ -679,10 +679,17 @@ source_map.restore 无须再次执行即可还原完整输出和 byte 映射。
 包括增量语法缓存、渲染结果复用及字面槽位和动态输出的区域映射。
 语法缓存保存由兄弟分隔符节点界定的完整标签范围；define 和空 block 保持不透明，
 非空 block 等控制块拆为独立标签。字面文本由相邻标签推导并应用 ASCII trim，保留空槽位。
-执行映射仅保存源码哨兵位置和输出执行表，不缓存展开的 range 表。source_span() 和
-output_position() 二分定位相邻哨兵，source_parts() 选取源码视口，regions() 按需投影
-输出区间；rendered_regions() 仅在明确请求时生成完整范围。索引与 map 归同一 source
-session 管理，操作快照共享这些数据。
+执行映射仅保存源码哨兵位置和输出执行表，不缓存展开的 range 表。source_map 独占
+索引的构造与解释；完成后的私有数组由发布映射和操作快照只读共享。source session
+负责版本、上下文、失效和发布，消费者通过 is_current() 检查有效性。
+数学接口使用 0-based 字节和半开区间。regions() 保留所有执行：static/repeated 是
+逐字节精确关系，dynamic 仅为生成区间包络，ambiguous 不可直接写回。
+first_text_outputs() 查询源码文本并明确选择首次输出；tags() 独立查询完整语法标签，
+text_gaps() 保留标签间的原始空白。first_output_span() 和 approximate_source_position()
+明确表达滚动的首次输出/近似定位策略，旧点查询名称仍可调用。字节与行列转换统一通过
+byte_to_position()/position_to_byte()，line_range() 使用 0-based 起始行和行数。
+restore() 原地消费首次成功结果，后续调用忽略新的输出/错误；另一轮执行需重新 prepare，失败可重试。
+消费者不读取槽位 ID、类型或内部数组。完整内部模型见 docs/sentinel-map.md。
 空 block 按 Go 的 Unicode 空白规则判定，保留原文，避免哨兵改变定义覆盖语义。
 非空 block 的静态文字修改可复用骨架；define 正文或 block 空性改变时需重新渲染。
 
