@@ -1,4 +1,3 @@
-local util = require("vimoi.core.util")
 local cli = require("vimoi.core.cli")
 
 local CompletionItemKind = vim.lsp.protocol.CompletionItemKind
@@ -172,24 +171,50 @@ end
 
 -- Read real delimiter tokens, including incomplete actions. Strings and comments
 -- may contain braces, so searching source text for the last {{ / }} is unsafe.
-local function regex_completion_syntax(buf, row, col)
-  local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or ""
-  local before = line:sub(1, col)
-  local opening = before:match(".*(){{%-?")
-  if not opening then
+local function fallback_completion_syntax(buf, row, col, before)
+  local opening, quote, comment
+  local index = 1
+  while index <= #before do
+    local char, pair = before:sub(index, index), before:sub(index, index + 1)
+    if not opening then
+      if pair == "{{" then
+        opening = index - 1
+        index = index + 1
+      end
+    elseif comment then
+      if pair == "*/" then
+        comment = false
+        index = index + 1
+      end
+    elseif quote then
+      if char == "\\" and quote ~= "`" then
+        index = index + 1
+      elseif char == quote then
+        quote = nil
+      end
+    elseif pair == "}}" then
+      opening = nil
+      index = index + 1
+    elseif pair == "/*" then
+      comment = true
+      index = index + 1
+    elseif char == '"' or char == "`" or char == "'" then
+      quote = char
+    end
+    index = index + 1
+  end
+  if opening == nil then
     return
   end
-  local closing = before:match(".*()%-?}}")
-  if closing and closing > opening then
-    return
-  end
-  return vim.api.nvim_buf_get_offset(buf, row) + opening - 1, nil, vim.api.nvim_buf_get_offset(buf, row) + col
+  local offset = vim.api.nvim_buf_get_offset(buf, row)
+  local content = opening + 2 + (before:sub(opening + 3, opening + 3) == "-" and 1 or 0)
+  return offset + content, nil, offset + col, row, content
 end
 
-local function completion_syntax(buf, row, col)
+local function completion_syntax(buf, row, col, before)
   local ok, parser = pcall(vim.treesitter.get_parser, buf, "gotmpl")
   if not ok or not parser then
-    return regex_completion_syntax(buf, row, col)
+    return fallback_completion_syntax(buf, row, col, before)
   end
   local tree = parser:parse()[1]
   if not tree then
@@ -203,8 +228,8 @@ local function completion_syntax(buf, row, col)
     end
     local kind = node:type()
     if kind == "{{" or kind == "{{-" then
-      local _, _, end_byte = node:end_()
-      return end_byte
+      local end_row, end_col, end_byte = node:end_()
+      return end_byte, end_row, end_col
     elseif kind == "}}" or kind == "-}}" then
       return false
     elseif kind == "comment" then
@@ -216,18 +241,19 @@ local function completion_syntax(buf, row, col)
     end
     -- The closest delimiter decides; do not walk the whole preceding template.
     for index = node:child_count() - 1, 0, -1 do
-      local delimiter = last_delimiter(node:child(index))
+      local delimiter, opening_row, opening_col = last_delimiter(node:child(index))
       if delimiter ~= nil then
-        return delimiter
+        return delimiter, opening_row, opening_col
       end
     end
   end
-  return last_delimiter(tree:root()), tree:root(), cursor_byte
+  local opening, opening_row, opening_col = last_delimiter(tree:root())
+  return opening, tree:root(), cursor_byte, opening_row, opening_col
 end
 
 -- Fallback for environments without a gotmpl parser. This intentionally favors
 -- useful candidates over scope accuracy.
--- TODO(vimoi): cache these names with the prepared skeleton.
+-- Only variable requests use this approximate whole-buffer fallback.
 local function regex_variable_completions(buf, prefix, row, start_col, end_col)
   local names = {}
   for _, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
@@ -238,14 +264,8 @@ local function regex_variable_completions(buf, prefix, row, start_col, end_col)
   local items = {}
   for name in pairs(names) do
     if name:sub(1, #prefix) == prefix then
-      items[#items + 1] = completion_item(
-        "$" .. name,
-        CompletionItemKind.Variable,
-        "template variable",
-        row,
-        start_col,
-        end_col
-      )
+      items[#items + 1] =
+        completion_item("$" .. name, CompletionItemKind.Variable, "template variable", row, start_col, end_col)
     end
   end
   table.sort(items, function(a, b)
@@ -334,7 +354,7 @@ local function variable_completions(buf, root, cursor_byte, row, prefix, start_c
       in_header = true
     elseif kind == "else" then
       local scope = scopes[#scopes]
-      scope.variables = vim.deepcopy(scope.header_variables)
+      scope.variables = vim.tbl_extend("force", {}, scope.header_variables)
       after_else = true
     elseif kind == "end" then
       if #scopes > 1 then
@@ -455,6 +475,27 @@ local function data_field_completions(data, expression, row, col)
   return items
 end
 
+-- Only an actually open string can request path completion. Ignore escapes and
+-- closed strings so quoted dots, dollars and function names cannot become code.
+local function open_string(text)
+  local quote, first
+  local index = 1
+  while index <= #text do
+    local char = text:sub(index, index)
+    if quote then
+      if char == "\\" and quote ~= "`" then
+        index = index + 1
+      elseif char == quote then
+        quote, first = nil, nil
+      end
+    elseif char == '"' or char == "`" or char == "'" then
+      quote, first = char, index
+    end
+    index = index + 1
+  end
+  return quote, first
+end
+
 ---Generate candidates; blink owns filtering, sorting, and displaying them.
 ---@param buf integer
 ---@param row integer Zero-based row.
@@ -463,7 +504,7 @@ end
 local function complete(buf, row, col, callback)
   local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or ""
   local before = line:sub(1, col)
-  local opening_byte, root, cursor_byte = completion_syntax(buf, row, col)
+  local opening_byte, root, cursor_byte, opening_row, opening_col = completion_syntax(buf, row, col, before)
   if not opening_byte then
     local node = root and root:named_descendant_for_range(row, math.max(col - 1, 0), row, col)
     while node do
@@ -498,15 +539,38 @@ local function complete(buf, row, col, callback)
     return
   end
 
-  local opening_row, opening_col = util.byte_to_position(util.buffer_text(buf), opening_byte)
-  local action_before = table.concat(vim.api.nvim_buf_get_text(buf, opening_row, opening_col, row, col, {}), "\n")
+  ---@cast opening_row integer The opening delimiter returned its own end position.
+  ---@cast opening_col integer
+  local action_before = opening_row == row and before:sub(opening_col + 1)
+    or table.concat(vim.api.nvim_buf_get_text(buf, opening_row, opening_col, row, col, {}), "\n")
   if action_before:match("^%s*/%*") then
     callback({}) -- An unfinished comment may still be an ERROR node in Tree-sitter.
     return
   end
-  local function_name, prefix = action_before:match('([%w]+)%s+["`]([^"`\n]*)$')
-  local expression = before:match("([.][%w_.]*)$")
-  local variable = before:match("%$([%w_]*)$")
+  local quote, string_start = open_string(action_before)
+  local function_name, prefix
+  if quote then
+    function_name = action_before:sub(1, string_start - 1):match("([%w_]+)%s+$")
+    if
+      quote == "'"
+      or not (
+        function_name == "include"
+        or function_name == "template"
+        or function_name == "includeTemplate"
+        or function_name == "glob"
+      )
+    then
+      callback({})
+      return
+    end
+    prefix = action_before:sub(string_start + 1)
+    if prefix:find("\n", 1, true) then
+      callback({})
+      return
+    end
+  end
+  local expression = not quote and before:match("([.][%w_.]*)$")
+  local variable = not quote and before:match("%$([%w_]*)$")
   if variable then
     if root then
       callback(variable_completions(buf, root, cursor_byte, row, variable, col - #variable - 1, col))
@@ -527,24 +591,25 @@ local function complete(buf, row, col, callback)
     return
   end
 
+  if function_name == "include" then
+    callback(path_completions(cli.source_root, prefix, CompletionItemKind.File, row, col, "chezmoi source file"))
+    return
+  elseif function_name == "template" or function_name == "includeTemplate" then
+    callback(template_path_completions(cli.source_root, prefix, row, col))
+    return
+  end
+
   cli.data_async(function(data)
     if not data then
       callback({})
       return
     end
-    data = cli.data_for_completion(data, buf)
-    if function_name == "include" then
-      callback(
-        path_completions(data.chezmoi.sourceDir, prefix, CompletionItemKind.File, row, col, "chezmoi source file")
-      )
-    elseif function_name == "template" or function_name == "includeTemplate" then
-      callback(template_path_completions(data.chezmoi.sourceDir, prefix, row, col))
-    elseif function_name == "glob" then
+    if function_name == "glob" then
       callback(
         path_completions(data.chezmoi.destDir, prefix, CompletionItemKind.File, row, col, "chezmoi destination path")
       )
     elseif expression then
-      callback(data_field_completions(data, expression, row, col))
+      callback(data_field_completions(cli.data_for_completion(data, buf), expression, row, col))
     else
       callback({})
     end
@@ -575,9 +640,8 @@ end
 ---@param callback fun(response: VimoiBlinkCompletionResponse)
 ---@return fun() cancel Suppresses delivery; the shared data lookup may still finish.
 function Source:get_completions(context, callback)
-  local position = context.cursor
-  local row = position and (position[1] - 1) or vim.api.nvim_win_get_cursor(0)[1] - 1
-  local col = position and position[2] or vim.api.nvim_win_get_cursor(0)[2]
+  local position = context.cursor or vim.api.nvim_win_get_cursor(0)
+  local row, col = position[1] - 1, position[2]
   local cancelled = false
   complete(context.bufnr or vim.api.nvim_get_current_buf(), row, col, function(items)
     if cancelled then

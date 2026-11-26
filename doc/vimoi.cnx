@@ -626,13 +626,15 @@ Go template 函数使用空格传参而不是 `()`。上面的 blink.cmp 原生
 Sprig 函数、来自 `chezmoi data` 的 `.` 字段、当前作用域内已声明的 `$variable`，
 以及 `include`、`includeTemplate`、`template` 与 `glob` 的路径。分隔符和变量声明由
 语法树识别，支持跨行 action、字符串/注释内的括号、控制分支、range 绑定和命名模板
-的变量作用域。
+的变量作用域。普通字符串不提供代码候选，只有支持的路径参数提供路径候选；转义引号和
+字符串内的括号不会被当成新的补全上下文。
 action 外提供 if、ifelse、range、with、define、block 和 comment 块 snippet，
 展开后可编辑占位符。候选使用标准 LSP snippet 格式，交给 blink 配置的 snippet 引擎；
 注释中不提供这些候选。
 
-补全按需异步读取并缓存 data，直到被清空。候选说明不会展示 data 值，
-以免敏感配置出现在补全菜单。共享模板目录的发现结果也由补全和跳转共用缓存，文件
+字段和 glob 目标路径补全按需异步读取并缓存 data；source/template 路径直接使用配置的
+source root。上下文只覆盖根表及 chezmoi 字段，不深拷贝无关数据，嵌套缓存数据只读。
+字段说明遵循 completion.mask，默认隐藏值。共享模板目录的发现结果由补全和跳转共用，文件
 变化或清空缓存时失效。设置 `completion.enabled = false` 可以关闭 source。
 
 ==============================================================================

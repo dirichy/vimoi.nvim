@@ -36,13 +36,15 @@ end
 ---@param buf integer
 ---@return VimoiData
 function M.data_for_completion(data, buf)
-  local result = vim.deepcopy(data)
-  local chezmoi = result.chezmoi
+  -- A read-only overlay: only root/runtime fields differ from shared data.
+  local result = vim.tbl_extend("force", {}, data)
   local name = vim.api.nvim_buf_get_name(buf)
   local source_file = name ~= "" and M.source_root and vim.fs.relpath(M.source_root, name)
   if not source_file then
     return result
   end
+  local chezmoi = vim.tbl_extend("force", {}, data.chezmoi)
+  result.chezmoi = chezmoi
   local target_file = M.counterpart_path(name)
   chezmoi.sourceFile = source_file
   chezmoi.targetFile = target_file or ""

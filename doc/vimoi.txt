@@ -802,14 +802,19 @@ data`, `$variables` declared earlier and still in scope, and paths for `include`
 `includeTemplate`, `template`, and `glob`. Syntax tokens recognize multiline
 actions and distinguish delimiters from braces inside strings/comments. Variable
 completion respects control branches, range bindings, and named-template scopes.
+Ordinary quoted strings do not offer code candidates; only supported path arguments
+offer path candidates. Escaped quotes and braces within strings do not turn their
+contents into a new completion context.
 Outside actions, block snippets complete if, ifelse, range, with, define, block,
 and comment into full templates with editable placeholders. Items use standard
 LSP snippet format and blink's configured snippet engine; comments are excluded.
 
 Completion loads and caches data asynchronously on demand until invalidation.
 The cached data view replaces runtime-only fields before exposing it to consumers.
-Completion makes a private copy and fills fields known from the current managed
-buffer. Value documentation comes from this sanitized view. Fields whose values are supplied
+Completion overlays fields known from the current managed buffer without copying
+unrelated data; nested cached data remains read-only. Source/template paths use
+the configured source root directly; only data fields and glob destination paths
+request data. Value documentation comes from this sanitized view. Fields whose values are supplied
 by the current execution context, such as `.chezmoi.command`, `.chezmoi.args`,
 `.chezmoi.sourceFile` and `.chezmoi.targetFile`, are shown as `[runtime value]`
 instead of displaying the possibly stale `chezmoi data` snapshot. Other fields

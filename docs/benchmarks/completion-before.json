@@ -1,0 +1,137 @@
+{
+  "baseline_commit": "c3729e4cde5d2c04dec4e44d1d41992bef3a3baa",
+  "process_runs": 3,
+  "cases": {
+    "small": {
+      "data_requests": 224,
+      "checksum": 928,
+      "cpu_ms": 0.2009999999999998,
+      "full_buffer_reads": 224,
+      "deepcopies": 224
+    },
+    "large_data": {
+      "data_requests": 224,
+      "checksum": 928,
+      "cpu_ms": 47.4,
+      "full_buffer_reads": 224,
+      "deepcopies": 224
+    },
+    "large_buffer": {
+      "data_requests": 224,
+      "checksum": 928,
+      "cpu_ms": 26.20299999999997,
+      "full_buffer_reads": 224,
+      "deepcopies": 224
+    }
+  },
+  "runs": [
+    {
+      "nvim": {
+        "api_level": 14,
+        "api_prerelease": false,
+        "api_compatible": 0,
+        "major": 0,
+        "minor": 12,
+        "patch": 6,
+        "build": "v0.12.6"
+      },
+      "queries_per_sample": 32,
+      "samples": 7,
+      "cases": {
+        "small": {
+          "data_requests": 224,
+          "checksum": 928,
+          "cpu_ms": 0.1830000000000026,
+          "full_buffer_reads": 224,
+          "deepcopies": 224
+        },
+        "large_data": {
+          "data_requests": 224,
+          "checksum": 928,
+          "cpu_ms": 49.924,
+          "full_buffer_reads": 224,
+          "deepcopies": 224
+        },
+        "large_buffer": {
+          "data_requests": 224,
+          "checksum": 928,
+          "cpu_ms": 26.20299999999997,
+          "full_buffer_reads": 224,
+          "deepcopies": 224
+        }
+      }
+    },
+    {
+      "nvim": {
+        "minor": 12,
+        "api_level": 14,
+        "api_prerelease": false,
+        "build": "v0.12.6",
+        "api_compatible": 0,
+        "patch": 6,
+        "major": 0
+      },
+      "queries_per_sample": 32,
+      "samples": 7,
+      "cases": {
+        "small": {
+          "full_buffer_reads": 224,
+          "deepcopies": 224,
+          "data_requests": 224,
+          "checksum": 928,
+          "cpu_ms": 0.2009999999999998
+        },
+        "large_data": {
+          "full_buffer_reads": 224,
+          "deepcopies": 224,
+          "data_requests": 224,
+          "checksum": 928,
+          "cpu_ms": 46.77699999999999
+        },
+        "large_buffer": {
+          "full_buffer_reads": 224,
+          "deepcopies": 224,
+          "data_requests": 224,
+          "checksum": 928,
+          "cpu_ms": 26.38800000000002
+        }
+      }
+    },
+    {
+      "queries_per_sample": 32,
+      "samples": 7,
+      "cases": {
+        "small": {
+          "cpu_ms": 0.334000000000001,
+          "full_buffer_reads": 224,
+          "deepcopies": 224,
+          "data_requests": 224,
+          "checksum": 928
+        },
+        "large_data": {
+          "cpu_ms": 47.4,
+          "full_buffer_reads": 224,
+          "deepcopies": 224,
+          "data_requests": 224,
+          "checksum": 928
+        },
+        "large_buffer": {
+          "cpu_ms": 26.06000000000003,
+          "full_buffer_reads": 224,
+          "deepcopies": 224,
+          "data_requests": 224,
+          "checksum": 928
+        }
+      },
+      "nvim": {
+        "minor": 12,
+        "api_level": 14,
+        "api_prerelease": false,
+        "build": "v0.12.6",
+        "patch": 6,
+        "api_compatible": 0,
+        "major": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "baseline_commit": "c3729e4cde5d2c04dec4e44d1d41992bef3a3baa",
+  "process_runs": 3,
+  "cases": {
+    "small": {
+      "cpu_ms": 0.1429999999999973,
+      "full_buffer_reads": 0,
+      "deepcopies": 0,
+      "data_requests": 224,
+      "checksum": 928
+    },
+    "large_data": {
+      "cpu_ms": 0.112000000000001,
+      "full_buffer_reads": 0,
+      "deepcopies": 0,
+      "data_requests": 224,
+      "checksum": 928
+    },
+    "large_buffer": {
+      "cpu_ms": 0.1009999999999969,
+      "full_buffer_reads": 0,
+      "deepcopies": 0,
+      "data_requests": 224,
+      "checksum": 928
+    }
+  },
+  "runs": [
+    {
+      "nvim": {
+        "minor": 12,
+        "api_level": 14,
+        "api_prerelease": false,
+        "build": "v0.12.6",
+        "api_compatible": 0,
+        "patch": 6,
+        "major": 0
+      },
+      "queries_per_sample": 32,
+      "samples": 7,
+      "cases": {
+        "small": {
+          "cpu_ms": 0.2920000000000006,
+          "full_buffer_reads": 0,
+          "deepcopies": 0,
+          "data_requests": 224,
+          "checksum": 928
+        },
+        "large_data": {
+          "cpu_ms": 0.116999999999999,
+          "full_buffer_reads": 0,
+          "deepcopies": 0,
+          "data_requests": 224,
+          "checksum": 928
+        },
+        "large_buffer": {
+          "cpu_ms": 0.09499999999999786,
+          "full_buffer_reads": 0,
+          "deepcopies": 0,
+          "data_requests": 224,
+          "checksum": 928
+        }
+      }
+    },
+    {
+      "samples": 7,
+      "cases": {
+        "large_data": {
+          "cpu_ms": 0.112000000000001,
+          "full_buffer_reads": 0,
+          "deepcopies": 0,
+          "data_requests": 224,
+          "checksum": 928
+        },
+        "large_buffer": {
+          "cpu_ms": 0.1009999999999969,
+          "full_buffer_reads": 0,
+          "deepcopies": 0,
+          "data_requests": 224,
+          "checksum": 928
+        },
+        "small": {
+          "cpu_ms": 0.1270000000000021,
+          "full_buffer_reads": 0,
+          "deepcopies": 0,
+          "data_requests": 224,
+          "checksum": 928
+        }
+      },
+      "nvim": {
+        "build": "v0.12.6",
+        "api_compatible": 0,
+        "patch": 6,
+        "major": 0,
+        "minor": 12,
+        "api_level": 14,
+        "api_prerelease": false
+      },
+      "queries_per_sample": 32
+    },
+    {
+      "nvim": {
+        "major": 0,
+        "minor": 12,
+        "api_level": 14,
+        "api_prerelease": false,
+        "build": "v0.12.6",
+        "patch": 6,
+        "api_compatible": 0
+      },
+      "queries_per_sample": 32,
+      "samples": 7,
+      "cases": {
+        "small": {
+          "cpu_ms": 0.1429999999999973,
+          "full_buffer_reads": 0,
+          "deepcopies": 0,
+          "data_requests": 224,
+          "checksum": 928
+        },
+        "large_data": {
+          "cpu_ms": 0.1080000000000005,
+          "full_buffer_reads": 0,
+          "deepcopies": 0,
+          "data_requests": 224,
+          "checksum": 928
+        },
+        "large_buffer": {
+          "cpu_ms": 0.112000000000001,
+          "full_buffer_reads": 0,
+          "deepcopies": 0,
+          "data_requests": 224,
+          "checksum": 928
+        }
+      }
+    }
+  ]
+}
