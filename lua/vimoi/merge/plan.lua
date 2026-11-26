@@ -1,6 +1,7 @@
 local M = {}
 local util = require("vimoi.core.util")
 local diff_hunks = require("vimoi.compare.diff_hunks")
+local source_map = require("vimoi.render.source_map")
 local changed_bytes = util.changed_bytes
 
 -- Merge planning locates static edits and ambiguous placements; source_map
@@ -65,14 +66,22 @@ local function insertion_source_range(hunk)
   return nil, "insertion is on a template block or static-region boundary"
 end
 
+local control_keywords = { ["if"] = true, range = true, with = true, ["else"] = true, ["end"] = true }
+
+-- Merge already owns a source snapshot; inspect only the selected action.
+local function control(trace, slot)
+  local text = trace.source:sub(trace.source_bytes[slot] + 1, trace.source_bytes[slot + 1])
+  local keyword = source_map.action_keyword(text)
+  return control_keywords[keyword] and keyword or nil
+end
+
 -- Match whole syntax tags and intervening whitespace, never braces inside a
--- quoted string. The trace owns both tag boundaries and control classification.
+-- quoted string. The trace supplies tag boundaries; control keywords are read on demand.
 local function preceding_tag(trace, byte)
-  for index = #trace.template_tags, 1, -1 do
-    local tag = trace.template_tags[index]
-    if tag.end_byte <= byte then
-      if not trace.source:sub(tag.end_byte + 1, byte):find("%S") then
-        return tag, index
+  for slot = source_map.source_slot(trace, byte), 1, -1 do
+    if trace.source_types[slot] == source_map.TAG and trace.source_bytes[slot + 1] <= byte then
+      if not trace.source:sub(trace.source_bytes[slot + 1] + 1, byte):find("%S") then
+        return slot
       end
       return
     end
@@ -93,12 +102,13 @@ local function control_choice_anchors(trace, hunk, allow_static_ranges)
         return nil
       else
         local byte, count = range.start_byte, 0
-        for _, tag in ipairs(trace.template_tags) do
-          if tag.start_byte >= range.start_byte and tag.end_byte <= range.end_byte then
-            if not tag.control or trace.source:sub(byte + 1, tag.start_byte):find("%S") then
+        for slot, kind in ipairs(trace.source_types) do
+          local first, last = trace.source_bytes[slot], trace.source_bytes[slot + 1]
+          if kind == source_map.TAG and first >= range.start_byte and last <= range.end_byte then
+            if not control(trace, slot) or trace.source:sub(byte + 1, first):find("%S") then
               return nil
             end
-            byte, count = tag.end_byte, count + 1
+            byte, count = last, count + 1
           end
         end
         if count == 0 or trace.source:sub(byte + 1, range.end_byte):find("%S") then
@@ -119,26 +129,33 @@ local function control_choice_anchors(trace, hunk, allow_static_ranges)
   end
   table.sort(anchors)
   local tag = preceding_tag(trace, anchors[1])
-  if tag and tag.control == "if" and not seen[tag.start_byte] then
-    table.insert(anchors, 1, tag.start_byte)
+  if tag and control(trace, tag) == "if" and not seen[trace.source_bytes[tag]] then
+    table.insert(anchors, 1, trace.source_bytes[tag])
   end
   return anchors
 end
 
 local function empty_if_choice_anchors(trace, anchor)
-  local last, index = preceding_tag(trace, anchor)
-  if not last or last.control ~= "end" or index < 2 then
+  local last = preceding_tag(trace, anchor)
+  if not last or control(trace, last) ~= "end" then
     return nil
   end
-  local first = trace.template_tags[index - 1]
-  if first.control == "if" and not trace.source:sub(first.end_byte + 1, last.start_byte):find("%S") then
-    return { first.start_byte, last.start_byte, anchor }
+  local first = last - 1
+  while first > 0 and trace.source_types[first] ~= source_map.TAG do
+    first = first - 1
+  end
+  if
+    first > 0
+    and control(trace, first) == "if"
+    and not trace.source:sub(trace.source_bytes[first + 1] + 1, trace.source_bytes[last]):find("%S")
+  then
+    return { trace.source_bytes[first], trace.source_bytes[last], anchor }
   end
 end
 
 local function adjacent_control_boundary_anchors(trace, anchor)
   local tag = preceding_tag(trace, anchor)
-  return tag and tag.control and { tag.start_byte, anchor } or nil
+  return tag and control(trace, tag) and { trace.source_bytes[tag], anchor } or nil
 end
 
 ---@param modified string
@@ -209,53 +226,56 @@ local function apply_source_edits(parts, edits)
       return nil, "source edits overlap", {}
     end
   end
-  local source_edits, edit_index = {}, 1
-  for index = 1, #parts.literal_parts do
-    local previous_tag, following_tag = parts.template_tags[index - 1], parts.template_tags[index]
-    local start_byte = previous_tag and previous_tag.end_byte or 0
-    local end_byte = following_tag and following_tag.start_byte or #source
-    local slot_edits = {}
-    while ordered[edit_index] and ordered[edit_index].start_byte <= end_byte do
-      local edit = ordered[edit_index]
-      if edit.start_byte < start_byte or edit.end_byte > end_byte then
-        return nil, "source edit crosses a template tag", {}
-      end
-      slot_edits[#slot_edits + 1] = {
-        start_byte = edit.start_byte - start_byte,
-        end_byte = edit.end_byte - start_byte,
-        replacement = edit.replacement,
-      }
-      edit_index = edit_index + 1
-    end
-    if #slot_edits > 0 then
-      local scan_start = math.max(0, slot_edits[1].start_byte - 1)
-      local scan_end = math.min(end_byte - start_byte, slot_edits[#slot_edits].end_byte + 1)
-      local before = source:sub(start_byte + scan_start + 1, start_byte + scan_end)
-      local after = apply_edits(before, slot_edits, scan_start)
-      local touches_tag = following_tag and start_byte + scan_end == end_byte
-      local trailing_brace = touches_tag and after:sub(-1) == "{"
-      if trailing_brace or after:find("{{", 1, true) then
-        -- Escape entire brace runs so no leftover brace can join an inserted tag.
-        after = after:gsub("{{+", '{{ "%0" }}')
-        if touches_tag and after:sub(-1) == "{" then
-          after = after:sub(1, -2) .. '{{ "{" }}'
+  local source_edits, edit_index, start_byte = {}, 1, 0
+  for slot = 1, #parts.source_types + 1 do
+    if parts.source_types[slot] == source_map.TAG or slot == #parts.source_types + 1 then
+      -- Raw gaps include trimmed whitespace; edits may still target their boundaries.
+      local following_tag = parts.source_types[slot] == source_map.TAG
+      local end_byte = parts.source_bytes[slot]
+      local slot_edits = {}
+      while ordered[edit_index] and ordered[edit_index].start_byte <= end_byte do
+        local edit = ordered[edit_index]
+        if edit.start_byte < start_byte or edit.end_byte > end_byte then
+          return nil, "source edit crosses a template tag", {}
         end
-        local first, old_end, replacement = changed_bytes(before, after)
-        source_edits[#source_edits + 1] = {
-          start_byte = start_byte + scan_start + first,
-          end_byte = start_byte + scan_start + old_end,
-          replacement = replacement,
+        slot_edits[#slot_edits + 1] = {
+          start_byte = edit.start_byte - start_byte,
+          end_byte = edit.end_byte - start_byte,
+          replacement = edit.replacement,
         }
-      else
-        -- Ordinary edits keep their disjoint writes and untouched extmarks/folds.
-        for _, edit in ipairs(slot_edits) do
+        edit_index = edit_index + 1
+      end
+      if #slot_edits > 0 then
+        local scan_start = math.max(0, slot_edits[1].start_byte - 1)
+        local scan_end = math.min(end_byte - start_byte, slot_edits[#slot_edits].end_byte + 1)
+        local before = source:sub(start_byte + scan_start + 1, start_byte + scan_end)
+        local after = apply_edits(before, slot_edits, scan_start)
+        local touches_tag = following_tag and start_byte + scan_end == end_byte
+        local trailing_brace = touches_tag and after:sub(-1) == "{"
+        if trailing_brace or after:find("{{", 1, true) then
+          -- Escape entire brace runs so no leftover brace can join an inserted tag.
+          after = after:gsub("{{+", '{{ "%0" }}')
+          if touches_tag and after:sub(-1) == "{" then
+            after = after:sub(1, -2) .. '{{ "{" }}'
+          end
+          local first, old_end, replacement = changed_bytes(before, after)
           source_edits[#source_edits + 1] = {
-            start_byte = start_byte + edit.start_byte,
-            end_byte = start_byte + edit.end_byte,
-            replacement = edit.replacement,
+            start_byte = start_byte + scan_start + first,
+            end_byte = start_byte + scan_start + old_end,
+            replacement = replacement,
           }
+        else
+          -- Ordinary edits keep their disjoint writes and untouched extmarks/folds.
+          for _, edit in ipairs(slot_edits) do
+            source_edits[#source_edits + 1] = {
+              start_byte = start_byte + edit.start_byte,
+              end_byte = start_byte + edit.end_byte,
+              replacement = edit.replacement,
+            }
+          end
         end
       end
+      start_byte = parts.source_bytes[slot + 1]
     end
   end
   if edit_index <= #ordered then
@@ -337,19 +357,21 @@ local function static_byte_edit_candidates(trace, modified, hunk)
     if before:sub(1, offset) .. replacement .. before:sub(offset + removed_bytes + 1) == after then
       local rendered_start_byte = hunk_rendered_start_byte + offset
       local rendered_end_byte = rendered_start_byte + removed_bytes
-      for literal_part_index, literal_part in ipairs(trace.literal_parts) do
-        local occurrence = literal_part.output_ranges[1]
+      for slot, kind in ipairs(trace.source_types) do
+        local occurrence = trace.output_indices[slot]
+        local start_byte = trace.output_bytes[occurrence]
+        local end_byte = start_byte and start_byte + trace.source_bytes[slot + 1] - trace.source_bytes[slot]
         if
-          #literal_part.output_ranges == 1
-          and rendered_start_byte >= occurrence.start_byte
-          and rendered_end_byte <= occurrence.end_byte
+          kind == source_map.LITERAL
+          and occurrence > 0
+          and rendered_start_byte >= start_byte
+          and rendered_end_byte <= end_byte
         then
-          local boundary = removed_bytes == 0
-            and (rendered_start_byte == occurrence.start_byte or rendered_start_byte == occurrence.end_byte)
+          local boundary = removed_bytes == 0 and (rendered_start_byte == start_byte or rendered_start_byte == end_byte)
           touches_boundary = touches_boundary or boundary
-          local existing = candidates_by_literal_part[literal_part_index]
+          local existing = candidates_by_literal_part[slot]
           if not existing or (existing.boundary and not boundary) then
-            local source_start_byte = literal_part.source.start_byte + rendered_start_byte - occurrence.start_byte
+            local source_start_byte = trace.source_bytes[slot] + rendered_start_byte - start_byte
             local candidate = {
               start_byte = source_start_byte,
               end_byte = source_start_byte + removed_bytes,
@@ -363,7 +385,7 @@ local function static_byte_edit_candidates(trace, modified, hunk)
             else
               candidates[#candidates + 1] = candidate
             end
-            candidates_by_literal_part[literal_part_index] =
+            candidates_by_literal_part[slot] =
               { index = existing and existing.index or #candidates, boundary = boundary }
           end
         end

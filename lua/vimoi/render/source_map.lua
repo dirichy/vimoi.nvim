@@ -1,4 +1,4 @@
--- Map template source ranges to rendered output using sentinel markers.
+-- Locate source and output bytes through ordered sentinel occurrences.
 local M = {}
 local cli = require("vimoi.core.cli")
 
@@ -7,39 +7,41 @@ local cli = require("vimoi.core.cli")
 ---@field start_byte integer
 ---@field end_byte integer
 
----Literal text between template tags, after trim, including empty text.
----@class VimoiLiteralPart
----@field source VimoiByteRange
----@field text string Source text after adjacent tags' whitespace trimming.
----@field output_ranges { start_byte: integer, end_byte: integer, execution_order: integer }[] Empty when skipped; multiple ranges when repeated.
+-- Source slots share parallel arrays; REPEATED marks multiple executions of one literal.
+M.LITERAL, M.REPEATED, M.TAG, M.TRIMMED, M.BOUNDARY = 1, 2, 3, 4, 5
 
----@class VimoiTemplateTag: VimoiTemplateTagRange
----@field text string Complete template tag, including its delimiters.
----@field control? string Control keyword used for merge-boundary choices.
----@field skeleton_start_byte? integer Tag start in the prepared skeleton; absent on parse-only results.
-
----Source order alternates literal_parts[i], template_tags[i], ending with one last literal part.
 ---@class VimoiTemplateParts
----@field source string
----@field template_tags VimoiTemplateTag[]
----@field literal_parts VimoiLiteralPart[]
+---@field source string Temporary source snapshot, absent from the published map.
+---@field source_bytes integer[] Source-ordered starts, including zero-length BOF/EOF; one extra entry is EOF.
+---@field source_types integer[] LITERAL, REPEATED, TAG, TRIMMED or BOUNDARY.
+---@field trim_flags integer[] TAG slots: 1 = left trim, 2 = right, 3 = both.
 
----Prepared source structure. Output fields appear together after sentinel decoding.
+---@class VimoiSourceMap
+---@field source_bytes integer[]
+---@field source_types integer[]
+---@field trim_flags integer[]
+---@field output_indices integer[] Literal: first execution or zero. TAG/TRIMMED: earliest execution to the right.
+---@field output_bytes integer[] Output-ordered positions, including virtual BOF/EOF anchors.
+---@field output_slots integer[] Source slot for each output position.
+---@field source_size integer
+---@field output_size integer
+
 ---@class VimoiPreparedTrace: VimoiTemplateParts
----@field skeleton string Template tags with each literal part replaced by a sentinel.
----@field prefix string Context-injection actions included at the start of the skeleton.
+---@field skeleton string Actions with literals replaced by stable ordinal sentinels.
+---@field skeleton_starts table<integer, integer> TAG positions for template errors.
+---@field sentinel_slots integer[] Ordinal-to-source-slot lookup, independent of trim slot count.
+---@field prefix string
 ---@field init boolean
 ---@field context_generation integer
----@field output? string Absent before rendering; present on a reused complete trace.
----@field rendered_skeleton? string
+---@field output? string Present after decoding; restoration is idempotent.
 
----Temporary complete render/merge input; repeated executions share a literal part.
----@class VimoiSourceMapTrace: VimoiPreparedTrace
+---@class VimoiSourceMapTrace: VimoiPreparedTrace, VimoiSourceMap
+---@field sentinel_slots? integer[] Only prepared renders need ordinal decoding data.
+---@field skeleton_starts? table<integer, integer> Only prepared renders need template-error positions.
 ---@field output string
 ---@field rendered_skeleton string
----@field regions? VimoiRenderedRegion[] Shared from the session map when materializing a snapshot.
----@field output_starts? integer[] Shared output line starts for diff calculations.
----@field source_starts? integer[] Shared source line starts for merge locations.
+---@field source_starts? integer[] Source line starts.
+---@field output_starts? integer[] Output line starts.
 
 ---@class VimoiSyntaxEdit
 ---@field start_byte integer
@@ -354,8 +356,19 @@ local function parse_tags(source, buf)
   return template_tags, nil, visited_nodes
 end
 
+---Read the leading action identifier, preserving Unicode identifier boundaries.
+---@param text string Complete action, including delimiters.
+---@return string?
+function M.action_keyword(text)
+  local keyword, after = text:match("^{{%-?%s*([%a_][%w_]*)()")
+  if after and (text:byte(after) or 0) >= 128 then
+    return nil
+  end
+  return keyword
+end
+
 ---Extract template tags and trimmed literal text before rendering.
----Only dirty syntax is walked; returned ranges and occurrence lists are fresh objects.
+---Only dirty syntax is walked; the returned slot arrays are fresh snapshots.
 ---@param source string
 ---@param buf? integer
 ---@return VimoiTemplateParts?
@@ -369,13 +382,9 @@ function M.parse(source, buf)
   -- Export fresh objects so later byte shifts cannot mutate an existing trace.
   local template_tags, stack = {}, {}
   local blocks = { ["if"] = true, range = true, with = true, block = true }
-  local controls = { ["if"] = true, range = true, with = true, ["else"] = true, ["end"] = true }
   for index, tag in ipairs(cached_tags) do
     local text = source:sub(tag.start_byte + 1, tag.end_byte)
-    local keyword, after = text:match("^{{%-?%s*([%a_][%w_]*)()")
-    if after and (text:byte(after) or 0) >= 128 then
-      keyword = nil
-    end
+    local keyword = M.action_keyword(text)
     local frame = stack[#stack]
     if frame and frame.empty then
       local previous = cached_tags[index - 1]
@@ -388,14 +397,7 @@ function M.parse(source, buf)
         frame.empty = false
       end
     end
-    template_tags[#template_tags + 1] = {
-      start_byte = tag.start_byte,
-      end_byte = tag.end_byte,
-      left_trim = tag.left_trim,
-      right_trim = tag.right_trim,
-      text = text,
-      control = controls[keyword] and keyword or nil,
-    }
+    template_tags[#template_tags + 1] = tag
     if blocks[keyword] then
       stack[#stack + 1] = { index = #template_tags, keyword = keyword, empty = keyword == "block" }
     elseif keyword == "end" and frame then
@@ -404,8 +406,12 @@ function M.parse(source, buf)
         -- Keep empty block definitions opaque so tokens cannot change Go's
         -- whitespace/comment-only redefinition semantics.
         local opening = template_tags[frame.index]
-        opening.end_byte, opening.right_trim = tag.end_byte, tag.right_trim
-        opening.text = source:sub(opening.start_byte + 1, tag.end_byte)
+        template_tags[frame.index] = {
+          start_byte = opening.start_byte,
+          end_byte = tag.end_byte,
+          left_trim = opening.left_trim,
+          right_trim = tag.right_trim,
+        }
         for inner = #template_tags, frame.index + 1, -1 do
           template_tags[inner] = nil
         end
@@ -417,28 +423,32 @@ function M.parse(source, buf)
       return nil, "unclosed template definition/block at byte " .. template_tags[frame.index].start_byte
     end
   end
-  local literal_parts = {}
-  -- Keep empty slots at file ends and between adjacent tags for boundary insertions and sentinels.
+  local starts, types, trims = { 0 }, { M.BOUNDARY }, {}
   for index = 1, #template_tags + 1 do
-    local previous_tag, following_tag = template_tags[index - 1], template_tags[index]
-    local start_byte = previous_tag and previous_tag.end_byte or 0
-    local end_byte = following_tag and following_tag.start_byte or #source
-    local untrimmed_text = source:sub(start_byte + 1, end_byte)
-    -- Go trim removes only these four ASCII whitespace bytes; both sides may consume the whole slot.
-    if previous_tag and previous_tag.right_trim then
-      start_byte = start_byte + #(untrimmed_text:match("^[ \t\r\n]*") or "")
+    local previous, following = template_tags[index - 1], template_tags[index]
+    local first = previous and previous.end_byte or 0
+    local last = following and following.start_byte or #source
+    local text = source:sub(first + 1, last)
+    local trimmed_first = first + (previous and previous.right_trim and #(text:match("^[ \t\r\n]*") or "") or 0)
+    local trimmed_last = last - (following and following.left_trim and #(text:match("[ \t\r\n]*$") or "") or 0)
+    trimmed_last = math.max(trimmed_first, trimmed_last)
+    if first < trimmed_first then
+      starts[#types + 1], types[#types + 1] = first, M.TRIMMED
     end
-    if following_tag and following_tag.left_trim then
-      end_byte = end_byte - #(untrimmed_text:match("[ \t\r\n]*$") or "")
+    -- Empty literals remain execution anchors between adjacent actions and at EOF.
+    starts[#types + 1], types[#types + 1] = trimmed_first, M.LITERAL
+    if trimmed_last < last then
+      starts[#types + 1], types[#types + 1] = trimmed_last, M.TRIMMED
     end
-    end_byte = math.max(start_byte, end_byte)
-    literal_parts[#literal_parts + 1] = {
-      source = { start_byte = start_byte, end_byte = end_byte },
-      text = source:sub(start_byte + 1, end_byte),
-      output_ranges = {},
-    }
+    if following then
+      local id = #types + 1
+      starts[id], types[id] = following.start_byte, M.TAG
+      trims[id] = (following.left_trim and 1 or 0) + (following.right_trim and 2 or 0)
+    end
   end
-  return { source = source, template_tags = template_tags, literal_parts = literal_parts }, nil, visited_nodes
+  starts[#types + 1], types[#types + 1] = #source, M.BOUNDARY
+  starts[#types + 1] = #source
+  return { source = source, source_bytes = starts, source_types = types, trim_flags = trims }, nil, visited_nodes
 end
 
 -- 0xFF cannot occur in valid UTF-8 output and survives execute-template unchanged.
@@ -507,29 +517,26 @@ function M.prepare(source, opts)
     return nil, parse_error
   end
   local skeleton_parts, skeleton_bytes = { prefix }, #prefix
-  for literal_part_id, _ in ipairs(template_parts.literal_parts) do
-    local following_tag = template_parts.template_tags[literal_part_id]
-    -- Every literal part gets a token, even between adjacent tags. Parsing has already
-    -- applied ASCII whitespace trim to its text; the tokens cannot be trimmed.
-    local sentinel = sentinel_prefix .. literal_part_id .. sentinel_prefix
-    skeleton_parts[#skeleton_parts + 1] = sentinel
-    skeleton_bytes = skeleton_bytes + #sentinel
-    if following_tag then
-      following_tag.skeleton_start_byte = skeleton_bytes
-      skeleton_parts[#skeleton_parts + 1] = following_tag.text
-      skeleton_bytes = skeleton_bytes + #following_tag.text
+  local sentinel_slots, skeleton_starts = {}, {}
+  for id, kind in ipairs(template_parts.source_types) do
+    if kind == M.LITERAL then
+      sentinel_slots[#sentinel_slots + 1] = id
+      local sentinel = sentinel_prefix .. #sentinel_slots .. sentinel_prefix
+      skeleton_parts[#skeleton_parts + 1] = sentinel
+      skeleton_bytes = skeleton_bytes + #sentinel
+    elseif kind == M.TAG then
+      local text = source:sub(template_parts.source_bytes[id] + 1, template_parts.source_bytes[id + 1])
+      skeleton_starts[id] = skeleton_bytes
+      skeleton_parts[#skeleton_parts + 1] = text
+      skeleton_bytes = skeleton_bytes + #text
     end
   end
-  local skeleton = table.concat(skeleton_parts)
-  return {
-    source = source,
-    skeleton = skeleton,
-    prefix = prefix,
-    init = init,
-    context_generation = cli.context_generation,
-    literal_parts = template_parts.literal_parts,
-    template_tags = template_parts.template_tags,
-  }
+  ---@cast template_parts VimoiPreparedTrace
+  template_parts.skeleton = table.concat(skeleton_parts)
+  template_parts.skeleton_starts, template_parts.sentinel_slots = skeleton_starts, sentinel_slots
+  template_parts.prefix, template_parts.init = prefix, init
+  template_parts.context_generation = cli.context_generation
+  return template_parts
 end
 
 -- A skipped branch leaves no token; loops repeat tokens. Decode each occurrence into an output range.
@@ -546,29 +553,56 @@ function M.restore(prepared_trace, rendered_skeleton, render_error)
   if not rendered_skeleton then
     return nil, render_error
   end
-  local byte_delta, execution_order = 0, 0
+  local byte_delta = 0
+  local starts, types = prepared_trace.source_bytes, prepared_trace.source_types
+  local output_bytes, output_slots, indices, texts = { 0 }, { 1 }, {}, {}
+  for slot = 1, #types do
+    indices[slot] = 0
+  end
+  indices[1] = 1
   local decode_error
   local output = rendered_skeleton:gsub(
     "()" .. sentinel_prefix .. "(%d+)" .. sentinel_prefix,
-    function(position, literal_part_id)
-      local literal_part = prepared_trace.literal_parts[tonumber(literal_part_id)]
-      if not literal_part then
+    function(position, ordinal)
+      local slot = prepared_trace.sentinel_slots[tonumber(ordinal)]
+      if not slot then
         decode_error = "unknown sentinel in rendered output"
         return ""
       end
-      execution_order = execution_order + 1
-      -- gsub positions refer to the original skeleton; accumulate replacement deltas for final output offsets.
-      local start_byte = position - 1 + byte_delta
-      literal_part.output_ranges[#literal_part.output_ranges + 1] =
-        { start_byte = start_byte, end_byte = start_byte + #literal_part.text, execution_order = execution_order }
-      byte_delta = byte_delta + #literal_part.text - (#sentinel_prefix * 2 + #literal_part_id)
-      -- Replacement strings are not scanned again: literal {{ stays literal.
-      return literal_part.text
+      local text = texts[slot]
+      if not text then
+        text = prepared_trace.source:sub(starts[slot] + 1, starts[slot + 1])
+        texts[slot] = text
+      end
+      local execution = #output_bytes + 1
+      output_bytes[execution], output_slots[execution] = position - 1 + byte_delta, slot
+      if indices[slot] == 0 then
+        indices[slot] = execution
+      else
+        types[slot] = M.REPEATED
+      end
+      byte_delta = byte_delta + #text - (#sentinel_prefix * 2 + #ordinal)
+      return text -- Replacement strings are not scanned again: literal {{ stays literal.
     end
   )
   if decode_error then
     return nil, decode_error
   end
+  -- Virtual anchors do not change the CLI skeleton or empty-definition semantics.
+  local eof = #output_bytes + 1
+  output_bytes[eof], output_slots[eof], indices[#types] = #output, #types, eof
+  local right = eof
+  for slot = #types, 1, -1 do
+    local kind, execution = types[slot], indices[slot]
+    if kind == M.TAG or kind == M.TRIMMED then
+      indices[slot] = right
+    elseif execution > 0 then
+      right = math.min(right, execution)
+    end
+  end
+  prepared_trace.output_indices = indices
+  prepared_trace.output_bytes, prepared_trace.output_slots = output_bytes, output_slots
+  prepared_trace.source_size, prepared_trace.output_size = #prepared_trace.source, #output
   prepared_trace.output = output
   prepared_trace.rendered_skeleton = rendered_skeleton
   ---@cast prepared_trace VimoiSourceMapTrace
@@ -615,38 +649,51 @@ function M.rebuild_after_edits(trace, source, edits)
   if not prepared then
     return nil, prepare_error
   end
-  local replacements, tag_index, edit_index, byte_delta = {}, 1, 1, 0
-  for literal_id = 1, #trace.literal_parts do
-    local following_tag = trace.template_tags[literal_id]
-    local boundary = following_tag and following_tag.start_byte or #trace.source
-    while edits[edit_index] and edits[edit_index].end_byte <= boundary do
-      local edit = edits[edit_index]
-      byte_delta = byte_delta + #edit.replacement - (edit.end_byte - edit.start_byte)
-      edit_index = edit_index + 1
-    end
-    local new_boundary = boundary + byte_delta
-    local replacement = {}
-    while true do
-      replacement[#replacement + 1] = sentinel_prefix .. tag_index .. sentinel_prefix
-      local tag = prepared.template_tags[tag_index]
-      if not tag or tag.start_byte >= new_boundary then
-        break
+  local replacements, slot, new_ordinal, edit_index, byte_delta = {}, 1, 0, 1, 0
+  local ordinal = 0
+  for old_slot, old_kind in ipairs(trace.source_types) do
+    if old_kind == M.LITERAL or old_kind == M.REPEATED then
+      ordinal = ordinal + 1
+      local following = old_slot + 1
+      while trace.source_types[following] == M.TRIMMED do
+        following = following + 1
       end
-      -- The encoder only inserts these constant-string actions, never dynamic code.
-      local braces = tag.text:match('^{{ "({+)" }}$')
-      if not braces then
-        return nil, "static edit changed a template tag"
+      local boundary = trace.source_bytes[following]
+      while edits[edit_index] and edits[edit_index].end_byte <= boundary do
+        local edit = edits[edit_index]
+        byte_delta = byte_delta + #edit.replacement - (edit.end_byte - edit.start_byte)
+        edit_index = edit_index + 1
       end
-      replacement[#replacement + 1] = braces
-      tag_index = tag_index + 1
-    end
-    replacements[literal_id] = table.concat(replacement)
-    if following_tag then
-      local tag = prepared.template_tags[tag_index]
-      if not tag or tag.start_byte ~= new_boundary or tag.text ~= following_tag.text then
-        return nil, "static edit changed a template tag"
+      local new_boundary, replacement = boundary + byte_delta, {}
+      while prepared.source_types[slot] do
+        local kind = prepared.source_types[slot]
+        if kind == M.TAG then
+          if prepared.source_bytes[slot] >= new_boundary then
+            break
+          end
+          local text = source:sub(prepared.source_bytes[slot] + 1, prepared.source_bytes[slot + 1])
+          local braces = text:match('^{{ "({+)" }}$')
+          if not braces then
+            return nil, "static edit changed a template tag"
+          end
+          replacement[#replacement + 1] = braces
+        elseif kind == M.LITERAL then
+          new_ordinal = new_ordinal + 1
+          replacement[#replacement + 1] = sentinel_prefix .. new_ordinal .. sentinel_prefix
+        end
+        slot = slot + 1
       end
-      tag_index = tag_index + 1
+      replacements[ordinal] = table.concat(replacement)
+      if trace.source_types[following] == M.TAG then
+        if
+          prepared.source_bytes[slot] ~= new_boundary
+          or source:sub(prepared.source_bytes[slot] + 1, prepared.source_bytes[slot + 1])
+            ~= trace.source:sub(trace.source_bytes[following] + 1, trace.source_bytes[following + 1])
+        then
+          return nil, "static edit changed a template tag"
+        end
+        slot = slot + 1
+      end
     end
   end
   local rendered_skeleton = trace.rendered_skeleton:gsub(sentinel_prefix .. "(%d+)" .. sentinel_prefix, function(id)
@@ -693,7 +740,7 @@ function M.trace_async(source, opts, callback)
     end)
     return
   end
-  if #prepared_trace.template_tags == 0 then
+  if next(prepared_trace.skeleton_starts) == nil then
     vim.schedule(function()
       callback(M.restore(prepared_trace, prepared_trace.skeleton:sub(#prepared_trace.prefix + 1)))
     end)
@@ -717,51 +764,184 @@ end
 ---@field source VimoiByteRange Template-source bytes.
 ---@field kind "static"|"repeated"|"dynamic"|"ambiguous"
 
--- Literal slots carry the source map, including zero-width insertion anchors.
--- Fill their intervening output with dynamic regions; preserve execution order
--- when several empty parts share one output byte position.
----@param trace VimoiSourceMapTrace
----@return VimoiRenderedRegion[]
-function M.rendered_regions(trace)
-  if trace.regions then
-    return trace.regions
-  end
-  -- restore() assigns dense IDs in output order, including zero-width slots.
-  local occurrences = {}
-  for _, literal_part in ipairs(trace.literal_parts) do
-    for _, output_range in ipairs(literal_part.output_ranges) do
-      occurrences[output_range.execution_order] = {
-        output_range = output_range,
-        source = literal_part.source,
-        kind = #literal_part.output_ranges > 1 and "repeated" or "static",
-      }
-    end
-  end
-
-  local regions = {}
-  local previous_output_end = 0
-  local previous_source_end = 0
-  for _, occurrence in ipairs(occurrences) do
-    local source_end_byte = occurrence.source.start_byte
-    local kind = "dynamic"
-    if source_end_byte < previous_source_end then
-      source_end_byte = previous_source_end
-      kind = "ambiguous"
-    end
-    regions[#regions + 1] = {
-      output_range = { start_byte = previous_output_end, end_byte = occurrence.output_range.start_byte },
-      source = { start_byte = previous_source_end, end_byte = source_end_byte },
-      kind = kind,
+-- Regions are transient projections between neighboring sentinel points. The
+-- persistent map stores no expanded static/dynamic range table.
+---@param map VimoiSourceMap
+---@param index integer Odd: gap before a sentinel; even: its restored literal.
+---@return VimoiRenderedRegion
+local function region_at(map, index)
+  local execution = math.floor((index + 1) / 2)
+  local slot = map.output_slots[execution]
+  if index % 2 == 0 then
+    return {
+      source = { start_byte = map.source_bytes[slot], end_byte = map.source_bytes[slot + 1] },
+      output_range = {
+        start_byte = map.output_bytes[execution],
+        end_byte = map.output_bytes[execution] + (map.source_bytes[slot + 1] - map.source_bytes[slot]),
+      },
+      kind = map.source_types[slot] == M.REPEATED and "repeated" or "static",
     }
-    regions[#regions + 1] = occurrence
-    previous_output_end = occurrence.output_range.end_byte
-    previous_source_end = occurrence.source.end_byte
   end
-  regions[#regions + 1] = {
-    output_range = { start_byte = previous_output_end, end_byte = #trace.output },
-    source = { start_byte = previous_source_end, end_byte = #trace.source },
-    kind = "dynamic",
+  local previous = map.output_slots[execution - 1]
+  local first, last = map.source_bytes[previous + 1], map.source_bytes[slot]
+  return {
+    source = { start_byte = first, end_byte = math.max(first, last) },
+    output_range = {
+      start_byte = map.output_bytes[execution - 1] + (map.source_bytes[previous + 1] - map.source_bytes[previous]),
+      end_byte = map.output_bytes[execution],
+    },
+    kind = last < first and "ambiguous" or "dynamic",
   }
+end
+
+---Project output intervals locally, keeping both sides of zero-width insertion anchors.
+---@param map VimoiSourceMap
+---@param first? integer
+---@param last? integer
+---@return fun(): VimoiRenderedRegion?
+function M.regions(map, first, last)
+  -- BOF/EOF records bound real regions; they do not add editable static ranges.
+  local low, high = 3, #map.output_bytes * 2 - 1
+  if first then
+    while low <= high do
+      local middle = math.floor((low + high) / 2)
+      local execution = math.floor((middle + 1) / 2)
+      local end_byte = map.output_bytes[execution]
+      if middle % 2 == 0 then
+        local slot = map.output_slots[execution]
+        end_byte = end_byte + (map.source_bytes[slot + 1] - map.source_bytes[slot])
+      end
+      if end_byte < first then
+        low = middle + 1
+      else
+        high = middle - 1
+      end
+    end
+  end
+  local index, finish = low, #map.output_bytes * 2 - 1
+  return function()
+    if index > finish then
+      return
+    end
+    local region = region_at(map, index)
+    if last and region.output_range.start_byte > last then
+      return
+    end
+    index = index + 1
+    return region
+  end
+end
+
+---Find the containing slot; equal starts choose the last slot, skipping empty anchors.
+---@param map VimoiTemplateParts|VimoiSourceMap
+---@param byte integer
+---@return integer
+function M.source_slot(map, byte)
+  local low, high = 1, #map.source_types
+  while low <= high do
+    local middle = math.floor((low + high) / 2)
+    if map.source_bytes[middle] <= byte then
+      low = middle + 1
+    else
+      high = middle - 1
+    end
+  end
+  return high
+end
+
+---Iterate visible literals without scanning slots before the viewport.
+---@param map VimoiSourceMap
+---@param first integer
+---@param last integer Exclusive.
+---@return fun(): integer?
+function M.source_parts(map, first, last)
+  local index = math.max(1, M.source_slot(map, first)) - 1
+  return function()
+    while index < #map.source_types do
+      index = index + 1
+      if map.source_bytes[index] >= last then
+        return
+      end
+      local kind = map.source_types[index]
+      if kind == M.LITERAL or kind == M.REPEATED then
+        return index
+      end
+    end
+  end
+end
+
+---Map a source position through its first literal execution or adjacent dynamic boundaries.
+---@param map VimoiSourceMap
+---@param byte integer
+---@return integer? first
+---@return integer? last Exclusive.
+---@return boolean? literal
+function M.source_span(map, byte)
+  if byte < 0 or byte > map.source_size then
+    return nil
+  end
+  local slot = M.source_slot(map, byte)
+  local kind, execution = map.source_types[slot], map.output_indices[slot]
+  if kind == M.BOUNDARY then
+    local position = map.output_bytes[execution]
+    return position, position, false
+  end
+  if kind == M.LITERAL or kind == M.REPEATED then
+    if execution > 0 then
+      local output = map.output_bytes[execution]
+      return output + byte - map.source_bytes[slot],
+        output + (map.source_bytes[slot + 1] - map.source_bytes[slot]),
+        true
+    end
+    -- Every literal is followed by an action, trim slot or EOF anchor.
+    execution = map.output_indices[slot + 1]
+  end
+  local right, left = map.output_slots[execution], map.output_slots[execution - 1]
+  local source_first = map.source_bytes[left + 1]
+  local source_last = map.source_bytes[right]
+  if byte >= source_first and byte < source_last then
+    return map.output_bytes[execution - 1] + (map.source_bytes[left + 1] - map.source_bytes[left]),
+      map.output_bytes[execution],
+      false
+  end
+end
+
+---@param map VimoiSourceMap
+---@param byte integer
+---@return integer source_byte
+function M.output_position(map, byte)
+  if byte < 0 then
+    return 0
+  end
+  if byte >= map.output_size then
+    return map.source_size
+  end
+  local low, high = 1, #map.output_bytes
+  while low <= high do
+    local middle = math.floor((low + high) / 2)
+    if map.output_bytes[middle] <= byte then
+      low = middle + 1
+    else
+      high = middle - 1
+    end
+  end
+  local left, right = map.output_slots[high], map.output_slots[high + 1]
+  local output_first = map.output_bytes[high] + (map.source_bytes[left + 1] - map.source_bytes[left])
+  if byte < output_first then
+    return map.source_bytes[left] + byte - map.output_bytes[high]
+  end
+  local source_first, source_last = map.source_bytes[left + 1], map.source_bytes[right]
+  return source_first + math.min(byte - output_first, math.max(0, source_last - source_first))
+end
+
+---Materialize a complete projection only when explicitly requested.
+---@param map VimoiSourceMap
+---@return VimoiRenderedRegion[]
+function M.rendered_regions(map)
+  local regions = {}
+  for region in M.regions(map) do
+    regions[#regions + 1] = region
+  end
   return regions
 end
 

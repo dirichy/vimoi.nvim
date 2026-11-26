@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 local map = require("vimoi.render.source_map")
 local cli = require("vimoi.core.cli")
 local diff = require("vimoi.compare.diff_hunks")
@@ -20,14 +21,14 @@ local nested = trace(
   "ABCDE|C"
 )
 assert(not nested.skeleton:find("\255h", 1, true), "ordinary blocks must use ordinary sentinels")
-assert(#nested.template_tags == 7, "nonempty block bodies must remain visible in the source map")
+assert(#map_objects.tags(nested) == 7, "nonempty block bodies must remain visible in the source map")
 local texts = {}
-for _, part in ipairs(nested.literal_parts) do
+for _, part in ipairs(map_objects.literals(nested)) do
   if part.text ~= "" then
     texts[#texts + 1] = part.text
   end
   if part.text == "C" then
-    assert(#part.output_ranges == 2)
+    assert(#part.occurrences == 2)
   end
 end
 assert(vim.deep_equal(texts, { "A", "B", "C", "D", "E", "|" }))
@@ -35,8 +36,8 @@ local inherited = trace(
   '{{ define "outer" }}A{{ block "inner" . }}B{{ end }}C{{ end }}{{ template "outer" . }}|{{ template "inner" . }}',
   "ABC|B"
 )
-assert(#inherited.template_tags == 3, "define must retain its opaque body")
-for _, part in ipairs(inherited.literal_parts) do
+assert(#map_objects.tags(inherited) == 3, "define must retain its opaque body")
+for _, part in ipairs(map_objects.literals(inherited)) do
   assert(part.text ~= "A" and part.text ~= "B" and part.text ~= "C")
 end
 
@@ -87,7 +88,7 @@ for _, code in ipairs({ 0x84, 0x86, 0x167F, 0x1681, 0x200B, 0x2027, 0x202A, 0x20
   local text = vim.fn.nr2char(code)
   local source = '{{ block "slot" . }}' .. text .. "{{ end }}"
   local nonempty = trace(source, text)
-  assert(#nonempty.template_tags == 2 and nonempty.literal_parts[2].text == text)
+  assert(#map_objects.tags(nonempty) == 2 and map_objects.literals(nonempty)[2].text == text)
   local edited = source:gsub(text, "body", 1)
   assert(assert(map.rebuild(nonempty, edited)).output == "body")
 end

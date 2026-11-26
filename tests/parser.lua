@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 ---@diagnostic disable: duplicate-set-field -- Compare the collector with Tree-sitter and force the missing-parser branch.
 local collector = require("vimoi.parser").collect_template_tags
 local source_map = require("vimoi.render.source_map")
@@ -38,7 +39,7 @@ for index, source in ipairs(cases) do
   local native, err = source_map.parse(source)
   assert(native, source .. ": " .. tostring(err))
   local tags = {}
-  for _, tag in ipairs(native.template_tags) do
+  for _, tag in ipairs(map_objects.tags(native)) do
     tags[#tags + 1] = {
       start_byte = tag.start_byte,
       end_byte = tag.end_byte,

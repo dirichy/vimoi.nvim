@@ -16,7 +16,7 @@ Tree-sitter 或 Vim syntax。模板 action 保留基础颜色与背景，不提�
 诊断发布和渲染高亮分别由开关控制。
 
 每个 source buffer 对应唯一的只读 output buffer，preview 直接展示它，diff 读取它的映射及文本，
-高亮在其中使用原生 Tree-sitter 或 Vim syntax，宿主诊断也在同一个 buffer 上运行 LSP/lint。映射范围、行索引、
+高亮在其中使用原生 Tree-sitter 或 Vim syntax，宿主诊断也在同一个 buffer 上运行 LSP/lint。哨兵位置、查询索引、行索引、
 文本长度和版本保存在 output 状态中；高亮不再保留完整 source/output 文本快照。
 单独高亮时不设置
 filetype、不启动 provider；预览和宿主诊断按需设置宿主 filetype。新旧 output 做 line diff，每个 hunk 再缩小到实际改变的
@@ -43,8 +43,9 @@ spell 和 URL metadata。没有宿主 parser 时，只设置 output 的 `syntax`
 高亮不同，这里使用持久 extmark，让原生机制在等待渲染时保留颜色及移动范围。
 
 source 的 decoration provider 只使用 `on_win` 来观察可见范围。当前快照与视口未变时
-不重新查询、不重新设置标记。需要更新时，将 source 可见范围映射到 output 行范围，
-查询所有相关语言子树，先与 included ranges 相交，再与静态映射相交，转回 source。
+不重新查询、不重新设置标记。需要更新时，先二分源码哨兵位置，选出视口内的槽位，
+再读取各槽位的首次执行点，将可见片段按输出位置排序并合并为 output 行范围；不保存
+整份静态/未执行区域的投影副本。随后查询所有相关语言子树，先与 included ranges 相交，再与静态映射相交，转回 source。
 跨模板 action 的 capture 拆成多段，不覆盖 gotmpl。新视口的标记全部建立后，才删除
 该窗口上一份标记。各窗口分别维护有限的视口结果，不对整个文件预先创建高亮标记。
 
@@ -72,7 +73,7 @@ source 的 decoration provider 只使用 `on_win` 来观察可见范围。当前
 - rendered 的 Vim syntax 分支读取高亮分组，不投射其 conceal/spell 标志；保留原生
   `synmaxcol` 和 syntax 同步限制，不自行更改用户的语法规则或补丁同步状态。
 - 动态输出没有对应的可编辑字符，不映射到模板 action。
-- `literal_parts` 中没有任何 output occurrence 的非空静态区域，使用原生 `Comment`
+- 字面量槽位中 `output_indices` 为 0 的非空静态区域，使用原生 `Comment`
   高亮，表示当前渲染未执行。包括条件分支和零次执行的循环体；不覆盖模板 action。
   同样按视口裁剪和缓存，缺少宿主 parser 时也会绘制 Comment。
 - 循环重复区域取第一次执行，避免不同执行的颜色相互覆盖；例如第一次是注释、第二次

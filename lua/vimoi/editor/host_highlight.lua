@@ -4,6 +4,7 @@ local M = {}
 local api = vim.api
 local util = require("vimoi.core.util")
 local sessions = require("vimoi.render")
+local source_map = require("vimoi.render.source_map")
 local namespace = api.nvim_create_namespace("vimoi-host-highlight")
 
 ---@class VimoiHostHighlight
@@ -12,8 +13,6 @@ local namespace = api.nvim_create_namespace("vimoi-host-highlight")
 ---@field output_buf integer Persistent scratch buffer driving native host highlighting.
 ---@field language? string
 ---@field syntax? string Vim syntax used on output when no host parser is available.
----@field regions VimoiRenderedRegion[] Exact literal mappings, ordered by output byte.
----@field inactive VimoiByteRange[] Literal source ranges not executed in this snapshot.
 ---@field generation integer
 ---@field windows table<integer, table> Persistent decorations owned by each visible window.
 
@@ -59,43 +58,53 @@ local function decorations(state, top, bottom)
   local map = state.map
   local source_first = map.source_starts[top + 1] or map.source_size
   local source_last = map.source_starts[bottom + 1] or map.source_size
-  local visible, ranges = {}, {}
-  for _, region in ipairs(state.regions) do
-    local first = math.max(source_first, region.source.start_byte)
-    local last = math.min(source_last, region.source.end_byte)
+  local visible, ranges, marks = {}, {}, {}
+  for slot in source_map.source_parts(map, source_first, source_last) do
+    local source_byte = map.source_bytes[slot]
+    local first = math.max(source_first, source_byte)
+    local last = math.min(source_last, map.source_bytes[slot + 1])
     if first < last then
-      local output_first = region.output_range.start_byte + first - region.source.start_byte
-      local output_last = region.output_range.start_byte + last - region.source.start_byte
-      visible[#visible + 1] = { region = region, first = output_first, last = output_last }
-      local row = util.byte_to_position(nil, output_first, map.output_starts)
-      local end_row = util.byte_to_position(nil, output_last - 1, map.output_starts) + 1
-      local previous = ranges[#ranges]
-      if previous and row <= previous[2] then
-        previous[2] = math.max(previous[2], end_row)
+      local occurrence = map.output_indices[slot]
+      if occurrence > 0 then
+        local output_byte = map.output_bytes[occurrence]
+        visible[#visible + 1] = {
+          source_byte = source_byte,
+          output_byte = output_byte,
+          first = output_byte + first - source_byte,
+          last = output_byte + last - source_byte,
+        }
       else
-        ranges[#ranges + 1] = { row, end_row }
+        local row, col = util.byte_to_position(nil, first, map.source_starts)
+        local end_row, end_col = util.byte_to_position(nil, last, map.source_starts)
+        marks[#marks + 1] = {
+          row = row,
+          col = col,
+          opts = {
+            end_row = end_row,
+            end_col = end_col,
+            hl_group = "Comment",
+            priority = vim.hl.priorities.treesitter,
+          },
+        }
       end
     end
   end
-  local marks, seen = {}, {}
-  for _, range in ipairs(state.inactive) do
-    local first = math.max(source_first, range.start_byte)
-    local last = math.min(source_last, range.end_byte)
-    if first < last then
-      local row, col = util.byte_to_position(nil, first, map.source_starts)
-      local end_row, end_col = util.byte_to_position(nil, last, map.source_starts)
-      marks[#marks + 1] = {
-        row = row,
-        col = col,
-        opts = {
-          end_row = end_row,
-          end_col = end_col,
-          hl_group = "Comment",
-          priority = vim.hl.priorities.treesitter,
-        },
-      }
+  -- First executions need not follow source order. Sort just this viewport,
+  -- rather than materializing and sorting mappings for the whole source.
+  table.sort(visible, function(a, b)
+    return a.first < b.first
+  end)
+  for _, part in ipairs(visible) do
+    local row = util.byte_to_position(nil, part.first, map.output_starts)
+    local end_row = util.byte_to_position(nil, part.last - 1, map.output_starts) + 1
+    local previous = ranges[#ranges]
+    if previous and row <= previous[2] then
+      previous[2] = math.max(previous[2], end_row)
+    else
+      ranges[#ranges + 1] = { row, end_row }
     end
   end
+  local seen = {}
   ---@param first integer Output byte, inclusive.
   ---@param last integer Output byte, exclusive.
   ---@param style vim.api.keyset.set_extmark
@@ -118,7 +127,7 @@ local function decorations(state, top, bottom)
       end
       local a, b = math.max(first, part.first), math.min(last, part.last)
       if a < b then
-        local offset = part.region.source.start_byte - part.region.output_range.start_byte
+        local offset = part.source_byte - part.output_byte
         local row, col = util.byte_to_position(nil, a + offset, map.source_starts)
         local end_row, end_col = util.byte_to_position(nil, b + offset, map.source_starts)
         local mark = {
@@ -283,24 +292,6 @@ function M.update(buf, map)
   if parser then
     parser:parse(true)
   end
-  local inactive = {}
-  for _, part in ipairs(map.literal_parts) do
-    if #part.output_ranges == 0 and part.source.start_byte < part.source.end_byte then
-      inactive[#inactive + 1] = part.source
-    end
-  end
-  local regions, seen = {}, {}
-  for _, region in ipairs(map.regions) do
-    if region.kind == "static" or region.kind == "repeated" then
-      local key = region.source.start_byte .. ":" .. region.source.end_byte
-      -- A loop body can have conflicting colors between executions. Use its
-      -- first occurrence rather than stacking contradictory decorations.
-      if not seen[key] then
-        seen[key] = true
-        regions[#regions + 1] = region
-      end
-    end
-  end
   buffers[buf] = {
     map = map,
     parser = parser,
@@ -308,8 +299,6 @@ function M.update(buf, map)
     language = language,
     syntax = syntax,
     generation = state and state.generation + 1 or 1,
-    regions = regions,
-    inactive = inactive,
     windows = state and state.windows or {},
   }
   -- Wake visible windows so their persistent decorations adopt this snapshot.

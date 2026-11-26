@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 local run_async = dofile("tests/helpers/await.lua")
 ---@diagnostic disable: duplicate-set-field -- Isolated CLI counters and delayed completion.
 local root = vim.fn.tempname() .. " structure cache"
@@ -41,15 +42,15 @@ local function check(source, opts)
     trace.output == result.stdout,
     vim.inspect({ source = source, actual = trace.output, expected = result.stdout })
   )
-  for _, literal_part in ipairs(trace.literal_parts) do
-    assert(source:sub(literal_part.source.start_byte + 1, literal_part.source.end_byte) == literal_part.text)
-    for _, occurrence in ipairs(literal_part.output_ranges) do
-      assert(occurrence.start_byte >= 0 and occurrence.end_byte <= #trace.output)
-      assert(occurrence.end_byte - occurrence.start_byte == #literal_part.text)
-      assert(
-        trace.output:sub(occurrence.start_byte + 1, occurrence.end_byte) == literal_part.text,
-        vim.inspect(literal_part)
-      )
+  for _, literal_part in ipairs(map_objects.literals(trace)) do
+    assert(
+      source:sub(literal_part.source_byte + 1, (literal_part.source_byte + #literal_part.text)) == literal_part.text
+    )
+    for _, occurrence in ipairs(literal_part.occurrences) do
+      local first = map_objects.sentinels(trace)[occurrence].output_byte
+      local last = first + #literal_part.text
+      assert(first >= 0 and last <= #trace.output)
+      assert(trace.output:sub(first + 1, last) == literal_part.text, vim.inspect(literal_part))
     end
   end
   checked = checked + 1
@@ -62,9 +63,9 @@ for _, case in ipairs(dofile("tests/fixtures/sentinel_cases.lua")) do
   local baseline = check(source, opts)
   -- Block empty/nonempty transitions are covered separately.
   if not source:match("{{%-?%s*block%s") then
-    for changed = 1, #baseline.literal_parts do
+    for changed = 1, #map_objects.literals(baseline) do
       for _, replacement in ipairs({ "", "new static text\n", " \t 新行\r\n " }) do
-        local previous, following = baseline.template_tags[changed - 1], baseline.template_tags[changed]
+        local previous, following = map_objects.tags(baseline)[changed - 1], map_objects.tags(baseline)[changed]
         local first = previous and previous.end_byte or 0
         local last = following and following.start_byte or #source
         local edited = source:sub(1, first) .. replacement .. source:sub(last + 1)
@@ -88,13 +89,13 @@ for _, keyword in ipairs({ "define", "block" }) do
   local source = definition .. "\nbefore\n" .. first_call .. "\nmiddle\n" .. second_call .. "\nafter\n"
   local trace = check(source)
   if keyword == "define" then
-    assert(#trace.template_tags == 3 and trace.template_tags[1].text == definition)
-    for _, part in ipairs(trace.literal_parts) do
-      assert(#part.output_ranges == 1, "opaque bodies must not export repeated slots")
+    assert(#map_objects.tags(trace) == 3 and map_objects.tags(trace)[1].text == definition)
+    for _, part in ipairs(map_objects.literals(trace)) do
+      assert(#part.occurrences == 1, "opaque bodies must not export repeated slots")
     end
   else
-    assert(#trace.template_tags == 5)
-    assert(#trace.literal_parts[2].output_ranges == 3)
+    assert(#map_objects.tags(trace) == 5)
+    assert(#map_objects.literals(trace)[2].occurrences == 3)
   end
   local output_by_tag = {}
   for _, region in ipairs(source_map.rendered_regions(trace)) do
@@ -131,7 +132,7 @@ for _, source in ipairs({ "tail", "tail{", "{{ if true }}tail{{ end }}", "{{ if 
   util.set_buffer_text(buf, source .. "new")
   local rebuilt = assert(source_map.rebuild(trace, source .. "new", buf))
   local full = check(source .. "new")
-  assert(vim.deep_equal(rebuilt.literal_parts, full.literal_parts), vim.inspect({ rebuilt, full }))
+  assert(vim.deep_equal(map_objects.literals(rebuilt), map_objects.literals(full)), vim.inspect({ rebuilt, full }))
   vim.api.nvim_buf_delete(buf, { force = true })
 end
 

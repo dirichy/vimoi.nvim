@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 local run_async = dofile("tests/helpers/await.lua")
 local source_map = require("vimoi.render.source_map")
 
@@ -14,7 +15,7 @@ local checked = 0
 for _, source in ipairs(templates) do
   local trace = assert(run_async(source_map.trace, source))
   local positions = { [0] = true, [#source] = true }
-  for _, template_tag in ipairs(trace.template_tags) do
+  for _, template_tag in ipairs(map_objects.tags(trace)) do
     for _, byte in ipairs({
       template_tag.start_byte - 1,
       template_tag.start_byte,
@@ -26,9 +27,9 @@ for _, source in ipairs(templates) do
       end
     end
   end
-  for _, literal_part in ipairs(trace.literal_parts) do
-    positions[literal_part.source.start_byte] = true
-    positions[literal_part.source.end_byte] = true
+  for _, literal_part in ipairs(map_objects.literals(trace)) do
+    positions[literal_part.source_byte] = true
+    positions[(literal_part.source_byte + #literal_part.text)] = true
   end
   for byte in pairs(positions) do
     for _, replacement in ipairs(replacements) do

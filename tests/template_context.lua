@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 ---@diagnostic disable: duplicate-set-field -- Count actual CLI executions independently of the oracle.
 local await = dofile("tests/helpers/await.lua")
 local util = require("vimoi.core.util")
@@ -60,7 +61,7 @@ end
 local alpha = trace(first)
 assert(alpha.output == oracle("alpha"), alpha.output)
 assert(alpha.prefix ~= "" and alpha.skeleton:sub(1, #alpha.prefix) == alpha.prefix)
-assert(alpha.template_tags[1].skeleton_start_byte > #alpha.prefix)
+assert(map_objects.tags(alpha)[1].skeleton_start_byte > #alpha.prefix)
 local data = vim.json.decode(alpha.output)
 assert(data.direct.command == "cat" and data.direct.sourceFile == "dot_alpha.tmpl")
 assert(data.direct.targetFile == target_root .. "/.alpha")

@@ -123,12 +123,14 @@ NVIM_LOG_FILE=/tmp/vimoi-compare-benchmark.log nvim --headless -n -i NONE -u NON
   异步写入时的路径、正文和上下文检查保留，因为它们验证的是等待期间是否发生变化。
 - 正常渲染将已经准备好的输入交给 `trace_async`。同一对象在回调前完成正文解码；
   如果等待期间出现新的字面文本编辑，则对最新 prepared 再解码，避免旧位置覆盖新内容。
-- session 的临时快照共享 `map.regions` 及 source/output 行索引，diff/merge 不再重新
-  构建同一份区域及行索引。source/output 全文仍只在操作期间读取，不存入长期状态。
+- session 的临时快照共享源码位置/类型/属性与输出锚点的平行数组及 source/output 行索引。map 不缓存
+  展开的 range 表；diff/诊断只投影查询附近的相邻哨兵，高亮只选择源码视口内的槽位。
+  source/output 全文仍只在操作期间读取，不存入长期状态。
 
 `lazyload` 保持不变。曾试合 `highlight` 与 `host_highlight`，但只少 5 行，
 却会让非 rendered 模式在启动时也加载映射绘制实现，因此撤回。session/view、
 source_map/merge_plan、diff_hunks/native_diff 的职责边界保留。
+哨兵位置索引、查询复杂度和性能对照见 [哨兵位置索引](sentinel-map.md)。
 
 运行时 Lua 模块从 **26 减为 24**；行数从 **7,043 变为 7,057**，净增 **14 行**。
 统计包含空行、注释和类型声明，不计测试与文档。这次收益主要是减少入口、明确所有权和

@@ -1,0 +1,305 @@
+{
+  "baseline_commit": "5237e8152c37834daff49d2a4f653b217abd615f",
+  "variant": "sentinel",
+  "process_runs": 3,
+  "queries_per_sample": 512,
+  "environment": {
+    "platform": "Linux-7.3.5-arch1-1-x86_64-with-glibc2.44",
+    "chezmoi": "chezmoi version v2.74.2, built at 2026-11-23T11:51:33Z"
+  },
+  "cases": {
+    "repeated": {
+      "output_checksum": 621696,
+      "source_bytes": 3122,
+      "output_bytes": 60790,
+      "source_query_cpu_ms": 0.1929999999999987,
+      "output_query_cpu_ms": 0.1530000000000142,
+      "build_cpu_ms": 1.073000000000046,
+      "render_wall_ms": 32.448128,
+      "source_checksum": 760968
+    },
+    "tags_2000": {
+      "output_checksum": 6185616,
+      "source_bytes": 44893,
+      "output_bytes": 28893,
+      "source_query_cpu_ms": 0.2520000000000022,
+      "output_query_cpu_ms": 0.1520000000000132,
+      "build_cpu_ms": 0.8690000000000087,
+      "render_wall_ms": 39.113334,
+      "source_checksum": 6185616
+    },
+    "tags_10000": {
+      "output_checksum": 30758544,
+      "source_bytes": 228894,
+      "output_bytes": 148894,
+      "source_query_cpu_ms": 0.3529999999999922,
+      "output_query_cpu_ms": 0.1940000000000275,
+      "build_cpu_ms": 5.722999999999978,
+      "render_wall_ms": 41.815139,
+      "source_checksum": 30758544
+    },
+    "skipped": {
+      "output_checksum": 12371232,
+      "source_bytes": 96000,
+      "output_bytes": 14000,
+      "source_query_cpu_ms": 0.2719999999998279,
+      "output_query_cpu_ms": 0.1740000000003405,
+      "build_cpu_ms": 2.345000000000041,
+      "render_wall_ms": 41.533648,
+      "source_checksum": 6261180
+    },
+    "plain": {
+      "output_checksum": 6185616,
+      "source_bytes": 28000,
+      "output_bytes": 28000,
+      "source_query_cpu_ms": 0.3130000000000008,
+      "output_query_cpu_ms": 0.112000000000001,
+      "build_cpu_ms": 0.05299999999999749,
+      "render_wall_ms": 22.685029,
+      "source_checksum": 6185616
+    },
+    "tags_200": {
+      "output_checksum": 623220,
+      "source_bytes": 4292,
+      "output_bytes": 2692,
+      "source_query_cpu_ms": 0.2400000000000041,
+      "output_query_cpu_ms": 0.1169999999999921,
+      "build_cpu_ms": 0.1859999999999917,
+      "render_wall_ms": 24.413091,
+      "source_checksum": 616056
+    }
+  },
+  "runs": [
+    {
+      "nvim": {
+        "major": 0,
+        "minor": 12,
+        "api_level": 14,
+        "api_prerelease": false,
+        "api_compatible": 0,
+        "build": "v0.12.6",
+        "patch": 6
+      },
+      "queries_per_sample": 512,
+      "cases": {
+        "repeated": {
+          "output_checksum": 621696,
+          "source_bytes": 3122,
+          "output_bytes": 60790,
+          "source_query_cpu_ms": 0.1910000000000522,
+          "output_query_cpu_ms": 0.1499999999999835,
+          "build_cpu_ms": 1.055000000000028,
+          "render_wall_ms": 32.448128,
+          "source_checksum": 760968
+        },
+        "tags_2000": {
+          "output_checksum": 6185616,
+          "source_bytes": 44893,
+          "output_bytes": 28893,
+          "source_query_cpu_ms": 0.2520000000000022,
+          "output_query_cpu_ms": 0.1520000000000132,
+          "build_cpu_ms": 0.8610000000000007,
+          "render_wall_ms": 40.320068,
+          "source_checksum": 6185616
+        },
+        "tags_10000": {
+          "output_checksum": 30758544,
+          "source_bytes": 228894,
+          "output_bytes": 148894,
+          "source_query_cpu_ms": 0.360000000000027,
+          "output_query_cpu_ms": 0.1940000000000275,
+          "build_cpu_ms": 5.722999999999978,
+          "render_wall_ms": 41.815139,
+          "source_checksum": 30758544
+        },
+        "skipped": {
+          "output_checksum": 12371232,
+          "source_bytes": 96000,
+          "output_bytes": 14000,
+          "source_query_cpu_ms": 0.2719999999998279,
+          "output_query_cpu_ms": 0.1740000000003405,
+          "build_cpu_ms": 2.345000000000041,
+          "render_wall_ms": 38.46735,
+          "source_checksum": 6261180
+        },
+        "plain": {
+          "output_checksum": 6185616,
+          "source_bytes": 28000,
+          "output_bytes": 28000,
+          "source_query_cpu_ms": 0.3130000000000008,
+          "output_query_cpu_ms": 0.112000000000001,
+          "build_cpu_ms": 0.05299999999999749,
+          "render_wall_ms": 16.153223,
+          "source_checksum": 6185616
+        },
+        "tags_200": {
+          "output_checksum": 623220,
+          "source_bytes": 4292,
+          "output_bytes": 2692,
+          "source_query_cpu_ms": 0.2400000000000041,
+          "output_query_cpu_ms": 0.1249999999999862,
+          "build_cpu_ms": 0.1859999999999917,
+          "render_wall_ms": 24.413091,
+          "source_checksum": 616056
+        }
+      },
+      "rendering": "async notify, cache=false",
+      "variant": "sentinel",
+      "working_dir": "/tmp/vimoi-sentinel-benchmark-cwd"
+    },
+    {
+      "variant": "sentinel",
+      "nvim": {
+        "api_prerelease": false,
+        "api_compatible": 0,
+        "build": "v0.12.6",
+        "patch": 6,
+        "major": 0,
+        "minor": 12,
+        "api_level": 14
+      },
+      "queries_per_sample": 512,
+      "cases": {
+        "tags_200": {
+          "build_cpu_ms": 0.1960000000000017,
+          "render_wall_ms": 18.320611,
+          "source_checksum": 616056,
+          "output_checksum": 623220,
+          "source_bytes": 4292,
+          "output_bytes": 2692,
+          "source_query_cpu_ms": 0.2589999999999953,
+          "output_query_cpu_ms": 0.1169999999999921
+        },
+        "skipped": {
+          "build_cpu_ms": 2.743999999999858,
+          "render_wall_ms": 42.570753,
+          "source_checksum": 6261180,
+          "output_checksum": 12371232,
+          "source_bytes": 96000,
+          "output_bytes": 14000,
+          "source_query_cpu_ms": 0.2789999999999182,
+          "output_query_cpu_ms": 0.1809999999995426
+        },
+        "tags_2000": {
+          "build_cpu_ms": 1.004999999999992,
+          "render_wall_ms": 39.113334,
+          "source_checksum": 6185616,
+          "output_checksum": 6185616,
+          "source_bytes": 44893,
+          "output_bytes": 28893,
+          "source_query_cpu_ms": 0.2609999999999973,
+          "output_query_cpu_ms": 0.1589999999999925
+        },
+        "repeated": {
+          "build_cpu_ms": 1.109000000000027,
+          "render_wall_ms": 32.756392,
+          "source_checksum": 760968,
+          "output_checksum": 621696,
+          "source_bytes": 3122,
+          "output_bytes": 60790,
+          "source_query_cpu_ms": 0.1929999999999987,
+          "output_query_cpu_ms": 0.1550000000000162
+        },
+        "plain": {
+          "build_cpu_ms": 0.1019999999999979,
+          "render_wall_ms": 22.685029,
+          "source_checksum": 6185616,
+          "output_checksum": 6185616,
+          "source_bytes": 28000,
+          "output_bytes": 28000,
+          "source_query_cpu_ms": 0.4890000000000033,
+          "output_query_cpu_ms": 0.1799999999999996
+        },
+        "tags_10000": {
+          "build_cpu_ms": 6.262999999999963,
+          "render_wall_ms": 74.081153,
+          "source_checksum": 30758544,
+          "output_checksum": 30758544,
+          "source_bytes": 228894,
+          "output_bytes": 148894,
+          "source_query_cpu_ms": 0.350000000000017,
+          "output_query_cpu_ms": 0.197999999999976
+        }
+      },
+      "rendering": "async notify, cache=false",
+      "working_dir": "/tmp/vimoi-sentinel-benchmark-cwd"
+    },
+    {
+      "rendering": "async notify, cache=false",
+      "variant": "sentinel",
+      "working_dir": "/tmp/vimoi-sentinel-benchmark-cwd",
+      "nvim": {
+        "major": 0,
+        "minor": 12,
+        "api_level": 14,
+        "api_prerelease": false,
+        "patch": 6,
+        "build": "v0.12.6",
+        "api_compatible": 0
+      },
+      "queries_per_sample": 512,
+      "cases": {
+        "tags_10000": {
+          "source_query_cpu_ms": 0.3529999999999922,
+          "render_wall_ms": 33.883586,
+          "build_cpu_ms": 5.69900000000001,
+          "output_query_cpu_ms": 0.1880000000000215,
+          "source_checksum": 30758544,
+          "output_checksum": 30758544,
+          "source_bytes": 228894,
+          "output_bytes": 148894
+        },
+        "skipped": {
+          "source_query_cpu_ms": 0.2700000000004366,
+          "render_wall_ms": 41.533648,
+          "build_cpu_ms": 2.32100000000024,
+          "output_query_cpu_ms": 0.1730000000002008,
+          "source_checksum": 6261180,
+          "output_checksum": 12371232,
+          "source_bytes": 96000,
+          "output_bytes": 14000
+        },
+        "tags_2000": {
+          "source_query_cpu_ms": 0.2489999999999992,
+          "render_wall_ms": 37.097916,
+          "build_cpu_ms": 0.8690000000000087,
+          "output_query_cpu_ms": 0.1510000000000122,
+          "source_checksum": 6185616,
+          "output_checksum": 6185616,
+          "source_bytes": 44893,
+          "output_bytes": 28893
+        },
+        "tags_200": {
+          "source_query_cpu_ms": 0.1599999999999935,
+          "render_wall_ms": 31.792945,
+          "build_cpu_ms": 0.1309999999999922,
+          "output_query_cpu_ms": 0.08500000000000174,
+          "source_checksum": 616056,
+          "output_checksum": 623220,
+          "source_bytes": 4292,
+          "output_bytes": 2692
+        },
+        "repeated": {
+          "source_query_cpu_ms": 0.2060000000000395,
+          "render_wall_ms": 11.715126,
+          "build_cpu_ms": 1.073000000000046,
+          "output_query_cpu_ms": 0.1530000000000142,
+          "source_checksum": 760968,
+          "output_checksum": 621696,
+          "source_bytes": 3122,
+          "output_bytes": 60790
+        },
+        "plain": {
+          "source_query_cpu_ms": 0.1820000000000016,
+          "render_wall_ms": 24.551633,
+          "build_cpu_ms": 0.04599999999999743,
+          "output_query_cpu_ms": 0.07900000000000268,
+          "source_checksum": 6185616,
+          "output_checksum": 6185616,
+          "source_bytes": 28000,
+          "output_bytes": 28000
+        }
+      }
+    }
+  ]
+}

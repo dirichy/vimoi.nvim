@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 local source_map = require("vimoi.render.source_map")
 local util = require("vimoi.core.util")
 
@@ -37,9 +38,9 @@ for _, case in ipairs(cases) do
   local parsed = assert(source_map.parse(case[1]))
   local tags = vim.tbl_map(function(tag)
     return tag.text
-  end, parsed.template_tags)
+  end, map_objects.tags(parsed))
   assert(vim.deep_equal(tags, case[2]), vim.inspect({ case[1], tags, case[2] }))
-  assert(#parsed.literal_parts == #tags + 1)
+  assert(#map_objects.literals(parsed) == #tags + 1)
 end
 
 local buf = vim.api.nvim_create_buf(false, true)
@@ -57,7 +58,7 @@ local start_byte = assert(util.buffer_text(buf):find("alpha", 1, true)) - 1
 vim.api.nvim_buf_set_text(buf, 0, start_byte, 0, start_byte + 5, { "omega" })
 local after = assert(source_map.parse(util.buffer_text(buf), buf))
 assert(vim.deep_equal(after, assert(source_map.parse(util.buffer_text(buf)))))
-assert(after.template_tags[1].text == '{{ printf "%s" "omega" }}')
+assert(map_objects.tags(after)[1].text == '{{ printf "%s" "omega" }}')
 assert(vim.deep_equal(before, snapshot), "refresh mutated an earlier source map")
 
 -- New tags and tag removal must invalidate the whole affected action, including internal braces.
@@ -71,24 +72,59 @@ for _, source in ipairs({
   parse(source)
 end
 local trimmed = parse('{{ "a" -}} \t\r\n {{- "b" }}')
-assert(trimmed.template_tags[1].right_trim and trimmed.template_tags[2].left_trim)
-assert(trimmed.literal_parts[2].text == "")
-assert(trimmed.literal_parts[2].source.start_byte == trimmed.literal_parts[2].source.end_byte)
+assert(map_objects.tags(trimmed)[1].right_trim and map_objects.tags(trimmed)[2].left_trim)
+assert(map_objects.literals(trimmed)[2].text == "")
+assert(map_objects.literals(trimmed)[2].source_byte == map_objects.tags(trimmed)[2].start_byte)
 for _, keyword in ipairs({ "define", "block" }) do
   local argument = keyword == "block" and " ." or ""
   local outer_trim = parse("before \n{{- " .. keyword .. ' "x"' .. argument .. " }} body {{ end -}}\n after")
-  assert(outer_trim.template_tags[1].left_trim and outer_trim.template_tags[#outer_trim.template_tags].right_trim)
   assert(
-    outer_trim.literal_parts[1].text == "before" and outer_trim.literal_parts[#outer_trim.literal_parts].text == "after"
+    map_objects.tags(outer_trim)[1].left_trim and map_objects.tags(outer_trim)[#map_objects.tags(outer_trim)].right_trim
+  )
+  assert(
+    map_objects.literals(outer_trim)[1].text == "before"
+      and map_objects.literals(outer_trim)[#map_objects.literals(outer_trim)].text == "after"
   )
   local inner_trim = parse("before \n{{ " .. keyword .. ' "x"' .. argument .. " -}} body {{- end }}\n after")
   assert(
-    not inner_trim.template_tags[1].left_trim and not inner_trim.template_tags[#inner_trim.template_tags].right_trim
+    not map_objects.tags(inner_trim)[1].left_trim
+      and not map_objects.tags(inner_trim)[#map_objects.tags(inner_trim)].right_trim
   )
   assert(
-    inner_trim.literal_parts[1].text == "before \n"
-      and inner_trim.literal_parts[#inner_trim.literal_parts].text == "\n after"
+    map_objects.literals(inner_trim)[1].text == "before \n"
+      and map_objects.literals(inner_trim)[#map_objects.literals(inner_trim)].text == "\n after"
   )
 end
 vim.api.nvim_buf_delete(buf, { force = true })
 print("source map tags: control actions, expressions, comments, trim, and snapshot isolation verified")
+
+-- Trim directives remain meaningful even when there is no whitespace to remove.
+local no_space = assert(source_map.parse('a{{- "x" -}}b'))
+assert(
+  vim.deep_equal(
+    no_space.source_types,
+    { source_map.BOUNDARY, source_map.LITERAL, source_map.TAG, source_map.LITERAL, source_map.BOUNDARY }
+  )
+)
+assert(no_space.trim_flags[3] == 3)
+local adjacent = assert(source_map.parse('{{ "a" }}{{ "b" }}'))
+assert(adjacent.source_bytes[4] == adjacent.source_bytes[5])
+assert(source_map.source_slot(adjacent, adjacent.source_bytes[4]) == 5)
+
+-- The same identifier reader serves parsing and on-demand merge classification.
+for _, case in ipairs({
+  { "{{ if .enabled }}", "if" },
+  { "{{- \t range .items -}}", "range" },
+  { "{{\nelse if .enabled }}", "else" },
+  { "{{ with . }}", "with" },
+  { "{{ end }}", "end" },
+  { '{{ printf "%s" "if" }}', "printf" },
+  { "{{ ifSomething }}", "ifSomething" },
+  { "{{ if中文 }}", false },
+  { "{{ .if }}", false },
+  { '{{ "if" }}', false },
+  { "{{/* if */}}", false },
+  { "{{-3}}", false },
+}) do
+  assert(source_map.action_keyword(case[1]) == (case[2] or nil), case[1])
+end

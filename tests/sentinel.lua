@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 local run_async = dofile("tests/helpers/await.lua")
 local source_map = require("vimoi.render.source_map")
 
@@ -8,7 +9,10 @@ local utf8_trace = assert(run_async(source_map.trace, utf8_source))
 assert(utf8_trace.output == "__VIMOI_123_456__1__VIMOI_123_456__ 中文 � \239\191\191 世界")
 assert(utf8_trace.skeleton == '\2551\255{{ "世界" }}\2552\255')
 assert(utf8_trace.rendered_skeleton == "\2551\255世界\2552\255")
-assert(utf8_trace.literal_parts[2].output_ranges[1].start_byte == #utf8_trace.output)
+assert(
+  map_objects.sentinels(utf8_trace)[map_objects.literals(utf8_trace)[2].occurrences[1]].output_byte
+    == #utf8_trace.output
+)
 
 local reserved, reserved_error = source_map.prepare("before\255after")
 assert(not reserved and reserved_error == "template contains the renderer's reserved sentinel prefix")
@@ -18,36 +22,56 @@ assert(not unknown and unknown_error == "unknown sentinel in rendered output")
 local trace, err = run_async(source_map.trace, 'hello {{ "world" }}!\n')
 assert(trace, err)
 assert(trace.output == "hello world!\n", vim.inspect(trace))
-assert(#trace.literal_parts == 2)
-assert(#trace.template_tags == 1 and trace.template_tags[1].text == '{{ "world" }}')
-assert(trace.literal_parts[1].output_ranges[1].execution_order == 1)
-assert(trace.literal_parts[2].output_ranges[1].execution_order == 2)
-assert(trace.literal_parts[1].text == "hello ")
-assert(trace.literal_parts[1].output_ranges[1].start_byte == 0)
-assert(trace.literal_parts[1].output_ranges[1].end_byte == 6)
-assert(trace.literal_parts[2].text == "!\n")
-assert(trace.literal_parts[2].output_ranges[1].start_byte == 11)
-assert(trace.literal_parts[2].output_ranges[1].end_byte == 13)
+assert(#map_objects.literals(trace) == 2)
+assert(#map_objects.tags(trace) == 1 and map_objects.tags(trace)[1].text == '{{ "world" }}')
+assert(map_objects.literals(trace)[1].occurrences[1] == 1)
+assert(map_objects.literals(trace)[2].occurrences[1] == 2)
+assert(map_objects.literals(trace)[1].text == "hello ")
+assert(map_objects.sentinels(trace)[map_objects.literals(trace)[1].occurrences[1]].output_byte == 0)
+assert(
+  (
+    map_objects.sentinels(trace)[map_objects.literals(trace)[1].occurrences[1]].output_byte
+    + #map_objects.literals(trace)[1].text
+  ) == 6
+)
+assert(map_objects.literals(trace)[2].text == "!\n")
+assert(map_objects.sentinels(trace)[map_objects.literals(trace)[2].occurrences[1]].output_byte == 11)
+assert(
+  (
+    map_objects.sentinels(trace)[map_objects.literals(trace)[2].occurrences[1]].output_byte
+    + #map_objects.literals(trace)[2].text
+  ) == 13
+)
 
 local loop, loop_err = run_async(source_map.trace, '{{ range (list "a" "b") }}item={{ . }};{{ end }}')
 assert(loop, loop_err)
 assert(loop.output == "item=a;item=b;")
-assert(#loop.literal_parts == 4)
-assert(#loop.literal_parts[2].output_ranges == 2)
-assert(#loop.literal_parts[3].output_ranges == 2)
+assert(#map_objects.literals(loop) == 4)
+assert(#map_objects.literals(loop)[2].occurrences == 2)
+assert(#map_objects.literals(loop)[3].occurrences == 2)
 
 local trimmed, trim_err = run_async(source_map.trace, 'before \n{{- "x" -}}\n after')
 assert(trimmed, trim_err)
 assert(trimmed.output == "beforexafter", vim.inspect(trimmed))
-assert(#trimmed.literal_parts == 2)
-assert(trimmed.literal_parts[1].text == "before")
-assert(trimmed.literal_parts[1].source.end_byte == 6)
-assert(trimmed.literal_parts[1].output_ranges[1].start_byte == 0)
-assert(trimmed.literal_parts[1].output_ranges[1].end_byte == 6)
-assert(trimmed.literal_parts[2].text == "after")
-assert(trimmed.literal_parts[2].source.start_byte == #trimmed.source - #"after")
-assert(trimmed.literal_parts[2].output_ranges[1].start_byte == 7)
-assert(trimmed.literal_parts[2].output_ranges[1].end_byte == 12)
+assert(#map_objects.literals(trimmed) == 2)
+assert(map_objects.literals(trimmed)[1].text == "before")
+assert((map_objects.literals(trimmed)[1].source_byte + #map_objects.literals(trimmed)[1].text) == 6)
+assert(map_objects.sentinels(trimmed)[map_objects.literals(trimmed)[1].occurrences[1]].output_byte == 0)
+assert(
+  (
+    map_objects.sentinels(trimmed)[map_objects.literals(trimmed)[1].occurrences[1]].output_byte
+    + #map_objects.literals(trimmed)[1].text
+  ) == 6
+)
+assert(map_objects.literals(trimmed)[2].text == "after")
+assert(map_objects.literals(trimmed)[2].source_byte == #trimmed.source - #"after")
+assert(map_objects.sentinels(trimmed)[map_objects.literals(trimmed)[2].occurrences[1]].output_byte == 7)
+assert(
+  (
+    map_objects.sentinels(trimmed)[map_objects.literals(trimmed)[2].occurrences[1]].output_byte
+    + #map_objects.literals(trimmed)[2].text
+  ) == 12
+)
 
 local left_trimmed, left_trim_err = run_async(source_map.trace, 'a \n{{- "b" }} c')
 assert(left_trimmed, left_trim_err)
@@ -60,11 +84,16 @@ assert(right_trimmed.output == "a bc")
 local whitespace_only, whitespace_err = run_async(source_map.trace, '{{ "a" -}} \n {{- "b" }}')
 assert(whitespace_only, whitespace_err)
 assert(whitespace_only.output == "ab")
-assert(#whitespace_only.literal_parts == 3)
-assert(whitespace_only.literal_parts[2].text == "")
-assert(whitespace_only.literal_parts[2].source.start_byte == whitespace_only.literal_parts[2].source.end_byte)
-assert(whitespace_only.literal_parts[2].output_ranges[1].start_byte == 1)
-assert(whitespace_only.literal_parts[2].output_ranges[1].end_byte == 1)
+assert(#map_objects.literals(whitespace_only) == 3)
+assert(map_objects.literals(whitespace_only)[2].text == "")
+assert(map_objects.literals(whitespace_only)[2].source_byte == map_objects.tags(whitespace_only)[2].start_byte)
+assert(map_objects.sentinels(whitespace_only)[map_objects.literals(whitespace_only)[2].occurrences[1]].output_byte == 1)
+assert(
+  (
+    map_objects.sentinels(whitespace_only)[map_objects.literals(whitespace_only)[2].occurrences[1]].output_byte
+    + #map_objects.literals(whitespace_only)[2].text
+  ) == 1
+)
 
 local init_template, init_error =
   run_async(source_map.trace, '{{ promptChoiceOnce . "vimoi_test" "Choose one" (list "a" "b") "a" }}', { init = true })
@@ -104,23 +133,25 @@ assert(async_render_error == render_error)
 -- branches with no static text node to carry the older S/E sentinels.
 local empty_true = assert(run_async(source_map.trace, "{{ if true }}{{ end }}"))
 local empty_false = assert(run_async(source_map.trace, "{{ if false }}{{ end }}"))
-assert(#empty_true.literal_parts == 3 and #empty_true.literal_parts[2].output_ranges == 1)
-assert(#empty_false.literal_parts == 3 and #empty_false.literal_parts[2].output_ranges == 0)
+assert(#map_objects.literals(empty_true) == 3 and #map_objects.literals(empty_true)[2].occurrences == 1)
+assert(#map_objects.literals(empty_false) == 3 and #map_objects.literals(empty_false)[2].occurrences == 0)
 assert(assert(source_map.rebuild(empty_true, "{{ if true }}X{{ end }}")).output == "X")
 assert(assert(source_map.rebuild(empty_false, "{{ if false }}X{{ end }}")).output == "")
 
 local else_trace = assert(run_async(source_map.trace, "{{ if false }}{{ else }}{{ end }}"))
-assert(#else_trace.literal_parts == 4)
-assert(#else_trace.literal_parts[2].output_ranges == 0 and #else_trace.literal_parts[3].output_ranges == 1)
+assert(#map_objects.literals(else_trace) == 4)
+assert(#map_objects.literals(else_trace)[2].occurrences == 0 and #map_objects.literals(else_trace)[3].occurrences == 1)
 assert(assert(source_map.rebuild(else_trace, "{{ if false }}{{ else }}X{{ end }}")).output == "X")
 local else_if_trace = assert(run_async(source_map.trace, "{{ if false }}{{ else if true }}{{ end }}"))
-assert(#else_if_trace.literal_parts[2].output_ranges == 0 and #else_if_trace.literal_parts[3].output_ranges == 1)
+assert(
+  #map_objects.literals(else_if_trace)[2].occurrences == 0 and #map_objects.literals(else_if_trace)[3].occurrences == 1
+)
 assert(assert(source_map.rebuild(else_if_trace, "{{ if false }}{{ else if true }}X{{ end }}")).output == "X")
 
 local empty_range = assert(run_async(source_map.trace, "{{ range (list) }}{{ end }}"))
 local double_range = assert(run_async(source_map.trace, "{{ range (list 1 2) }}{{ end }}"))
-assert(#empty_range.literal_parts[2].output_ranges == 0)
-assert(#double_range.literal_parts[2].output_ranges == 2)
+assert(#map_objects.literals(empty_range)[2].occurrences == 0)
+assert(#map_objects.literals(double_range)[2].occurrences == 2)
 assert(assert(source_map.rebuild(double_range, "{{ range (list 1 2) }}X{{ end }}")).output == "XX")
 
 local trim_source = "before\n{{- if true }}\n{{- end }}\nafter\n"
@@ -152,8 +183,8 @@ for _, template in ipairs({
   assert(skeleton.output == direct.stdout, vim.inspect({ template, skeleton.output, direct.stdout }))
   -- Regions must cover output in order, including empty/repeated literal slots.
   local last, literals, expected = 0, 0, 0
-  for _, part in ipairs(skeleton.literal_parts) do
-    expected = expected + #part.output_ranges
+  for _, part in ipairs(map_objects.literals(skeleton)) do
+    expected = expected + #part.occurrences
   end
   for _, region in ipairs(source_map.rendered_regions(skeleton)) do
     assert(region.output_range.start_byte == last)

@@ -1,0 +1,75 @@
+{
+  "case": "10000 template actions",
+  "method": "Lua heap reclaimed by removing retained map fields after repeated full GC; JIT disabled; shared inputs/syntax cache and temporary traces excluded; not process RSS",
+  "variants": {
+    "original_arrays": {
+      "freed_kib": {
+        "output_starts": 128.0859375,
+        "nodes": 0,
+        "source_bytes": 0,
+        "source_types": 0,
+        "output_indices": 0,
+        "slot_starts": 256.0703125,
+        "slot_types": 256.0703125,
+        "trim_flags": 256.0703125,
+        "controls": 0.109375,
+        "first_occurrences": 256.0703125,
+        "next_sentinels": 256.0703125,
+        "output_bytes": 128.0703125,
+        "output_slots": 128.0703125,
+        "source_starts": 128.0859375
+      },
+      "literals": 0,
+      "tags": 0,
+      "nodes": 0,
+      "variant": "original_arrays",
+      "total_freed_kib": 1792.7734375
+    },
+    "hybrid": {
+      "nodes": 20003,
+      "tags": 10000,
+      "variant": "hybrid",
+      "literals": 10001,
+      "freed_kib": {
+        "controls": 0,
+        "first_occurrences": 0,
+        "next_sentinels": 0,
+        "output_bytes": 128.0859375,
+        "output_slots": 128.0859375,
+        "source_starts": 128.0859375,
+        "output_starts": 128.0859375,
+        "nodes": 2912.453125,
+        "source_bytes": 256.0703125,
+        "source_types": 256.0703125,
+        "output_indices": 256.0703125,
+        "slot_starts": 0,
+        "slot_types": 0,
+        "trim_flags": 0
+      },
+      "total_freed_kib": 4193.0078125
+    },
+    "current_arrays": {
+      "tags": 0,
+      "literals": 0,
+      "freed_kib": {
+        "slot_types": 0,
+        "trim_flags": 256.0703125,
+        "controls": 0.109375,
+        "first_occurrences": 0,
+        "next_sentinels": 0,
+        "output_bytes": 128.0859375,
+        "output_slots": 128.0859375,
+        "source_starts": 128.0859375,
+        "output_starts": 128.0859375,
+        "nodes": 0,
+        "source_bytes": 256.0859375,
+        "source_types": 256.09375,
+        "output_indices": 256.0703125,
+        "slot_starts": 0
+      },
+      "nodes": 0,
+      "variant": "current_arrays",
+      "total_freed_kib": 1536.7734375
+    }
+  }
+}

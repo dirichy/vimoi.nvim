@@ -3,6 +3,7 @@ local util = require("vimoi.core.util")
 local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")
 
 local sessions = require("vimoi.render")
+local source_map = require("vimoi.render.source_map")
 
 local host_namespace = vim.api.nvim_create_namespace("vimoi-host-diagnostics")
 
@@ -43,7 +44,6 @@ end
 ---@return vim.Diagnostic[]
 local function project(map, diagnostics, filetype)
   local projected, seen = {}, {}
-  local regions = map.regions
   local output_starts = map.output_starts
   local source_starts = map.source_starts
   for _, diagnostic in ipairs(diagnostics) do
@@ -54,7 +54,7 @@ local function project(map, diagnostics, filetype)
       local last = math.max(first, math.min(last_line + (diagnostic.end_col or diagnostic.col), map.output_size))
       local source_first, source_last
       local generated = false
-      for _, region in ipairs(regions) do
+      for region in require("vimoi.render.source_map").regions(map, first, last) do
         local a, b = region.output_range.start_byte, region.output_range.end_byte
         local overlaps = first < b and last > a
           or (first == last and first >= a and (first < b or first == map.output_size and first == b and a < b))
@@ -237,23 +237,27 @@ local function render_error(buf, state)
   -- Go template execution errors use one-based lines but ZERO-based byte columns.
   local byte = column and first + tonumber(column)
   local candidates = {}
-  for _, tag in ipairs(assert(state.error_tags)) do
-    local start_byte = assert(tag.skeleton_start_byte)
-    local end_byte = start_byte + #tag.text
-    if byte and byte >= start_byte and byte < end_byte then
-      local source_byte = tag.start_byte + byte - start_byte
-      local row, col = util.byte_to_position(source, source_byte)
-      local node = root and root:named_descendant_for_range(row, col, row, col)
-      local diagnostic = node_diagnostic(node or root, assert(message))
-      diagnostic.lnum, diagnostic.col = row, col
-      local node_end = node and select(3, node:end_())
-      if not node or node_end > tag.end_byte then
-        diagnostic.end_lnum, diagnostic.end_col = row, col + 1
+  local parts = assert(state.error_parts)
+  for slot, kind in ipairs(parts.source_types) do
+    if kind == source_map.TAG then
+      local source_first, source_last = parts.source_bytes[slot], parts.source_bytes[slot + 1]
+      local start_byte = assert(parts.skeleton_starts[slot])
+      local end_byte = start_byte + source_last - source_first
+      if byte and byte >= start_byte and byte < end_byte then
+        local source_byte = source_first + byte - start_byte
+        local row, col = util.byte_to_position(source, source_byte)
+        local node = root and root:named_descendant_for_range(row, col, row, col)
+        local diagnostic = node_diagnostic(node or root, assert(message))
+        diagnostic.lnum, diagnostic.col = row, col
+        local node_end = node and select(3, node:end_())
+        if not node or node_end > source_last then
+          diagnostic.end_lnum, diagnostic.end_col = row, col + 1
+        end
+        return diagnostic
       end
-      return diagnostic
-    end
-    if not byte and start_byte < last and end_byte > first then
-      candidates[#candidates + 1] = tag
+      if not byte and start_byte < last and end_byte > first then
+        candidates[#candidates + 1] = { start_byte = source_first, end_byte = source_last }
+      end
     end
   end
   if byte then
@@ -310,7 +314,7 @@ function M.update(buf)
   if state.root and state.root:has_error() then
     syntax_errors(state.root, diagnostics)
   elseif state.error then
-    local diagnostic = state.error_tags and render_error(buf, state)
+    local diagnostic = state.error_parts and render_error(buf, state)
     diagnostics[1] = diagnostic
       or {
         lnum = 0,

@@ -1,5 +1,6 @@
 local M = {}
 local util = require("vimoi.core.util")
+local source_map = require("vimoi.render.source_map")
 
 -- Translate between target, rendered output, and source line numbers before moving
 -- the peer window. Native scrollbind only understands equal line numbers.
@@ -43,39 +44,8 @@ end
 local function rendered_to_source_line(session, rendered_line)
   local rendered_line_starts = session.map.output_starts
   local line_start_byte = rendered_line_starts[rendered_line] or session.map.output_size
-  local nearest_source_anchor
-  for _, literal_part in ipairs(session.map.literal_parts) do
-    for _, output_range in ipairs(literal_part.output_ranges) do
-      if line_start_byte >= output_range.start_byte and line_start_byte < output_range.end_byte then
-        local offset = math.min(
-          line_start_byte - output_range.start_byte,
-          literal_part.source.end_byte - literal_part.source.start_byte
-        )
-        local row = util.byte_to_position(nil, literal_part.source.start_byte + offset, session.map.source_starts)
-        return row + 1
-      end
-      local distance =
-        math.min(math.abs(line_start_byte - output_range.start_byte), math.abs(line_start_byte - output_range.end_byte))
-      if not nearest_source_anchor or distance < nearest_source_anchor.distance then
-        nearest_source_anchor = { distance = distance, source_byte = literal_part.source.start_byte }
-      end
-    end
-  end
-  for _, region in ipairs(session.map.regions) do
-    local output_range = region.output_range
-    if line_start_byte >= output_range.start_byte and line_start_byte < output_range.end_byte then
-      local offset =
-        math.min(line_start_byte - output_range.start_byte, region.source.end_byte - region.source.start_byte)
-      local row = util.byte_to_position(nil, region.source.start_byte + offset, session.map.source_starts)
-      return row + 1
-    end
-  end
-  local row = util.byte_to_position(
-    nil,
-    nearest_source_anchor and nearest_source_anchor.source_byte or 0,
-    session.map.source_starts
-  )
-  return row + 1
+  local source_byte = source_map.output_position(session.map, line_start_byte)
+  return util.byte_to_position(nil, source_byte, session.map.source_starts) + 1
 end
 
 local function target_to_source_line(session, line)
@@ -99,35 +69,17 @@ local function source_to_rendered_range(session, source_line)
   local source_starts = session.map.source_starts
   local line_start_byte = source_starts[source_line] or session.map.source_size
   local line_end_byte = source_starts[source_line + 1] or session.map.source_size
-  for _, literal_part in ipairs(session.map.literal_parts) do
-    if line_start_byte >= literal_part.source.start_byte and line_start_byte < literal_part.source.end_byte then
-      local offset = math.min(
-        line_start_byte - literal_part.source.start_byte,
-        literal_part.source.end_byte - literal_part.source.start_byte
-      )
-      local output_range = literal_part.output_ranges[1]
-      if output_range then
-        local rendered_byte = math.min(output_range.start_byte + offset, output_range.end_byte)
-        local row = util.byte_to_position(nil, rendered_byte, session.map.output_starts)
-        local end_byte =
-          math.min(output_range.end_byte, output_range.start_byte + line_end_byte - literal_part.source.start_byte)
-        local end_row = util.byte_to_position(nil, math.max(rendered_byte, end_byte - 1), session.map.output_starts)
-        return row + 1, end_row + 1
-      end
-    end
+  local first, last, literal = source_map.source_span(session.map, line_start_byte)
+  if not first or not last then
+    return 1, 0
   end
-  for _, region in ipairs(session.map.regions) do
-    local source = region.source
-    if line_start_byte >= source.start_byte and line_start_byte < source.end_byte then
-      local row = util.byte_to_position(nil, region.output_range.start_byte, session.map.output_starts)
-      local last = region.output_range.end_byte
-      local end_row = last > region.output_range.start_byte
-          and util.byte_to_position(nil, last - 1, session.map.output_starts) + 1
-        or row
-      return row + 1, end_row
-    end
+  -- Literal text maps byte for byte; action expansions retain their full span.
+  if literal then
+    last = math.min(last, first + line_end_byte - line_start_byte)
   end
-  return 1, 0
+  local row = util.byte_to_position(nil, first, session.map.output_starts)
+  local end_row = last > first and util.byte_to_position(nil, last - 1, session.map.output_starts) + 1 or row
+  return row + 1, end_row
 end
 
 -- Use the first execution of a source range, then project it to target.

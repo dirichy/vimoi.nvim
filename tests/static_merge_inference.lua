@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 local run_async = dofile("tests/helpers/await.lua")
 local source_map = require("vimoi.render.source_map")
 local merge_plan = require("vimoi.merge.plan")
@@ -39,8 +40,8 @@ for _, source in ipairs({
   local trace = assert(run_async(source_map.trace, source))
   local snapshot = vim.deepcopy(trace)
   local seen = {}
-  for index = 1, #trace.literal_parts do
-    local previous_tag, following_tag = trace.template_tags[index - 1], trace.template_tags[index]
+  for index = 1, #map_objects.literals(trace) do
+    local previous_tag, following_tag = map_objects.tags(trace)[index - 1], map_objects.tags(trace)[index]
     local first = previous_tag and previous_tag.end_byte or 0
     local last = following_tag and following_tag.start_byte or #source
     local middle = math.floor((first + last) / 2)

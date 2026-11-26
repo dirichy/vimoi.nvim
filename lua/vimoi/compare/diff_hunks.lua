@@ -27,28 +27,15 @@ local function intersects(start_a, end_a, start_b, end_b)
   return start_a < end_b and start_b < end_a
 end
 
----@param regions VimoiRenderedRegion[]
+---@param map VimoiSourceMap
 ---@param start_byte integer
 ---@param end_byte integer
 ---@return VimoiDiffRange[]
-local function project_range(regions, start_byte, end_byte)
+local function project_range(map, start_byte, end_byte)
   local projected = {}
   local seen = {}
-  -- Keep equal endpoints: insertions can belong to both boundary regions.
-  local first, last = 1, #regions
-  while first <= last do
-    local middle = math.floor((first + last) / 2)
-    if regions[middle].output_range.end_byte < start_byte then
-      first = middle + 1
-    else
-      last = middle - 1
-    end
-  end
-  for region_index = first, #regions do
-    local region = regions[region_index]
-    if region.output_range.start_byte > end_byte then
-      break
-    end
+  -- Include equal endpoints for insertions on either side of a sentinel.
+  for region in source_map.regions(map, start_byte, end_byte) do
     if intersects(start_byte, end_byte, region.output_range.start_byte, region.output_range.end_byte) then
       local source_start_byte = region.source.start_byte
       local source_end_byte = region.source.end_byte
@@ -88,7 +75,6 @@ function M.compute(modified, trace)
   assert(type(raw_hunks) == "table")
   local rendered_line_starts = trace.output_starts or util.line_starts(trace.output)
   local target_line_starts = util.line_starts(modified)
-  local regions = source_map.rendered_regions(trace)
   local hunks = {}
 
   for index, raw_hunk in ipairs(raw_hunks) do
@@ -121,8 +107,8 @@ function M.compute(modified, trace)
       rendered_line_count = rendered_line_count,
       target_start_line = target_start_line,
       target_line_count = target_line_count,
-      source_ranges = project_range(regions, hunk_rendered_start_byte, hunk_rendered_end_byte),
-      display_ranges = project_range(regions, display_start_byte, display_end_byte),
+      source_ranges = project_range(trace, hunk_rendered_start_byte, hunk_rendered_end_byte),
+      display_ranges = project_range(trace, display_start_byte, display_end_byte),
     }
   end
   return hunks

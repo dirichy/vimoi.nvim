@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 local source_map = require("vimoi.render.source_map")
 local util = require("vimoi.core.util")
 local buf = vim.api.nvim_create_buf(false, true)
@@ -128,9 +129,9 @@ math.randomseed(4096)
 for edit = 1, 200 do
   local source = util.buffer_text(buf)
   local parts = assert(source_map.parse(source))
-  local literal_part_index = math.random(#parts.template_tags)
-  local start_byte = literal_part_index == 1 and 0 or parts.template_tags[literal_part_index - 1].end_byte
-  replace(start_byte, parts.template_tags[literal_part_index].start_byte, valid_text[math.random(#valid_text)])
+  local literal_part_index = math.random(#map_objects.tags(parts))
+  local start_byte = literal_part_index == 1 and 0 or map_objects.tags(parts)[literal_part_index - 1].end_byte
+  replace(start_byte, map_objects.tags(parts)[literal_part_index].start_byte, valid_text[math.random(#valid_text)])
   if edit % 4 == 0 then
     vim.treesitter.get_parser(buf, "gotmpl"):parse()
   end

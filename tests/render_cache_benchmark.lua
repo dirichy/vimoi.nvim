@@ -66,7 +66,7 @@ for _, size in ipairs({ 8, 1000 }) do
     end
     prepare_count, restore_count = calls.prepare, calls.restore
   end
-  trace.regions = renderer.rendered_regions(trace)
+  local cached_regions = renderer.rendered_regions(trace)
   trace.output_starts = util.line_starts(trace.output)
   for repeat_index = 1, 133 do
     local cpu = os.clock()
@@ -76,8 +76,6 @@ for _, size in ipairs({ 8, 1000 }) do
       diff[#diff + 1] = cpu
     end
   end
-  local cached_regions = trace.regions
-  trace.regions = nil
   local region_build = {}
   for repeat_index = 1, 133 do
     local cpu = os.clock()
@@ -88,7 +86,6 @@ for _, size in ipairs({ 8, 1000 }) do
       region_build[#region_build + 1] = cpu
     end
   end
-  trace.regions = cached_regions
 
   -- Sparse hunks exercise region lookup, native line projection and merge planning.
   local target_lines = util.text_lines(trace.output)

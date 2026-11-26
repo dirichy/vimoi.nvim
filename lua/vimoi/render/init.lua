@@ -6,7 +6,7 @@ local edits = require("vimoi.core.buffer_edits")
 local util = require("vimoi.core.util")
 local cli = require("vimoi.core.cli")
 
----@class VimoiOutputMap
+---@class VimoiOutputMap: VimoiSourceMap
 ---@field tick integer Source buffer version represented by this map.
 ---@field validate boolean
 ---@field validation_target? string
@@ -17,9 +17,6 @@ local cli = require("vimoi.core.cli")
 ---@field source_eol boolean
 ---@field source_starts integer[]
 ---@field output_starts integer[]
----@field template_tags VimoiTemplateTag[]
----@field literal_parts VimoiLiteralPart[]
----@field regions VimoiRenderedRegion[]
 
 ---@class VimoiSessionOptions
 ---@field once? boolean Unregister after the first result.
@@ -37,7 +34,7 @@ local cli = require("vimoi.core.cli")
 ---@field tick? integer Source version represented by prepared/root.
 ---@field root? TSNode Current syntax tree for template diagnostics.
 ---@field prepared? VimoiPreparedTrace Temporary input while rendering.
----@field error_tags? VimoiTemplateTag[] Tag positions in a failed skeleton.
+---@field error_parts? VimoiPreparedTrace Source slots and tag positions in a failed skeleton.
 ---@field skeleton? string Current execution cache key, including context prelude.
 ---@field prefix? string
 ---@field init? boolean
@@ -141,9 +138,14 @@ function M.snapshot(source)
   return {
     source = util.buffer_text(source),
     output = util.buffer_text(state.buf),
-    template_tags = map.template_tags,
-    literal_parts = map.literal_parts,
-    regions = map.regions,
+    source_bytes = map.source_bytes,
+    source_types = map.source_types,
+    trim_flags = map.trim_flags,
+    output_indices = map.output_indices,
+    output_bytes = map.output_bytes,
+    output_slots = map.output_slots,
+    source_size = map.source_size,
+    output_size = map.output_size,
     output_starts = map.output_starts,
     source_starts = map.source_starts,
     skeleton = assert(state.skeleton),
@@ -211,13 +213,16 @@ function M.update(source, trace)
     source_eol = trace.source:sub(-1) == "\n",
     source_starts = util.line_starts(trace.source),
     output_starts = util.line_starts(trace.output),
-    template_tags = trace.template_tags,
-    literal_parts = trace.literal_parts,
-    regions = require("vimoi.render.source_map").rendered_regions(trace),
+    source_bytes = trace.source_bytes,
+    source_types = trace.source_types,
+    trim_flags = trace.trim_flags,
+    output_indices = trace.output_indices,
+    output_bytes = trace.output_bytes,
+    output_slots = trace.output_slots,
   }
   state.skeleton, state.prefix, state.init = trace.skeleton, trace.prefix, trace.init
   state.context_generation, state.rendered_skeleton = trace.context_generation, trace.rendered_skeleton
-  state.prepared, state.root, state.error_tags, state.error = nil, nil, nil, nil
+  state.prepared, state.root, state.error_parts, state.error = nil, nil, nil, nil
   publish(state)
   return state
 end
@@ -231,12 +236,7 @@ function M.rebuild(source)
   if current(source, state) then
     return M.snapshot(source)
   end
-  if
-    state.error
-    or state.initialized ~= true
-    or not state.map
-    or state.map.path ~= api.nvim_buf_get_name(source)
-  then
+  if state.error or state.initialized ~= true or not state.map or state.map.path ~= api.nvim_buf_get_name(source) then
     return nil, true
   end
   local renderer = require("vimoi.render.source_map")
@@ -284,7 +284,7 @@ local function construct(source, state)
   end
   local request = {}
   state.request = request
-  state.prepared, state.root, state.error_tags = nil, nil, nil
+  state.prepared, state.root, state.error_parts = nil, nil, nil
   vim.schedule(function()
     if buffers[source] ~= state or state.request ~= request then
       return
@@ -575,7 +575,7 @@ function M.register(source, callback, opts)
             end
           end
           if state.error then
-            state.error_tags = state.prepared and state.prepared.template_tags
+            state.error_parts = state.prepared
             state.prepared = nil
             publish(state)
           end

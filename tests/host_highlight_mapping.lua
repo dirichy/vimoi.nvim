@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 ---@diagnostic disable: duplicate-set-field -- Capture the real provider for deterministic viewport checks.
 local api, util = vim.api, require("vimoi.core.util")
 local namespace = api.nvim_create_namespace("vimoi-host-highlight")
@@ -42,9 +43,9 @@ local function expected(trace, language, first, last)
       result[byte .. ":" .. name .. ":" .. priority] = true
     end
   end
-  for _, part in ipairs(trace.literal_parts) do
-    if #part.output_ranges == 0 then
-      paint(part.source.start_byte, part.source.end_byte, "Comment", vim.hl.priorities.treesitter)
+  for _, part in ipairs(map_objects.literals(trace)) do
+    if #part.occurrences == 0 then
+      paint(part.source_byte, (part.source_byte + #part.text), "Comment", vim.hl.priorities.treesitter)
     end
   end
   parser:for_each_tree(function(tree, language_tree)
@@ -63,12 +64,13 @@ local function expected(trace, language, first, last)
           priority = priority + 1
         end
         for _, included in ipairs(tree:included_ranges(true)) do
-          for _, part in ipairs(trace.literal_parts) do
-            local occurrence = part.output_ranges[1]
+          for _, part in ipairs(map_objects.literals(trace)) do
+            local occurrence = part.occurrences[1]
             if occurrence then
-              local a = math.max(range[3], included[3], occurrence.start_byte)
-              local b = math.min(range[6], included[6], occurrence.end_byte)
-              local offset = part.source.start_byte - occurrence.start_byte
+              local output_byte = map_objects.sentinels(trace)[occurrence].output_byte
+              local a = math.max(range[3], included[3], output_byte)
+              local b = math.min(range[6], included[6], output_byte + #part.text)
+              local offset = part.source_byte - output_byte
               paint(a + offset, b + offset, "@" .. name .. "." .. lang, priority)
             end
           end
@@ -86,13 +88,14 @@ local function check(label, text, language)
   local trace = assert(await(source_map.trace, text, { buf = buf }))
   require("vimoi.render").update(buf, trace)
   local previous = -1
-  for _, part in ipairs(trace.literal_parts) do
-    local occurrence = part.output_ranges[1]
+  for _, part in ipairs(map_objects.literals(trace)) do
+    local occurrence = part.occurrences[1]
     if occurrence and #part.text > 0 then
-      if occurrence.start_byte < previous then
+      local output_byte = map_objects.sentinels(trace)[occurrence].output_byte
+      if output_byte < previous then
         nonmonotonic = nonmonotonic + 1
       end
-      previous = occurrence.start_byte
+      previous = output_byte
     end
   end
   local starts = util.line_starts(text)
@@ -113,7 +116,7 @@ local function check(label, text, language)
         local a = starts[mark[2] + 1] + mark[3]
         local b = starts[opts.end_row + 1] + opts.end_col
         assert(a >= first and b <= last, label .. ": capture escaped viewport")
-        for _, tag in ipairs(trace.template_tags) do
+        for _, tag in ipairs(map_objects.tags(trace)) do
           assert(b <= tag.start_byte or a >= tag.end_byte, label .. ": capture crossed an opaque tag/action")
         end
         local groups = type(opts.hl_group) == "table" and opts.hl_group or { opts.hl_group }

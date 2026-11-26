@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 ---@diagnostic disable: duplicate-set-field -- Observe native syntax projection and cache reuse.
 local api = vim.api
 local namespace = api.nvim_create_namespace("vimoi-host-highlight")
@@ -62,13 +63,13 @@ for _, case in ipairs({
   vim.bo[reference].syntax = filetype
   local expected = {}
   api.nvim_buf_call(reference, function()
-    for _, part in ipairs(trace.literal_parts) do
-      local occurrence = part.output_ranges[1]
-      for byte = part.source.start_byte, part.source.end_byte - 1 do
+    for _, part in ipairs(map_objects.literals(trace)) do
+      local occurrence = part.occurrences[1]
+      for byte = part.source_byte, (part.source_byte + #part.text) - 1 do
         if not occurrence then
           expected[byte .. ":Comment"] = true
         else
-          local output_byte = occurrence.start_byte + byte - part.source.start_byte
+          local output_byte = map_objects.sentinels(trace)[occurrence].output_byte + byte - part.source_byte
           local row, col = util.byte_to_position(trace.output, output_byte)
           local id = vim.fn.synID(row + 1, col + 1, 1)
           if id ~= 0 then

@@ -400,11 +400,13 @@ put 和 template re-add 仅局部写回 source，不再替换整个 buffer；一
 和打开状态。末尾换行仍由 buffer 的 `endofline` 选项控制；与之前相同，原生文本 undo
 不会恢复该选项。
 
-source map 统一使用相邻模板标签（`template_tags`）之间的字面文本（`literal_parts`），包含文件
-首尾和空文本。每段文本保存源范围、trim 后的文本和输出范围 `output_ranges`：未执行
-分支没有输出范围，循环则可能有多个。parser 对普通文本的节点拆分不再形成合并边界；内部插入字面量
-括号不会弹出位置选择。真正的 action/控制块边界仍然保留。
-
+source map 使用平行数组保存源码起点、类型、trim 属性及统一的输出锚点；输出
+位置和来源也分别保存。空字面量保留动作间的分界，虚拟首尾锚点不进入 CLI 骨架。
+不保存逐片段对象、length/end/text、完整 occurrences、独立 first/next 或 tail_source。
+merge 所需的控制关键字从本次源码快照按需识别，不保存在映射中。
+source EOF 与 output EOF 明确对应，空输出的 byte 0 也按 EOF 处理。文字按本次源码快照
+恢复，行首索引随 map 更新，范围仅查询时推导。parser 对普通文本的节点拆分不形成合并
+边界；内部插入字面量括号不会弹出位置选择，真正的 action/控制块边界仍保留。
 普通的非模板 source 文件不会进入哨兵映射流程，而是直接使用标准双文件 Diff，包括原生
 `scrollbind`、`cursorbind`、`do` 和 `dp` 行为。
 
@@ -673,11 +675,14 @@ source_map.restore 无须再次执行即可还原完整输出和 byte 映射。
 
 `require("vimoi.render.source_map")` 统一负责模板解析、哨兵渲染及源码与输出的位置映射，
 包括增量语法缓存、渲染结果复用及字面槽位和动态输出的区域映射。
-语法缓存保存由兄弟分隔符节点界定的完整标签范围；define/block 节点整体作为不透明
-标签，其他控制块仍拆为独立标签，以保留正文的字面映射。字面文本由相邻标签推导并
-应用空白 trim，空的插入槽位也会保留。
-不透明正文原样保留在骨架中，保留空定义语义；修改正文会改变骨架，需要重新渲染。
-外部槽位只受开头标签的左 trim 和结尾 end 标签的右 trim 影响。
+语法缓存保存由兄弟分隔符节点界定的完整标签范围；define 和空 block 保持不透明，
+非空 block 等控制块拆为独立标签。字面文本由相邻标签推导并应用 ASCII trim，保留空槽位。
+执行映射仅保存源码哨兵位置和输出执行表，不缓存展开的 range 表。source_span() 和
+output_position() 二分定位相邻哨兵，source_parts() 选取源码视口，regions() 按需投影
+输出区间；rendered_regions() 仅在明确请求时生成完整范围。索引与 map 归同一 source
+session 管理，操作快照共享这些数据。
+空 block 按 Go 的 Unicode 空白规则判定，保留原文，避免哨兵改变定义覆盖语义。
+非空 block 的静态文字修改可复用骨架；define 正文或 block 空性改变时需重新渲染。
 
 `vimoi.compare.native_diff` 负责将映射后的差异块接入 Neovim 的 diffexpr
 及原生 diff 窗口和折叠同步。`buffer_edits` 负责局部字节写入、EOF 和 undo，供合并及预览刷新
@@ -849,9 +854,9 @@ https://www.chezmoi.io/user-guide/encryption/transparent/
 因此执行 chezmoi apply 或修改文件。无名 buffer、未受管理/source-only 文件、原始
 字符串 trace 及 init 模板保留原生 execute-template 上下文。
 
-define/block 正文不建立内部映射。每次 template 调用的完整输出对应调用处，block
-自身的输出对应整个块。正文中的静态文本也需要手动编辑 source。正文内部不插入
-哨兵，因此保留 Go 对纯空白/注释组成的空定义的语义。
+define 正文不建立内部映射，调用输出对应调用处，需要手动编辑 source。非空 block
+保持透明，单次执行的静态正文可自动写回，重复执行沿用 range 的限制。define 和空 block
+内部保留原文而不插哨兵，保留 Go 的空定义语义。
 
 source 模板和渲染结果须为合法 UTF-8 文本，不支持二进制输出或其他编码。哨兵使用
 固定字节 0xFF 包围十进制槽位 ID：`0xFF .. ID .. 0xFF`，长度仅为 ID 位数 + 2 字节。

@@ -61,7 +61,11 @@ local map, initial_tick = assert(state.map), api.nvim_buf_get_changedtick(output
 local checks = #lint_jobs
 local snapshot = assert(sessions.snapshot(source))
 assert(
-  snapshot.regions == map.regions
+  snapshot.output_bytes == map.output_bytes
+    and snapshot.output_slots == map.output_slots
+    and snapshot.source_bytes == map.source_bytes
+    and snapshot.trim_flags == map.trim_flags
+    and snapshot.output_indices == map.output_indices
     and snapshot.output_starts == map.output_starts
     and snapshot.source_starts == map.source_starts
 )

@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 ---@diagnostic disable: duplicate-set-field -- Observe redraw callbacks and emitted decorations.
 local api = vim.api
 local provider
@@ -172,7 +173,7 @@ for _, mark in ipairs(marks) do
   has_string = has_string or mark.opts.hl_group == "@string.yaml"
   local start_byte = util.line_starts(source)[mark.row + 1] + mark.col
   local end_byte = util.line_starts(source)[mark.opts.end_row + 1] + mark.opts.end_col
-  for _, tag in ipairs(yaml_trace.template_tags) do
+  for _, tag in ipairs(map_objects.tags(yaml_trace)) do
     assert(end_byte <= tag.start_byte or start_byte >= tag.end_byte, "host capture crossed a template action")
   end
 end
@@ -192,7 +193,7 @@ for _, mark in ipairs(draw()) do
     local first_byte = starts[mark.row + 1] + mark.col
     local last_byte = starts[mark.opts.end_row + 1] + mark.opts.end_col
     comments[#comments + 1] = source:sub(first_byte + 1, last_byte)
-    for _, tag in ipairs(branch_trace.template_tags) do
+    for _, tag in ipairs(map_objects.tags(branch_trace)) do
       assert(last_byte <= tag.start_byte or first_byte >= tag.end_byte, "Comment crossed a template action")
     end
   end

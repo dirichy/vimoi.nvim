@@ -1,3 +1,4 @@
+local map_objects = dofile("tests/helpers/map_objects.lua")
 -- Exercise persistent projected highlights and pending-render retention in a TUI.
 if not dofile("tests/helpers/tui.lua")("tests/host_highlight_ui.lua", 45000) then
   return
@@ -152,9 +153,9 @@ check_mappings = function(index)
   require("vimoi.render").update(buf, trace)
   local first = assert(case[2]:find("marker", 1, true)) - 1
   local output_byte
-  for _, part in ipairs(trace.literal_parts) do
-    if first >= part.source.start_byte and first < part.source.end_byte then
-      output_byte = part.output_ranges[1].start_byte + first - part.source.start_byte
+  for _, part in ipairs(map_objects.literals(trace)) do
+    if first >= part.source_byte and first < (part.source_byte + #part.text) then
+      output_byte = map_objects.sentinels(trace)[part.occurrences[1]].output_byte + first - part.source_byte
     end
   end
   local output_row, output_col = util.byte_to_position(trace.output, assert(output_byte))
