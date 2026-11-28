@@ -13,7 +13,7 @@ package.loaded.lint = {
     return job
   end,
 }
-require("vimoi").setup()
+dofile("tests/helpers/setup.lua")()
 local api, util = vim.api, require("vimoi.core.util")
 local sessions, views = require("vimoi.render"), require("vimoi.compare")
 local actions = require("vimoi.api")

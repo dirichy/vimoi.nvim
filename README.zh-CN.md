@@ -44,10 +44,20 @@ lazy.nvim：
 
 ```lua
 opts = {
+  chezmoi_source_dir = "~/dotfiles", -- 使用自定义 source 目录时填写
   split = "horizontal", -- 上下分屏
   keymaps = { readd = false }, -- 关闭默认 ReAdd 映射
 }
 ```
+
+`setup()` 本身不运行 chezmoi。source/target 映射在首次缓存未命中时查询（包括打开
+source 文件时），此后复用，直到缓存失效。source 目录默认取 `$XDG_DATA_HOME/chezmoi`，
+配置文件默认取 `$XDG_CONFIG_HOME/chezmoi/chezmoi.toml`；对应的 XDG 变量未设置或为空时，
+分别使用 `~/.local/share/chezmoi` 和 `~/.config/chezmoi/chezmoi.toml`。
+自定义路径或使用 YAML/JSON 配置时，请显式填写 `chezmoi_source_dir` 和
+`chezmoi_config_path`。每次调用都传入 `--source` 和 `--config`，插件不向 chezmoi 查询，
+也不从配置或 wrapper 推断路径。有 `.chezmoiroot` 时，填写 `chezmoi source-path`
+报告的实际 source-state 目录。
 
 全部选项见 `:help vimoi-setup`。配置在启动时一次传入，修改后重启 Neovim。
 可选插件的配置统一见[插件整合](#插件整合)。

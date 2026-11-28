@@ -15,6 +15,7 @@ M.fold_commands = {
 local defaults = {
   chezmoi_executable = "chezmoi",
   chezmoi_config_path = nil,
+  chezmoi_source_dir = nil,
   split = "vertical",
   files = { path = "target" },
   watch = {
@@ -79,6 +80,7 @@ M.config = vim.deepcopy(defaults)
 ---@class VimoiConfig
 ---@field chezmoi_executable? string
 ---@field chezmoi_config_path? string
+---@field chezmoi_source_dir? string
 ---@field split? "vertical"|"horizontal" Orientation for newly created diff/preview splits.
 ---@field files? { path?: "target"|"source" } Picker labels; selection always opens source.
 ---@field watch? VimoiWatchOptions
@@ -103,6 +105,9 @@ M.setup = require("vimoi.core.util").once(function(opts)
   -- Reject bad public settings before one-time CLI/watch/keymap initialization.
   vim.validate("chezmoi_executable", config.chezmoi_executable, "string")
   vim.validate("chezmoi_config_path", config.chezmoi_config_path, "string", true)
+  vim.validate("chezmoi_source_dir", config.chezmoi_source_dir, "string", true)
+  assert(config.chezmoi_source_dir ~= "", "chezmoi_source_dir must not be empty")
+  assert(config.chezmoi_config_path ~= "", "chezmoi_config_path must not be empty")
   for _, name in ipairs({ "completion", "diagnostics" }) do
     vim.validate(name, config[name], "table")
     vim.validate(name .. ".enabled", config[name].enabled, "boolean")
@@ -144,8 +149,24 @@ M.setup = require("vimoi.core.util").once(function(opts)
       config.keymaps[name] = false
     end
   end
+  local util = require("vimoi.core.util")
+  local home = vim.env.HOME or vim.uv.os_homedir()
+  local data_home = vim.env.XDG_DATA_HOME
+  if not data_home or data_home == "" then
+    data_home = vim.fs.joinpath(home, ".local", "share")
+  end
+  local config_home = vim.env.XDG_CONFIG_HOME
+  if not config_home or config_home == "" then
+    config_home = vim.fs.joinpath(home, ".config")
+  end
+  config.chezmoi_source_dir = util.normalize_path(config.chezmoi_source_dir or vim.fs.joinpath(data_home, "chezmoi"))
+  local config_path =
+    util.normalize_path(config.chezmoi_config_path or vim.fs.joinpath(config_home, "chezmoi", "chezmoi.toml"))
+  if config.chezmoi_config_path then
+    config.chezmoi_config_path = config_path
+  end
   local cli = require("vimoi.core.cli")
-  cli.setup(config.chezmoi_executable, config.chezmoi_config_path)
+  cli.setup(config.chezmoi_executable, config_path, config.chezmoi_source_dir)
   require("vimoi.core.watch").setup(vim.tbl_extend("force", config.watch, {
     source_root = cli.source_root,
     config_path = cli.config_path,

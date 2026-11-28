@@ -26,6 +26,9 @@ for _, input in ipairs({
   '{"watch":{"buffer_write_fallback":"always"}}',
   '{"chezmoi_executable":false}',
   '{"chezmoi_config_path":false}',
+  '{"chezmoi_config_path":""}',
+  '{"chezmoi_source_dir":false}',
+  '{"chezmoi_source_dir":""}',
 }) do
   local ok = pcall(plugin.setup, vim.json.decode(input))
   assert(not ok, "invalid configuration was accepted: " .. input)

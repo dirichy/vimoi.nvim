@@ -39,7 +39,7 @@ local function later(callback, delay)
   end, delay or (require("vimoi").config.render.debounce + 200))
 end
 
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "rendered" } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false }, highlight = { mode = "rendered" } })
 vim.cmd("set noswapfile nonumber norelativenumber signcolumn=no laststatus=0 noruler noshowmode nowrap")
 vim.api.nvim_set_hl(0, "@string.lua", { fg = "#ff1122" })
 vim.api.nvim_set_hl(0, "Comment", { fg = "#779988", italic = true })

@@ -8,7 +8,7 @@ local original_system = vim.system
 local config_path_queries = 0
 ---@diagnostic disable-next-line: duplicate-set-field -- Count config queries while using the real CLI.
 vim.system = function(args, ...)
-  if args[2] == "execute-template" and args[3] == "{{ .chezmoi.configFile }}" then
+  if vim.tbl_contains(args, "{{ .chezmoi.configFile }}") then
     config_path_queries = config_path_queries + 1
   end
   return original_system(args, ...)
@@ -17,7 +17,7 @@ end
 vim.env.VIMOI_TEST_CONFIG = target
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = wrapper })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = wrapper })
 
 local cli = require("vimoi.core.cli")
 -- Both directions must resolve independently, without a previous diff session.
@@ -52,5 +52,5 @@ cli.invalidate()
 vim.cmd("VimoiDiff")
 dofile("tests/helpers/diff.lua")()
 assert(assert(view_for_buffer(target_buf)).source_buf == source_buf)
-assert(config_path_queries == 1, "invalidating the cache must retain the setup-time init mapping")
+assert(config_path_queries == 0, "invalidating the cache must retain the setup-time init mapping")
 vim.system = original_system

@@ -16,7 +16,7 @@ local function later(callback)
   end, require("vimoi").config.render.debounce + 200)
 end
 vim.cmd("set noswapfile nonumber norelativenumber signcolumn=no laststatus=0")
-require("vimoi").setup({ diagnostics = { enabled = false } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false } })
 local source = api.nvim_get_current_buf()
 api.nvim_buf_set_name(source, vim.fn.tempname() .. ".lua.tmpl")
 local lines = { 'local value = {{ "1" }}' }

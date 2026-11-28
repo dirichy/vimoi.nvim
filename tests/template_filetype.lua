@@ -7,7 +7,7 @@ local source_dir = fixture .. "/source"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = source_dir
 vim.env.VIMOI_TEST_DESTINATION = "/tmp/vimoi-filetype-dest"
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 
 local cases = {
   [".chezmoiignore"] = "gotmpl",

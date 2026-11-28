@@ -13,7 +13,7 @@ vim.fn.writefile({
 }, config)
 vim.fn.writefile({ "external={{ .enabled }}" }, source_root .. "/.chezmoitemplates/external")
 local cli = require("vimoi.core.cli")
-cli.setup("chezmoi", config)
+cli.setup("chezmoi", config, source_root)
 local source_map = require("vimoi.render.source_map")
 local diff_hunks = require("vimoi.compare.diff_hunks")
 local merge_plan = require("vimoi.merge.plan")

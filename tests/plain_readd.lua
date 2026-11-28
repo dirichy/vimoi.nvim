@@ -9,7 +9,7 @@ vim.env.VIMOI_TEST_DESTINATION = destination
 vim.opt.swapfile = false
 vim.opt.hidden = true
 local api = require("vimoi.api")
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 local util = require("vimoi.core.util")
 ---@diagnostic disable: duplicate-set-field -- Plain files must never use template rendering.
 local source_map = require("vimoi.render.source_map")

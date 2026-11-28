@@ -1,4 +1,4 @@
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "rendered" } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false }, highlight = { mode = "rendered" } })
 local api = vim.api
 local util = require("vimoi.core.util")
 require("vimoi.editor.host_highlight")

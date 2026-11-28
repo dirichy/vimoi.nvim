@@ -28,7 +28,7 @@ vim.system = function(args, ...)
 end
 
 vim.api.nvim_set_current_dir(test_root)
-require("vimoi").setup({ chezmoi_config_path = "./custom settings.toml" })
+require("vimoi").setup({ chezmoi_source_dir = source_root, chezmoi_config_path = "./custom settings.toml" })
 vim.api.nvim_set_current_dir(working_directory)
 assert(cli.source_root == source_root)
 assert(cli.counterpart_path(init_source) == config_path)

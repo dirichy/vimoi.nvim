@@ -27,7 +27,8 @@ vim.fn.writefile({ '{{ includeTemplate "leaf" . }}' }, managed_root .. "/.chezmo
 for _, name in ipairs({ "alpha", "beta" }) do
   vim.fn.writefile({ body }, managed_root .. "/dot_" .. name .. ".tmpl")
 end
-require("vimoi").setup({
+dofile("tests/helpers/setup.lua")({
+  chezmoi_source_dir = managed_root,
   chezmoi_executable = wrapper,
   chezmoi_config_path = config,
   diagnostics = { enabled = false },
@@ -50,7 +51,8 @@ local function buffer(name)
 end
 local first, second = buffer("alpha"), buffer("beta")
 local function oracle(name)
-  local result = vim.system({ wrapper, "--config", config, "cat", target_root .. "/." .. name }):wait()
+  local result =
+    vim.system({ wrapper, "--config", config, "--source", managed_root, "cat", target_root .. "/." .. name }):wait()
   assert(result.code == 0, result.stderr)
   return result.stdout
 end

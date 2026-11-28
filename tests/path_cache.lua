@@ -23,21 +23,20 @@ vim.fn.writefile({
 local original_system = vim.system
 local queries, batches = 0, 0
 vim.system = function(argv, ...)
-  local command = argv[4] -- chezmoi --config <path> <command>
-  if command == "source-path" then
-    assert(#argv == 4, "path lookup must not load source state")
-  elseif command == "target-path" then
-    assert(argv[5] == "--")
+  local command = argv[6] -- chezmoi --config <path> --source <root> <command>
+  assert(command ~= "source-path", "configured source paths must not be queried")
+  if command == "target-path" then
+    assert(argv[7] == "--")
     queries = queries + 1
-    batches = batches + (#argv > 6 and 1 or 0)
-    for index = 6, #argv do
+    batches = batches + (#argv > 8 and 1 or 0)
+    for index = 8, #argv do
       local relative = assert(vim.fs.relpath(source, argv[index]))
       assert(relative:sub(1, 1) ~= "." and not relative:find("/%."), "metadata entered the path index")
     end
   end
   return original_system(argv, ...)
 end
-cli.setup("chezmoi", config)
+cli.setup("chezmoi", config, source)
 assert(queries == 0, "setup must leave the ordinary path cache empty")
 
 -- A forward miss fills the whole index, including files not requested yet.

@@ -20,6 +20,7 @@ vim.fn.writefile({
   "destDir = " .. vim.json.encode(root .. "/target"),
 }, config)
 require("vimoi").setup({
+  chezmoi_source_dir = root .. "/source",
   chezmoi_executable = executable,
   chezmoi_config_path = config,
   diagnostics = { enabled = false },

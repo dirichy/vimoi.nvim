@@ -14,7 +14,7 @@ require("vimoi.editor.host_highlight")
 api.nvim_set_decoration_provider = original_provider
 assert(provider)
 
-require("vimoi").setup({ diagnostics = { enabled = false } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false } })
 assert(require("vimoi").config.highlight.mode == "rendered", "rendered highlighting must be the default")
 local buf = api.nvim_create_buf(true, false)
 api.nvim_set_current_buf(buf)

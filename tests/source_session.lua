@@ -14,7 +14,7 @@ package.loaded.lint = {
     return job
   end,
 }
-require("vimoi").setup()
+dofile("tests/helpers/setup.lua")()
 local actions = require("vimoi.api")
 local sessions = require("vimoi.render")
 local views = require("vimoi.compare")

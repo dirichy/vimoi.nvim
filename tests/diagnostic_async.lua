@@ -2,7 +2,7 @@
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 local cli, util = require("vimoi.core.cli"), require("vimoi.core.util")
 local structural_debounce = require("vimoi").config.render.debounce
 local original_execute = cli.execute_template

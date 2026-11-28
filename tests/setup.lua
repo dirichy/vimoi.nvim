@@ -29,7 +29,11 @@ local vimoi = require("vimoi")
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
-vimoi.setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+vimoi.setup({
+  chezmoi_source_dir = fixture .. "/source",
+  chezmoi_config_path = fixture .. "/empty.toml",
+  chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
+})
 assert(vim.fn.exists(":VimoiDiff") == 2)
 assert(vim.fn.exists(":VimoiDiffPut") == 2)
 assert(vim.fn.exists(":VimoiDiffGet") == 2)

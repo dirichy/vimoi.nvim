@@ -6,7 +6,7 @@ vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 local api = require("vimoi.api")
 local util = require("vimoi.core.util")
 local cli = require("vimoi.core.cli")
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 vim.opt.swapfile = false
 
 -- A test-only module facade holds async requests; production receives no injected callbacks.

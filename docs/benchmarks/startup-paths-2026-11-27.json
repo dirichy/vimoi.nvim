@@ -1,0 +1,561 @@
+{
+  "metadata": {
+    "baseline": "056429645ba50f13184a0fb328809c53c2ffba6f",
+    "nvim": "NVIM v0.12.6",
+    "chezmoi": "chezmoi version v2.74.2, built at 2026-11-23T11:51:33Z",
+    "cpu": 0,
+    "samples_per_variant": 15,
+    "order": "alternating; fresh Neovim for every sample; no concurrent test/check jobs",
+    "scope": "require/setup and first source buffer wall time, not Neovim process startup; setup_cpu_ms is parent Lua process CPU only, excluding chezmoi child CPU",
+    "options": {
+      "diagnostics": {
+        "enabled": false
+      },
+      "highlight": {
+        "mode": "disabled"
+      }
+    },
+    "fixture": "tests/fixtures/environment; shared isolated TOML config and destination; source explicit; config selected using XDG_CONFIG_HOME and wrapper",
+    "profile_lua": "vim.opt.rtp:prepend(vim.env.VIMOI_PROFILE_ROOT or vim.fn.getcwd())\nvim.cmd(\"filetype plugin on\")\nlocal measurements = {}\nlocal original = vim.system\nvim.system = function(argv, opts, callback)\n  local started = vim.uv.hrtime()\n  local process = original(argv, opts, callback)\n  local wait = process.wait\n  process.wait = function(self, ...)\n    local result = wait(self, ...)\n    measurements[#measurements + 1] = { command = table.concat(argv, ' '), ms = (vim.uv.hrtime() - started) / 1e6 }\n    return result\n  end\n  return process\nend\nlocal started = vim.uv.hrtime()\nlocal plugin = require('vimoi')\nlocal loaded = vim.uv.hrtime()\nlocal cpu_loaded = os.clock()\nplugin.setup({chezmoi_executable = vim.env.VIMOI_PROFILE_FIXTURE .. '/chezmoi-wrapper.sh', chezmoi_source_dir = vim.env.VIMOI_TEST_SOURCE, diagnostics = {enabled = false}, highlight = {mode = 'disabled'}})\nlocal configured = vim.uv.hrtime()\nlocal setup_cpu_ms = (os.clock()-cpu_loaded)*1000\nvim.cmd('edit ' .. vim.fn.fnameescape(vim.env.VIMOI_TEST_SOURCE .. '/dot_diff_target.tmpl'))\nvim.wait(1000, function() return vim.b.vimoi_template_configured == true end)\nprint(vim.json.encode({require_ms = (loaded-started)/1e6, setup_ms = (configured-loaded)/1e6, first_buffer_ms = (vim.uv.hrtime()-configured)/1e6, setup_cpu_ms = setup_cpu_ms, commands = measurements}))\nvim.cmd('qa!')\n"
+  },
+  "medians_ms": {
+    "before": {
+      "require_ms": 0.208,
+      "setup_ms": 18.068,
+      "setup_cpu_ms": 3.196,
+      "require_setup_ms": 18.266,
+      "first_buffer_ms": 11.58,
+      "commands": {
+        "source-path": 7.427,
+        "execute-template": 7.685,
+        "target-path": 7.301
+      }
+    },
+    "after": {
+      "require_ms": 0.199,
+      "setup_ms": 2.762,
+      "setup_cpu_ms": 2.746,
+      "require_setup_ms": 2.982,
+      "first_buffer_ms": 11.733,
+      "commands": {
+        "target-path": 7.601
+      }
+    }
+  },
+  "samples": {
+    "before": [
+      {
+        "require_ms": 0.209695,
+        "setup_ms": 21.839365,
+        "first_buffer_ms": 12.134599,
+        "commands": [
+          {
+            "command": "source-path",
+            "ms": 10.654053
+          },
+          {
+            "command": "execute-template",
+            "ms": 8.221527
+          },
+          {
+            "command": "target-path",
+            "ms": 7.599875
+          }
+        ],
+        "setup_cpu_ms": 3.368,
+        "require_setup_ms": 22.04906
+      },
+      {
+        "require_ms": 0.179469,
+        "setup_ms": 18.086045,
+        "first_buffer_ms": 11.543828,
+        "commands": [
+          {
+            "command": "source-path",
+            "ms": 7.553226
+          },
+          {
+            "command": "execute-template",
+            "ms": 7.648076
+          },
+          {
+            "command": "target-path",
+            "ms": 7.282325
+          }
+        ],
+        "setup_cpu_ms": 3.175999999999999,
+        "require_setup_ms": 18.265514
+      },
+      {
+        "setup_ms": 17.992347,
+        "first_buffer_ms": 11.330048,
+        "commands": [
+          {
+            "ms": 7.427364,
+            "command": "source-path"
+          },
+          {
+            "ms": 7.620531,
+            "command": "execute-template"
+          },
+          {
+            "ms": 7.127528,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 3.278,
+        "require_ms": 0.297923,
+        "require_setup_ms": 18.29027
+      },
+      {
+        "first_buffer_ms": 11.871713,
+        "commands": [
+          {
+            "ms": 7.37077,
+            "command": "source-path"
+          },
+          {
+            "ms": 7.757308,
+            "command": "execute-template"
+          },
+          {
+            "ms": 7.521775,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 3.263,
+        "require_ms": 0.263289,
+        "setup_ms": 18.068125,
+        "require_setup_ms": 18.331414
+      },
+      {
+        "require_ms": 0.264553,
+        "setup_ms": 17.932804,
+        "first_buffer_ms": 11.110255,
+        "commands": [
+          {
+            "ms": 7.279272,
+            "command": "source-path"
+          },
+          {
+            "ms": 7.762039,
+            "command": "execute-template"
+          },
+          {
+            "ms": 7.103347,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 3.208999999999999,
+        "require_setup_ms": 18.197357
+      },
+      {
+        "setup_ms": 18.173545,
+        "first_buffer_ms": 11.579966,
+        "commands": [
+          {
+            "ms": 7.615328,
+            "command": "source-path"
+          },
+          {
+            "ms": 7.654758,
+            "command": "execute-template"
+          },
+          {
+            "ms": 7.298946,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 3.196,
+        "require_ms": 0.238342,
+        "require_setup_ms": 18.411887
+      },
+      {
+        "require_ms": 0.189608,
+        "setup_ms": 18.109993,
+        "first_buffer_ms": 11.605105,
+        "commands": [
+          {
+            "ms": 7.50858,
+            "command": "source-path"
+          },
+          {
+            "ms": 7.559735,
+            "command": "execute-template"
+          },
+          {
+            "ms": 7.440521,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 3.367,
+        "require_setup_ms": 18.299601
+      },
+      {
+        "require_ms": 0.181028,
+        "setup_ms": 17.736173,
+        "first_buffer_ms": 11.513115,
+        "commands": [
+          {
+            "command": "source-path",
+            "ms": 7.303369
+          },
+          {
+            "command": "execute-template",
+            "ms": 7.608943
+          },
+          {
+            "command": "target-path",
+            "ms": 7.301273
+          }
+        ],
+        "setup_cpu_ms": 3.163,
+        "require_setup_ms": 17.917201000000002
+      },
+      {
+        "first_buffer_ms": 11.470148,
+        "commands": [
+          {
+            "command": "source-path",
+            "ms": 7.533282
+          },
+          {
+            "command": "execute-template",
+            "ms": 7.685483
+          },
+          {
+            "command": "target-path",
+            "ms": 7.312199
+          }
+        ],
+        "setup_cpu_ms": 3.155,
+        "require_ms": 0.179423,
+        "setup_ms": 18.073348,
+        "require_setup_ms": 18.252771
+      },
+      {
+        "setup_cpu_ms": 3.386,
+        "require_ms": 0.173428,
+        "setup_ms": 18.258701,
+        "first_buffer_ms": 12.001226,
+        "commands": [
+          {
+            "command": "source-path",
+            "ms": 7.499965
+          },
+          {
+            "command": "execute-template",
+            "ms": 7.679192
+          },
+          {
+            "command": "target-path",
+            "ms": 7.55171
+          }
+        ],
+        "require_setup_ms": 18.432129
+      },
+      {
+        "require_ms": 0.196878,
+        "setup_ms": 18.058494,
+        "first_buffer_ms": 11.717059,
+        "commands": [
+          {
+            "command": "source-path",
+            "ms": 7.419245
+          },
+          {
+            "command": "execute-template",
+            "ms": 7.759871
+          },
+          {
+            "command": "target-path",
+            "ms": 7.395764
+          }
+        ],
+        "setup_cpu_ms": 3.178999999999999,
+        "require_setup_ms": 18.255372
+      },
+      {
+        "require_ms": 0.243378,
+        "setup_ms": 17.887198,
+        "first_buffer_ms": 10.780173,
+        "commands": [
+          {
+            "ms": 7.339689,
+            "command": "source-path"
+          },
+          {
+            "ms": 7.735145,
+            "command": "execute-template"
+          },
+          {
+            "ms": 6.835578,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 3.138,
+        "require_setup_ms": 18.130576
+      },
+      {
+        "require_ms": 0.218843,
+        "setup_ms": 17.47231,
+        "first_buffer_ms": 11.018747,
+        "commands": [
+          {
+            "ms": 6.909896,
+            "command": "source-path"
+          },
+          {
+            "ms": 7.70503,
+            "command": "execute-template"
+          },
+          {
+            "ms": 6.992789,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 3.189,
+        "require_setup_ms": 17.691153
+      },
+      {
+        "setup_cpu_ms": 3.195,
+        "require_ms": 0.203867,
+        "setup_ms": 18.23348,
+        "first_buffer_ms": 11.729566,
+        "commands": [
+          {
+            "command": "source-path",
+            "ms": 7.591803
+          },
+          {
+            "command": "execute-template",
+            "ms": 7.772609
+          },
+          {
+            "command": "target-path",
+            "ms": 7.301096
+          }
+        ],
+        "require_setup_ms": 18.437347
+      },
+      {
+        "require_ms": 0.208122,
+        "setup_ms": 17.85428,
+        "first_buffer_ms": 11.659759,
+        "commands": [
+          {
+            "ms": 7.349252,
+            "command": "source-path"
+          },
+          {
+            "ms": 7.533375,
+            "command": "execute-template"
+          },
+          {
+            "ms": 7.486263,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 3.295,
+        "require_setup_ms": 18.062402
+      }
+    ],
+    "after": [
+      {
+        "commands": [
+          {
+            "ms": 7.527926,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 2.705,
+        "require_ms": 0.248077,
+        "setup_ms": 2.716146,
+        "first_buffer_ms": 11.534125,
+        "require_setup_ms": 2.964223
+      },
+      {
+        "first_buffer_ms": 11.501358,
+        "commands": [
+          {
+            "ms": 7.497821,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 2.672999999999999,
+        "require_ms": 0.253799,
+        "setup_ms": 2.692879,
+        "require_setup_ms": 2.946678
+      },
+      {
+        "setup_cpu_ms": 2.75,
+        "require_ms": 0.199307,
+        "setup_ms": 2.782294,
+        "first_buffer_ms": 12.149132,
+        "commands": [
+          {
+            "command": "target-path",
+            "ms": 7.821963
+          }
+        ],
+        "require_setup_ms": 2.981601
+      },
+      {
+        "setup_cpu_ms": 2.995,
+        "require_ms": 0.185476,
+        "setup_ms": 3.033772,
+        "first_buffer_ms": 11.782543,
+        "commands": [
+          {
+            "ms": 7.589265,
+            "command": "target-path"
+          }
+        ],
+        "require_setup_ms": 3.219248
+      },
+      {
+        "commands": [
+          {
+            "command": "target-path",
+            "ms": 7.601133
+          }
+        ],
+        "setup_cpu_ms": 2.697,
+        "require_ms": 0.27371,
+        "setup_ms": 2.715351,
+        "first_buffer_ms": 11.615569,
+        "require_setup_ms": 2.989061
+      },
+      {
+        "first_buffer_ms": 11.792794,
+        "commands": [
+          {
+            "ms": 7.761773,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 2.698,
+        "require_ms": 0.187566,
+        "setup_ms": 2.719729,
+        "require_setup_ms": 2.907295
+      },
+      {
+        "require_ms": 0.198757,
+        "setup_ms": 2.920726,
+        "first_buffer_ms": 11.806071,
+        "commands": [
+          {
+            "ms": 7.681224,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 2.902999999999999,
+        "require_setup_ms": 3.1194830000000002
+      },
+      {
+        "require_ms": 0.199289,
+        "setup_ms": 2.908732,
+        "first_buffer_ms": 11.843679,
+        "commands": [
+          {
+            "command": "target-path",
+            "ms": 7.809909
+          }
+        ],
+        "setup_cpu_ms": 2.896,
+        "require_setup_ms": 3.108021
+      },
+      {
+        "setup_ms": 2.749222,
+        "first_buffer_ms": 11.787238,
+        "commands": [
+          {
+            "ms": 7.660379,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 2.722,
+        "require_ms": 0.25676,
+        "require_setup_ms": 3.005982
+      },
+      {
+        "require_ms": 0.217214,
+        "setup_ms": 2.974501,
+        "first_buffer_ms": 11.570576,
+        "commands": [
+          {
+            "command": "target-path",
+            "ms": 7.496065
+          }
+        ],
+        "setup_cpu_ms": 2.956999999999999,
+        "require_setup_ms": 3.191715
+      },
+      {
+        "setup_cpu_ms": 2.664,
+        "require_ms": 0.251775,
+        "setup_ms": 2.680386,
+        "first_buffer_ms": 11.433347,
+        "commands": [
+          {
+            "ms": 7.380506,
+            "command": "target-path"
+          }
+        ],
+        "require_setup_ms": 2.932161
+      },
+      {
+        "require_ms": 0.182896,
+        "setup_ms": 2.717047,
+        "first_buffer_ms": 11.703009,
+        "commands": [
+          {
+            "command": "target-path",
+            "ms": 7.563771
+          }
+        ],
+        "setup_cpu_ms": 2.697,
+        "require_setup_ms": 2.899943
+      },
+      {
+        "require_ms": 0.200981,
+        "setup_ms": 2.763637,
+        "first_buffer_ms": 11.861208,
+        "commands": [
+          {
+            "ms": 7.705154,
+            "command": "target-path"
+          }
+        ],
+        "setup_cpu_ms": 2.745999999999999,
+        "require_setup_ms": 2.964618
+      },
+      {
+        "commands": [
+          {
+            "command": "target-path",
+            "ms": 7.540995
+          }
+        ],
+        "setup_cpu_ms": 2.752,
+        "require_ms": 0.189162,
+        "setup_ms": 2.762271,
+        "first_buffer_ms": 11.605191,
+        "require_setup_ms": 2.951433
+      },
+      {
+        "setup_ms": 2.824971,
+        "first_buffer_ms": 11.733154,
+        "commands": [
+          {
+            "command": "target-path",
+            "ms": 7.727419
+          }
+        ],
+        "setup_cpu_ms": 2.808,
+        "require_ms": 0.189911,
+        "require_setup_ms": 3.014882
+      }
+    ]
+  }
+}

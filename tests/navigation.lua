@@ -15,7 +15,10 @@ vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = source_root
 vim.env.VIMOI_TEST_DESTINATION = target_root
 local api = require("vimoi.api")
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh", diagnostics = { enabled = false } })
+dofile("tests/helpers/setup.lua")({
+  chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
+  diagnostics = { enabled = false },
+})
 assert(vim.fn.maparg("<leader>cs", "n") == "")
 assert(vim.fn.maparg("<leader>ct", "n", false, true).desc == "Switch between chezmoi source and target")
 assert(rawget(api, "source") == nil and rawget(api, "target") == nil)

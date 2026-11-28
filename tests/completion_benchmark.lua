@@ -2,7 +2,7 @@
 local api = vim.api
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG, vim.env.VIMOI_TEST_SOURCE = fixture .. "/empty.toml", fixture .. "/source"
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 local source, cli = require("vimoi.blink").new(), require("vimoi.core.cli")
 local lines_read, copies, requests = 0, 0, 0
 local get_lines, deepcopy = api.nvim_buf_get_lines, vim.deepcopy

@@ -1,5 +1,5 @@
 ---@diagnostic disable: duplicate-set-field -- Observe that disabled consumers start no command.
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
 local cli = require("vimoi.core.cli")
 local original = cli.execute_template
 local runs = 0

@@ -45,23 +45,22 @@ vimoi.nvim 提供符合 Neovim 使用习惯的 chezmoi 文件比较流程。用�
 
 用插件管理器安装 `dirichy/vimoi.nvim`。lazy.nvim 配置： >lua
 
-    { "dirichy/vimoi.nvim", opts = {} }
+    { "dirichy/vimoi.nvim", lazy = false, opts = {} }
 <
 在 Neovim 配置中调用 `setup()`，注册命令、文件类型和自动事件： >lua
 
     require("vimoi").setup()
 <
-使用 lazy.nvim 时，`opts = {}` 会自动调用 setup。也可以用 `ft = "gotmpl"`：
-lazy.nvim 会提前读取本插件的 `ftdetect/`，仅在遇到候选模板路径时才加载 Lua 模块，
-因此自定义的 `chezmoi_executable` 也能在路径确认前生效。
-只用 `ft = "gotmpl"` 时，普通 source 不触发首次加载；需要立即按 target 识别普通
-source 类型时，应提前 setup，不只依赖该 filetype 触发。
+使用 lazy.nvim 时建议设置 `lazy = false, opts = {}`，在启动时注册 source 检测和命令。
+setup 只初始化本地状态，不运行 chezmoi。source/target 映射仅在缓存未命中时查询，
+包括打开 source 文件时，复用现有缓存。
 
 当前选项及默认值如下： >lua
 
     require("vimoi").setup({
       chezmoi_executable = "chezmoi",
       chezmoi_config_path = nil,
+      chezmoi_source_dir = nil,
       split = "vertical",
       files = { path = "target" },
       watch = {
@@ -105,8 +104,15 @@ source 类型时，应提前 setup，不只依赖该 filetype 触发。
     })
 <
 `chezmoi_executable` 是所有 chezmoi 调用使用的可执行文件或 wrapper。
-`chezmoi_config_path` 可选，指定后所有命令统一传入 `--config`，包括 setup 查询和模板
-渲染。未指定时由 chezmoi 自动查找，插件只在 setup 时查询一次配置路径。
+`chezmoi_source_dir` 默认取 $XDG_DATA_HOME/chezmoi；XDG_DATA_HOME 未设置或为空时，
+取 ~/.local/share/chezmoi。不读取或推断 chezmoi 配置和 wrapper 中的 source 路径。
+使用自定义 sourceDir 时须显式填写；有 .chezmoiroot 时填写 `chezmoi source-path`
+报告的实际 source-state 目录。每次 CLI 调用都通过 --source 使用该目录。
+
+`chezmoi_config_path` 默认取 $XDG_CONFIG_HOME/chezmoi/chezmoi.toml；该变量未设置
+或为空时取 ~/.config/chezmoi/chezmoi.toml。使用其他位置、YAML 或 JSON 等格式时请
+显式填写。每次调用都通过 --config 使用该文件，不向 chezmoi 查询或从 wrapper 推断。
+
 支持 `~` 和相对路径；相对路径以 setup 时的工作目录为准。路径中的 `$` 按字面保留，
 不展开环境变量；需要时请显式使用 `vim.env`，例如
 `chezmoi_config_path = vim.env.MY_CHEZMOI_CONFIG`（需先设置该环境变量）。
@@ -141,7 +147,7 @@ CLI 还统一缓存最多 32 条模板结构渲染结果，
 由 source session 调度重新渲染。刷新不写真实 source/target 文件，其他缓存仍按需重新加载。
 可调用 `require("vimoi.api").invalidate_cache()` 手动清空并
 重新扫描监听范围；监听覆盖范围参见 |vimoi-limitations|。
-source root 和 init 模板/config 的对应关系只在 `setup()` 时初始化一次，清空缓存时保留。
+source root 和 init 模板/config 的对应关系由 setup 时的固定路径建立，清空缓存时保留。
 
 `split` 选择新建 diff/preview 分屏的方向：`"vertical"`（默认）为左右，`"horizontal"`
 为上下，普通文件 diff 也适用。方向在首次 setup 时确定；复用窗口对时不重新排列。
@@ -648,7 +654,7 @@ diff 分流复用这些规则。顶层 setup 传入 source root；普通模板�
 ignore/remove 内容作为 destination patterns、symlink 内容作为链接目标的分类也在这里
 定义，供路径跳转和事件注册复用。
 `highlight` 统一负责模板颜色、buffer 高亮、宿主语言注入及 Vim syntax 回退。顶层
-setup 启动 CLI 与 watch；CLI 负责查询缓存，包括共享模板目录的发现结果。
+setup 初始化 CLI 本地状态与 watch，不运行 chezmoi；CLI 负责按需查询缓存，包括共享模板目录的发现结果。
 公开接口只包括 setup、下文列出的 vimoi.api 操作及 vimoi.blink / vimoi.conform 集成。
 其他模块、session 表及调试数据属于内部实现，不承诺稳定。diff、diff_files、diff_buffers 和 preview
 始终返回 nil，不返回 session；模板渲染异步完成。交互写回操作在等待渲染或选择时也会

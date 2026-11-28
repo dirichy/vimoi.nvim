@@ -12,13 +12,13 @@ local original_system = vim.system
 ---@diagnostic disable-next-line: duplicate-set-field -- Count calls without launching chezmoi.
 vim.system = function(argv, opts, callback)
   last_options = opts
+  assert(argv[2] == "--config" and argv[4] == "--source" and argv[5] == source_root)
+  argv = vim.list_extend({ argv[1] }, vim.list_slice(argv, 6))
   local key = table.concat(argv, " ")
   calls[key] = (calls[key] or 0) + 1
   local output = ""
-  if argv[2] == "source-path" then
-    assert(argv[3] == nil, "path lookups must never load source state")
-    output = source_root
-  elseif argv[2] == "target-path" then
+  assert(argv[2] ~= "source-path", "configured source paths must not be queried")
+  if argv[2] == "target-path" then
     assert(argv[3] == "--")
     batch_queries = batch_queries + (#argv > 4 and 1 or 0)
     local targets = {}
@@ -38,8 +38,6 @@ vim.system = function(argv, opts, callback)
         targetFile = "/tmp/target",
       },
     })
-  elseif argv[2] == "execute-template" and argv[3] == "{{ .chezmoi.configFile }}" then
-    output = "/tmp/vimoi-cli-config"
   end
   local result = forced_result or { code = 0, stdout = output, stderr = "" }
   if callback then
@@ -55,10 +53,10 @@ vim.system = function(argv, opts, callback)
   }
 end
 
-require("vimoi").setup({ chezmoi_executable = "fake" })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = "fake" })
 assert(cli.source_root == source_root)
 assert(cli.source_root == source_root)
-assert(calls["fake source-path"] == 1)
+assert(calls["fake source-path"] == nil)
 
 assert(cli.counterpart_path(source_file) == "/tmp/vimoi-cli-target")
 assert(cli.counterpart_path(source_file) == "/tmp/vimoi-cli-target")
@@ -171,20 +169,18 @@ assert(template_async == "")
 
 cli.invalidate()
 assert(cli.source_root == source_root)
-assert(calls["fake source-path"] == 1)
+assert(calls["fake source-path"] == nil)
 cli.invalidate()
 assert(cli.source_root == source_root)
-assert(calls["fake source-path"] == 1, "invalidate must not reload the setup-time source root")
-assert(calls["fake execute-template {{ .chezmoi.configFile }}"] == 1, "config path must be queried only at setup")
+assert(calls["fake source-path"] == nil, "invalidate must not reload the setup-time source root")
+assert(calls["fake execute-template {{ .chezmoi.configFile }}"] == nil, "configured paths must never be queried")
 
 forced_result = { code = 1, stdout = "", stderr = "example failure" }
 local _, command_error = run_async(cli.run, { "cat", "/tmp/target" })
-assert(command_error and command_error:find("fake cat /tmp/target failed (1): example failure", 1, true))
+assert(command_error and command_error:find("cat /tmp/target failed (1): example failure", 1, true))
 
 local rendered, render_error = run_async(cli.execute_template, "bad template")
-assert(
-  rendered == nil and render_error and render_error:find("fake execute-template failed (1): example failure", 1, true)
-)
+assert(rendered == nil and render_error and render_error:find("execute-template failed (1): example failure", 1, true))
 local async_render_error
 run_async(cli.execute_template, "bad template", {
   callback = function(output, err)

@@ -21,7 +21,7 @@ api.nvim_set_hl(0, "Normal", { fg = "#ffffff", bg = "#101010" })
 api.nvim_set_hl(0, "Statement", { fg = "#ffffff" })
 api.nvim_set_hl(0, "CursorLine", { bg = "#404040" })
 api.nvim_set_hl(0, "NormalFloat", { bg = "#202020" })
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
 for _, name in ipairs(vim.treesitter.query.get("gotmpl", "highlights").captures) do
   api.nvim_set_hl(0, "@" .. name .. ".gotmpl", { fg = "#ffffff" })
 end

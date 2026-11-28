@@ -10,7 +10,10 @@ vim.env.VIMOI_TEST_SOURCE = source_root
 vim.env.VIMOI_TEST_DESTINATION = destination
 vim.opt.swapfile = false
 local api = require("vimoi.api")
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh", render = { validate = false } })
+dofile("tests/helpers/setup.lua")({
+  chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
+  render = { validate = false },
+})
 local util = require("vimoi.core.util")
 local sessions = require("vimoi.compare")
 local count = 0

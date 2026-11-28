@@ -12,11 +12,12 @@ local log = root .. "/commands"
 local wrapper = root .. "/chezmoi"
 vim.fn.writefile({
   "#!/bin/sh",
-  "printf '%s\\n' \"$1\" >> " .. vim.fn.shellescape(log),
+  'for argument do case "$argument" in source-path|target-path|data|cat|execute-template|managed) printf \'%s\\n\' "$argument"; break;; esac; done >> '
+    .. vim.fn.shellescape(log),
   "exec " .. vim.fn.shellescape(fixture .. "/chezmoi-wrapper.sh") .. ' "$@"',
 }, wrapper)
 assert(vim.uv.fs_chmod(wrapper, 493))
-require("vimoi").setup({ chezmoi_executable = wrapper, render = { validate = true } })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = wrapper, render = { validate = true } })
 vim.opt.swapfile = false
 local function executions()
   return #vim.tbl_filter(function(command)

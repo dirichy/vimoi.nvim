@@ -1,6 +1,6 @@
 local M = {}
 
----Inspect dependencies and already-discovered paths without initializing or rendering.
+---Inspect dependencies and configured paths without initializing or rendering.
 function M.check()
   local health = vim.health
   health.start("vimoi.nvim")
@@ -29,7 +29,7 @@ function M.check()
     local stat = vim.uv.fs_stat(source)
     if not stat or stat.type ~= "directory" then
       health.error("Source directory does not exist or is not a directory: " .. source, {
-        "Check chezmoi sourceDir and restart Neovim after correcting setup-time paths.",
+        "Check chezmoi_source_dir and restart Neovim after correcting setup-time paths.",
       })
     elseif not vim.uv.fs_access(source, "RX") then
       health.error("Source directory is not readable/searchable: " .. source)

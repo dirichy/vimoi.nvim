@@ -1,7 +1,7 @@
 local waiting = dofile("tests/helpers/waiting.lua")
 ---@diagnostic disable: duplicate-set-field -- Observe placement choices and reject accidental renders.
 vim.opt.swapfile = false
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
 local api, util = require("vimoi.api"), require("vimoi.core.util")
 local sessions = require("vimoi.compare")
 local source_map = require("vimoi.render.source_map")

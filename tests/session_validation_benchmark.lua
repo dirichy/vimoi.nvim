@@ -6,6 +6,7 @@ if vim.env.VIMOI_BENCH_SESSION and vim.env.VIMOI_BENCH_SESSION ~= "" then
   end
 end
 require("vimoi").setup({
+  chezmoi_source_dir = vim.fs.joinpath(vim.fs.dirname(assert(vim.env.VIMOI_BENCH_CONFIG)), "source"),
   chezmoi_config_path = vim.env.VIMOI_BENCH_CONFIG,
   diagnostics = { enabled = false },
   highlight = { mode = "disabled" },

@@ -7,7 +7,7 @@ vim.opt.swapfile = false
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.env.VIMOI_TEST_DESTINATION = destination
-require("vimoi").setup({ chezmoi_executable = wrapper })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = wrapper })
 require("vimoi.core.cli").invalidate()
 
 local mapped_buf = vim.api.nvim_create_buf(false, true)

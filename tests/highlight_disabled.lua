@@ -1,4 +1,4 @@
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
 local buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_set_current_buf(buf)
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "local x = {{ .value }}" })

@@ -11,7 +11,7 @@ local source, target = source_root .. "/dot_demo.tmpl", target_root .. "/.demo"
 vim.fn.writefile({ "value={{ 1 }}" }, source)
 vim.fn.writefile({ "value=2" }, target)
 local api = require("vimoi.api")
-require("vimoi").setup({
+dofile("tests/helpers/setup.lua")({
   chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
   split = "horizontal",
   diagnostics = { enabled = false },

@@ -22,7 +22,11 @@ vim.fn.writefile({ "watch_value = 1" }, data_dir .. "/settings.toml")
 vim.fn.writefile({ "included one" }, template_file)
 vim.fn.writefile({ "managed" }, managed_source)
 -- Force buffer handling too so synthetic BufWritePost events test rule routing.
-require("vimoi").setup({ chezmoi_config_path = config_path, watch = { buffer_write_fallback = true } })
+require("vimoi").setup({
+  chezmoi_source_dir = source_root,
+  chezmoi_config_path = config_path,
+  watch = { buffer_write_fallback = true },
+})
 assert(run_async(cli.data).watch_value == 1)
 
 local function await_data(key, value)

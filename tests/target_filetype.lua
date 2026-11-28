@@ -15,7 +15,8 @@ local log = root .. "/commands"
 local wrapper = root .. "/chezmoi"
 vim.fn.writefile({
   "#!/bin/sh",
-  "printf '%s\\n' \"$1\" >> " .. vim.fn.shellescape(log),
+  'for argument do case "$argument" in source-path|target-path|data|cat|execute-template|managed) printf \'%s\\n\' "$argument"; break;; esac; done >> '
+    .. vim.fn.shellescape(log),
   "exec " .. vim.fn.shellescape(fixture .. "/chezmoi-wrapper.sh") .. ' "$@"',
 }, wrapper)
 assert(vim.uv.fs_chmod(wrapper, 493))
@@ -27,11 +28,12 @@ vim.fn.writefile({ "echo plain" }, source .. "/readonly_dot_bash_profile")
 vim.fn.writefile({ "return true" }, source .. "/private_dot_config/plain.lua")
 
 local api = require("vimoi.api")
-require("vimoi").setup({ chezmoi_executable = wrapper, diagnostics = { enabled = false } })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = wrapper, diagnostics = { enabled = false } })
 local filetype = require("vimoi.editor.filetype")
 local cli = require("vimoi.core.cli")
 
-local initial_queries = #vim.fn.readfile(log)
+assert(vim.fn.filereadable(log) == 0, "setup must not launch chezmoi")
+local initial_queries = 0
 for name, expected in pairs({
   ["dot_zshrc.tmpl"] = "zsh",
   ["private_dot_bashrc.tmpl"] = "sh",

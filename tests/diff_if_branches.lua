@@ -1,5 +1,5 @@
 vim.opt.swapfile = false
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
 local api = require("vimoi.api")
 local util = require("vimoi.core.util")
 local sessions = require("vimoi.compare")

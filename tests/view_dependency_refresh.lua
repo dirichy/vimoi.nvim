@@ -13,7 +13,7 @@ vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = source_root
 vim.env.VIMOI_TEST_DESTINATION = target_root
 local api = require("vimoi.api")
-require("vimoi").setup({
+dofile("tests/helpers/setup.lua")({
   chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
   diagnostics = { enabled = false },
   watch = { buffer_write_fallback = true },

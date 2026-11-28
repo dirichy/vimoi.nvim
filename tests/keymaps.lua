@@ -4,7 +4,7 @@ vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 local wrapper = fixture .. "/chezmoi-wrapper.sh"
 -- Keymaps are configurable and may be disabled without changing the API.
-require("vimoi").setup({
+dofile("tests/helpers/setup.lua")({
   chezmoi_executable = wrapper,
   keymaps = {
     diff = "<leader>xd",

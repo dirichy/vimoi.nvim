@@ -6,7 +6,7 @@ local target = vim.fn.tempname()
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 vim.fn.writefile({ "", "bbb", "aaa", "ccc", "" }, target)
 
 require("vimoi.api").diff_files(source, target)

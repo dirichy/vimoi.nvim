@@ -1,5 +1,5 @@
 -- Delayed completions exercise the shared execution key through rebuild/check.
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
 local api, util = vim.api, require("vimoi.core.util")
 local renderer = require("vimoi.render.source_map")
 local sessions = require("vimoi.render")

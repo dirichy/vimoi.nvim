@@ -9,7 +9,7 @@ local wrapper = fixture .. "/chezmoi-wrapper.sh"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = wrapper, render = { validate = false } })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = wrapper, render = { validate = false } })
 
 local util = require("vimoi.core.util")
 local original_source = assert(util.read_file(source_path))

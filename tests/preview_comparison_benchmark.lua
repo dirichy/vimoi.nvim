@@ -11,7 +11,7 @@ local calls = {}
 local original_system = vim.system
 ---@diagnostic disable-next-line: duplicate-set-field -- Observe spawns without changing execution.
 vim.system = function(argv, ...)
-  calls[#calls + 1] = { command = argv[2], started = vim.uv.hrtime() }
+  calls[#calls + 1] = { command = plugin == "vimoi" and argv[6] or argv[2], started = vim.uv.hrtime() }
   return original_system(argv, ...)
 end
 
@@ -26,6 +26,8 @@ vim.api.nvim_create_autocmd("FileType", {
 
 if plugin == "vimoi" then
   require("vimoi").setup({
+    chezmoi_source_dir = root .. "/source",
+    chezmoi_config_path = root .. "/config.toml",
     chezmoi_executable = root .. "/bin/chezmoi",
     diagnostics = { enabled = false },
     highlight = { mode = "injection" }, -- Keep the source-highlighting baseline identical to upstream.

@@ -90,31 +90,14 @@ function M.invalidate(scope)
   end
 end
 
----Discover the source root and config path and initialize query caches.
+---Initialize fixed paths and query caches without invoking chezmoi.
 ---@param executable string
----@param config_path? string
-M.setup = util.once(function(executable, config_path)
-  config_path = config_path and util.normalize_path(config_path)
-  chezmoi_command = config_path and { executable, "--config", config_path } or { executable }
-  local output, err = M.run({ "source-path" })
-  if not output then
-    error(err, 0)
-  end
-  if vim.trim(output) == "" then
-    error("chezmoi source-path returned an empty path", 0)
-  end
-  local source_root = util.normalize_path(vim.trim(output))
-  if not config_path then
-    local config_error
-    config_path, config_error = M.run({ "execute-template", "{{ .chezmoi.configFile }}" })
-    if not config_path then
-      error(config_error, 0)
-    end
-    if vim.trim(config_path) == "" then
-      error("chezmoi execute-template returned an empty config path", 0)
-    end
-    config_path = util.normalize_path(vim.trim(config_path))
-  end
+---@param config_path string
+---@param source_root string
+M.setup = util.once(function(executable, config_path, source_root)
+  source_root = util.normalize_path(source_root)
+  config_path = util.normalize_path(config_path)
+  chezmoi_command = { executable, "--config", config_path, "--source", source_root }
   local source
   for _, name in ipairs(vim.fn.sort(vim.tbl_keys(require("vimoi.core.source").init_template_names))) do
     local candidate = vim.fs.joinpath(source_root, name)
@@ -141,12 +124,8 @@ end)
 function M.run(args, opts)
   opts = opts or {}
   local argv = vim.list_extend(vim.list_slice(chezmoi_command), args)
-  -- Path/config identity queries do not render user templates. Everything that
-  -- can consult data/password helpers gets cancellable, asynchronous execution.
+  -- Commands that can consult data/password helpers stay cancellable and asynchronous.
   local slow = args[1] == "data" or args[1] == "cat" or args[1] == "execute-template" or args[1] == "managed"
-  if args[1] == "execute-template" and args[2] == "{{ .chezmoi.configFile }}" then
-    slow = false
-  end
   local command_opts = {
     text = opts.text ~= false,
     stdin = opts.stdin,

@@ -61,25 +61,24 @@ SETUP                                                            *vimoi-setup*
 
 Install `dirichy/vimoi.nvim` with your plugin manager. For lazy.nvim: >lua
 
-    { "dirichy/vimoi.nvim", opts = {} }
+    { "dirichy/vimoi.nvim", lazy = false, opts = {} }
 <
 Call setup from your Neovim configuration to register commands, filetypes,
 and autocommands: >lua
 
     require("vimoi").setup()
 <
-With lazy.nvim, `opts = {}` calls setup automatically. `ft = "gotmpl"` also
-works: lazy.nvim sources this plugin's `ftdetect/` before loading it. Its
-lightweight rules defer requiring Lua modules until a candidate template is
-seen, so a custom `chezmoi_executable` can be configured before path checks.
-With only `ft = "gotmpl"`, plain sources do not trigger initial plugin loading.
-Run setup earlier when target-aware plain-source detection is needed immediately.
+With lazy.nvim, use `lazy = false, opts = {}` so source detection and commands
+are registered at startup. Setup initializes local state without invoking chezmoi.
+Source/target mappings are queried only on cache misses, including source-file
+opens, and share the existing cache.
 
 The available options and their defaults are: >lua
 
     require("vimoi").setup({
       chezmoi_executable = "chezmoi",
       chezmoi_config_path = nil,
+      chezmoi_source_dir = nil,
       split = "vertical",
       files = { path = "target" },
       watch = {
@@ -125,9 +124,16 @@ The available options and their defaults are: >lua
     })
 <
 `chezmoi_executable` is the executable or wrapper used for all chezmoi invocations.
-`chezmoi_config_path` optionally selects a config file via `--config` for every
-command, including setup queries and template rendering. Without it, chezmoi
-discovers its config and the plugin queries its path once during setup.
+`chezmoi_source_dir` defaults to $XDG_DATA_HOME/chezmoi, or
+~/.local/share/chezmoi when XDG_DATA_HOME is unset or empty. It is not inferred
+from chezmoi config or wrapper arguments. Set it explicitly for custom sourceDir
+settings. With .chezmoiroot, supply the actual source-state directory reported
+by `chezmoi source-path`. Every CLI invocation passes this directory via --source.
+
+`chezmoi_config_path` defaults to $XDG_CONFIG_HOME/chezmoi/chezmoi.toml, or
+~/.config/chezmoi/chezmoi.toml when XDG_CONFIG_HOME is unset or empty. Set it
+explicitly for other locations or formats such as YAML and JSON. Every invocation
+passes --config; neither path is queried from chezmoi or inferred from wrappers.
 Paths support `~` and relative paths, resolved against the working directory at
 setup time. Dollar signs are literal; environment variables are not expanded.
 Read `vim.env` explicitly when needed, for example:
@@ -343,7 +349,9 @@ default main module. Interactive operations live in `vimoi.api`.
 
 `setup()` initializes the plugin once; all configuration remains fixed after a
 successful call. A second call reports an error before changing state. Restart
-Neovim to change options. A failed initialization may be retried.
+Neovim to change options. Invalid options can be corrected and retried.
+Initialization does not invoke chezmoi. Source/target mappings continue to use
+the existing cache-miss rebuild, without another initialization state or cache.
 
 ==============================================================================
 COMMANDS                                                       *vimoi-commands*
@@ -874,9 +882,8 @@ detection. Restarting the highlighter alone retains cached injection regions.
 Combined host injections are declared with #set! injection.combined in the
 query so viewport parsing still collects all host text; setting this only in
 a runtime directive does not enable Neovim's combined-query full scan.
-Top-level setup starts the CLI
-and watches; CLI methods own query caches, including shared-template directory
-discovery.
+Top-level setup initializes CLI state and watches without invoking chezmoi;
+CLI methods own query caches, including shared-template directory discovery.
 `render/init.lua` owns the shared output buffer, source-change debounce,
 render jobs, skeleton success/failure cache and stale-result checks. It caches
 sentinel positions, query indexes, byte lengths and source/context versions together;
@@ -1185,7 +1192,7 @@ Path navigation drops delayed picker results if the originating window is
 closed/replaced, focus changes, or the original buffer text changes.
 
 Run `:checkhealth vimoi` to inspect the Neovim requirement, configured executable,
-source/config paths discovered during setup, gotmpl parser and highlights/injections
+source/config paths selected during setup, gotmpl parser and highlights/injections
 queries. Open a template to also check the optional parser for its already
 configured host language; health reads existing state without inferring it again. A missing host
 parser uses Vim syntax fallback and does not prevent source mapping.

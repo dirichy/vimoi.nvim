@@ -10,7 +10,7 @@ vim.fn.writefile({
   "sourceDir = " .. vim.json.encode(root .. "/source"),
   "destDir = " .. vim.json.encode(root .. "/target"),
 }, root .. "/config.toml")
-cli.setup("chezmoi", root .. "/config.toml")
+cli.setup("chezmoi", root .. "/config.toml", root .. "/source")
 local working_dir = "/tmp/vimoi-sentinel-benchmark-cwd"
 vim.fn.mkdir(working_dir, "p")
 api.nvim_set_current_dir(working_dir)

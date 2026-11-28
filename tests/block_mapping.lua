@@ -4,7 +4,11 @@ local cli = require("vimoi.core.cli")
 local diff = require("vimoi.compare.diff_hunks")
 local merge = require("vimoi.merge.plan")
 local await = dofile("tests/helpers/await.lua")
-cli.setup("chezmoi")
+cli.setup(
+  "chezmoi",
+  vim.fn.getcwd() .. "/tests/fixtures/environment/empty.toml",
+  vim.fn.getcwd() .. "/tests/fixtures/environment/source"
+)
 
 local function trace(source, expected)
   local result = assert(await(map.trace, source))

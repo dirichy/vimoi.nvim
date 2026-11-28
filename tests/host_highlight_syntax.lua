@@ -20,7 +20,7 @@ vim.treesitter.language.add = function(language, ...)
   end
   return add_language(language, ...)
 end
-require("vimoi").setup({ diagnostics = { enabled = false } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false } })
 local util = require("vimoi.core.util")
 local sessions = require("vimoi.render")
 local renderer = require("vimoi.render.source_map")

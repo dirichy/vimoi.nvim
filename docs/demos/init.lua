@@ -285,6 +285,7 @@ elseif demo == "dependencies" then
 end
 fixture.source = source
 require("vimoi").setup({
+  chezmoi_source_dir = source_root,
   chezmoi_executable = wrapper,
   chezmoi_config_path = config,
   split = demo == "buffers" and "horizontal" or "vertical",

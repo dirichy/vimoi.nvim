@@ -6,7 +6,7 @@ package.loaded.lint = {
     checks = checks + 1
   end,
 }
-require("vimoi").setup({ diagnostics = { host = false } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { host = false } })
 local buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_set_current_buf(buf)
 local util = require("vimoi.core.util")

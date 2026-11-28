@@ -8,7 +8,7 @@ local source = fixture .. "/source/dot_diff_target.tmpl"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.env.VIMOI_TEST_DESTINATION = destination
-require("vimoi").setup({
+dofile("tests/helpers/setup.lua")({
   chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
   keymaps = {
     diff_get = "gG",

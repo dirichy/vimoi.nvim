@@ -46,10 +46,21 @@ The defaults work without extra options. For example, customize lazy.nvim's `opt
 
 ```lua
 opts = {
+  chezmoi_source_dir = "~/dotfiles", -- Only if you use a custom source directory
   split = "horizontal", -- Stacked windows
   keymaps = { readd = false }, -- Disable the default ReAdd mapping
 }
 ```
+
+`setup()` does not run chezmoi. Source/target mappings are queried on the first
+cache miss, including when opening a source file, and reused until invalidated.
+The source directory defaults to `$XDG_DATA_HOME/chezmoi`, or `~/.local/share/chezmoi`.
+The config file defaults to `$XDG_CONFIG_HOME/chezmoi/chezmoi.toml`, or
+`~/.config/chezmoi/chezmoi.toml`. Unset or empty XDG variables use the home fallback.
+Set `chezmoi_source_dir` and `chezmoi_config_path` explicitly for custom locations
+or a YAML/JSON config. The plugin passes `--source` and `--config` on every call;
+it does not query or infer these paths from chezmoi or wrappers. With `.chezmoiroot`,
+use the actual source-state directory reported by `chezmoi source-path`.
 
 See `:help vimoi-setup` for all options. Configure the plugin once at startup;
 restart Neovim after changing options.

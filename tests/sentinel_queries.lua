@@ -10,7 +10,7 @@ vim.fn.writefile({
   "[data]",
   "enabled = true",
 }, root .. "/config.toml")
-require("vimoi.core.cli").setup("chezmoi", root .. "/config.toml")
+require("vimoi.core.cli").setup("chezmoi", root .. "/config.toml", root .. "/source")
 
 -- Independent linear oracle preserves interior mappings, with an explicit new EOF rule.
 -- Reconstruct all ranges and search them without production query helpers.

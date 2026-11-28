@@ -3,7 +3,7 @@ local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({
+dofile("tests/helpers/setup.lua")({
   chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
   diagnostics = { enabled = false },
   highlight = { mode = "disabled" },

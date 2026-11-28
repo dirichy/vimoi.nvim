@@ -207,3 +207,36 @@ hunk 后调用 hunk_at 的回退路径测量，等价于 update 中的投射计�
 协议的文件读写、窗口绘制或光标同步。规划结果校验为 100 个静态编辑、无跳过及候选。
 8 个 action 的绝对节省很小，规划时间没有稳定优势。以上为局部工作量测量，
 不能解释为整次 UI 渲染或真实 chezmoi 命令相同倍数的加速。
+
+
+## 启动路径与按需查询
+
+`setup()` 仍按原有顺序初始化本地状态，不新增运行时初始化入口或等待队列。
+`chezmoi_source_dir` 默认遵循 XDG_DATA_HOME，`chezmoi_config_path` 默认遵循
+XDG_CONFIG_HOME 并固定使用 chezmoi.toml；自定义路径、格式及 .chezmoiroot 后的
+实际 source-state 目录由用户显式填写。路径在 setup 时规范化，CLI 每次显式传入
+`--source` 和 `--config`，不运行 source-path 或 execute-template 身份查询。
+
+普通 source/target 映射继续由 CLI 现有的缓存未命中重建负责，打开 source 时的
+宿主类型识别也共享该缓存。watcher 和 init 映射使用同一份固定路径。
+集成测试的公共 setup helper 统一提供隔离 fixture 的 source/config 路径；启动测试
+验证 setup、文件名分类与无关文件不启动进程，以及 source 首次打开/命令触发时
+按需调用 target-path，后续命中缓存。
+
+
+2026-11-27 对照：同一 fixture、同一 CPU，交替运行两版，每版 15 个独立 headless
+Neovim，禁用自动诊断与 rendered 高亮以隔离路径查询；无并行测试或 LSP 检查。
+原始样本、版本、CPU 与 Lua 测量代码见
+[JSON](benchmarks/startup-paths-2026-11-27.json)。中位数如下，单位 ms：
+
+| 范围 | 修改前 | 修改后 |
+| --- | ---: | ---: |
+| require + setup wall | 18.27 | 2.98 |
+| setup wall | 18.07 | 2.76 |
+| setup 本地 CPU（不含 chezmoi 子进程） | 3.20 | 2.75 |
+| 首次打开 source 至模板配置完成 wall | 11.58 | 11.73 |
+| 首次 target-path 子进程 wall | 7.30 | 7.60 |
+
+计时不包含 Neovim 进程启动或屏幕绘制。主要收益是取消两个子进程及其等待，
+不是显著加速本地 CPU 计算；target-path 的按需行为与成本基本不变。fixture 的
+chezmoi 查询比真实用户配置更快，不能将这里的绝对时间等同于用户报告的 70ms。

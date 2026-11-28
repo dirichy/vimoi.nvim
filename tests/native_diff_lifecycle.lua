@@ -1,6 +1,6 @@
 vim.opt.swapfile = false
 local api = require("vimoi.api")
-require("vimoi").setup({ diagnostics = { enabled = false } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false } })
 local sessions = require("vimoi.compare")
 local original = vim.o.diffexpr
 local source, target = vim.fn.tempname() .. ".tmpl", vim.fn.tempname()

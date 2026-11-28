@@ -13,7 +13,7 @@ vim.fn.writefile({ "a space|name" }, source .. "/symlink_link")
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = source
 vim.env.VIMOI_TEST_DESTINATION = root .. "/target"
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
 local api = require("vimoi.api")
 local original_select = vim.ui.select
 local paths, options, choose

@@ -11,7 +11,7 @@ local source_map = require("vimoi.render.source_map")
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = wrapper })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = wrapper })
 vim.fn.writefile({ "left=abXcdmiddle=mnppright=wxy" }, target)
 require("vimoi.api").diff_files(source, target)
 dofile("tests/helpers/diff.lua")()

@@ -1,5 +1,5 @@
 -- Construction validates a fixed disk baseline; edits never cancel/restart it.
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false }, highlight = { mode = "disabled" } })
 assert(require("vimoi").config.render.validate == true)
 local api, util = vim.api, require("vimoi.core.util")
 local renderer = require("vimoi.render.source_map")

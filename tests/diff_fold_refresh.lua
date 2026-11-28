@@ -10,7 +10,7 @@ vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.env.VIMOI_TEST_DESTINATION = destination
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = wrapper, render = { validate = false } })
+dofile("tests/helpers/setup.lua")({ chezmoi_executable = wrapper, render = { validate = false } })
 
 vim.cmd("edit " .. vim.fn.fnameescape(target))
 local target_buf = vim.api.nvim_get_current_buf()

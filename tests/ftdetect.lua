@@ -21,6 +21,10 @@ assert(vim.fn.exists(":VimoiDiff") == 0)
 local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = source_root
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh" })
+require("vimoi").setup({
+  chezmoi_source_dir = source_root,
+  chezmoi_config_path = fixture .. "/empty.toml",
+  chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
+})
 assert(vim.fn.exists(":VimoiDiff") == 2)
 assert(vim.filetype.match({ filename = source_root .. "/dot_diff_target.tmpl" }) == "gotmpl")

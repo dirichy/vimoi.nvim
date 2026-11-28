@@ -21,7 +21,7 @@ api.nvim_set_decoration_provider = function(ns, callbacks)
 end
 require("vimoi.editor.host_highlight")
 api.nvim_set_decoration_provider = original_provider
-require("vimoi").setup({ diagnostics = { enabled = false }, highlight = { mode = "rendered" } })
+dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false }, highlight = { mode = "rendered" } })
 local source_map = require("vimoi.render.source_map")
 local await = dofile("tests/helpers/await.lua")
 local buf = api.nvim_create_buf(true, false)

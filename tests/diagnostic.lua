@@ -3,7 +3,10 @@ local fixture = vim.fn.getcwd() .. "/tests/fixtures/environment"
 vim.env.VIMOI_TEST_CONFIG = fixture .. "/empty.toml"
 vim.env.VIMOI_TEST_SOURCE = fixture .. "/source"
 vim.opt.swapfile = false
-require("vimoi").setup({ chezmoi_executable = fixture .. "/chezmoi-wrapper.sh", render = { validate = false } })
+dofile("tests/helpers/setup.lua")({
+  chezmoi_executable = fixture .. "/chezmoi-wrapper.sh",
+  render = { validate = false },
+})
 assert(require("vimoi").config.diagnostics.enabled, "diagnostics must default to enabled")
 local cli, util = require("vimoi.core.cli"), require("vimoi.core.util")
 local namespace = vim.api.nvim_create_namespace("vimoi-diagnostics")

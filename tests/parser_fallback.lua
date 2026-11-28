@@ -11,7 +11,11 @@ vim.fn.writefile({
   "[data]",
   "enabled = true",
 }, root .. "/config.toml")
-require("vimoi").setup({ chezmoi_config_path = root .. "/config.toml", diagnostics = { host = false } })
+require("vimoi").setup({
+  chezmoi_source_dir = root .. "/source",
+  chezmoi_config_path = root .. "/config.toml",
+  diagnostics = { host = false },
+})
 local corpus = dofile("tests/fixtures/sentinel_cases.lua")
 local expected = {}
 for index, case in ipairs(corpus) do
