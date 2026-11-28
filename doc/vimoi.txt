@@ -63,13 +63,19 @@ Install `dirichy/vimoi.nvim` with your plugin manager. For lazy.nvim: >lua
 
     { "dirichy/vimoi.nvim", lazy = false, opts = {} }
 <
-Call setup from your Neovim configuration to register commands, filetypes,
-and autocommands: >lua
+Call setup from your Neovim configuration to configure paths, commands,
+and buffer integrations: >lua
 
     require("vimoi").setup()
 <
 With lazy.nvim, use `lazy = false, opts = {}` so source detection and commands
-are registered at startup. Setup initializes local state without invoking chezmoi.
+are available at startup. Native ftdetect owns filetype registration. Highlighting
+and automatic rendering load on the first gotmpl buffer; explicit operations load
+their own modules. Native on_detect initializes the injection directive before
+FileType handlers can start Tree-sitter. Setup initializes local state without invoking chezmoi
+or traversing the source tree for watches. Watching starts before the first CLI
+command or shared-template directory lookup; manual invalidation also starts it.
+Queries for already-open template buffers may activate watches during setup.
 Source/target mappings are queried only on cache misses, including source-file
 opens, and share the existing cache.
 
@@ -867,12 +873,11 @@ always return nil, without a session handle; template rendering is asynchronous.
 Interactive writeback also returns nil while rendering or selection is pending,
 so nil does not determine eventual success. Completion callbacks/promises are
 not currently provided.
-`filetype` owns filename rules, filetype registration, and host-language
-detection. CLI init-template lookup and diff dispatch reuse its rules; top-level
-setup supplies the source root. Ordinary templates resolve their target names
-through the CLI path cache; filename classification itself requires no CLI calls.
-It also classifies ignore/remove contents as destination patterns and symlink
-contents as link targets; navigation and event registration share those rules.
+`core/source` owns filename and init-template rules shared by CLI, diff and
+navigation. Native ftdetect preselects candidate paths; `editor/filetype` applies
+source-root membership, provides on_detect, and resolves host filetypes. Ordinary
+templates resolve their target names through the CLI path cache; filename
+classification itself requires no CLI calls or highlighting initialization.
 `highlight` owns template colors, buffer highlighting, host-language injection,
 and injection's source Vim syntax fallback. Rendered host colors use native
 Tree-sitter captures or Vim syntax groups on output, with shared projection
@@ -882,7 +887,8 @@ detection. Restarting the highlighter alone retains cached injection regions.
 Combined host injections are declared with #set! injection.combined in the
 query so viewport parsing still collects all host text; setting this only in
 a runtime directive does not enable Neovim's combined-query full scan.
-Top-level setup initializes CLI state and watches without invoking chezmoi;
+Top-level setup initializes CLI identity without invoking chezmoi or scanning
+directories. CLI commands and shared-template lookups load/configure watches once;
 CLI methods own query caches, including shared-template directory discovery.
 `render/init.lua` owns the shared output buffer, source-change debounce,
 render jobs, skeleton success/failure cache and stale-result checks. It caches
@@ -1172,8 +1178,8 @@ init-only functions such as `prompt*Once` are available.
 
 Cache invalidation is best-effort. Watches cover the config directory, the
 source root, and data/template directories and ignore-file parents discovered
-at setup or manual refresh; `.chezmoitemplates` subdirectories are watched too, but
-the plugin does not continuously track the entire source tree. Newly created or
+at first CLI command/shared-template lookup or manual refresh. Subdirectories
+of `.chezmoitemplates` are watched too, but the plugin does not continuously track the entire source tree. Newly created or
 moved directories, failed/silent watches, and environment changes may need
 `require("vimoi.api").invalidate_cache()` for external edits. Successful start
 does not guarantee events on remote filesystems; use the forced buffer fallback

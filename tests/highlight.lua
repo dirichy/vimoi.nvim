@@ -7,6 +7,7 @@ end
 vim.o.background = "dark"
 vim.api.nvim_set_hl(0, "NormalFloat", { bg = "#20242c", fg = "#ff0000", bold = true })
 dofile("tests/helpers/setup.lua")({ diagnostics = { enabled = false }, highlight = { mode = "injection" } })
+require("vimoi.editor.highlight").setup()
 assert(background() == 0x20242c)
 local action = vim.api.nvim_get_hl(0, { name = "VimoiTemplateAction", link = false })
 assert(action.fg == vim.api.nvim_get_hl(0, { name = "Statement", link = false }).fg)

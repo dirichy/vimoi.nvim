@@ -13,6 +13,7 @@ local rules = { { pattern = "/includes/", scope = "templates", watch = "tree" } 
 local options = { source_root = source_root, config_path = config_path, rules = rules, buffer_write_fallback = true }
 local snapshot = vim.deepcopy(options)
 watch.setup(options)
+watch.start()
 assert(vim.deep_equal(options, snapshot), "setup must not insert config rules into caller options")
 assert(#vim.api.nvim_get_autocmds({ group = "vimoi-cli-cache", event = "VimLeavePre" }) == 0)
 

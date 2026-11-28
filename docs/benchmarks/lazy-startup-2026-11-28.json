@@ -1,0 +1,932 @@
+{
+  "metadata": {
+    "baseline": "b70e54f plus the previously tested deferred-watch worktree changes",
+    "baseline_lua_patch": "diff --git a/lua/vimoi/core/cli.lua b/lua/vimoi/core/cli.lua\nindex 74fec3c..89cd5d0 100644\n--- a/lua/vimoi/core/cli.lua\n+++ b/lua/vimoi/core/cli.lua\n@@ -122,6 +122,7 @@ end)\n ---@return string? output\n ---@return string? error\n function M.run(args, opts)\n+  require(\"vimoi.core.watch\").start()\n   opts = opts or {}\n   local argv = vim.list_extend(vim.list_slice(chezmoi_command), args)\n   -- Commands that can consult data/password helpers stay cancellable and asynchronous.\n@@ -419,6 +420,7 @@ end\n ---@param source_dir string\n ---@return string[]\n function M.template_directories(source_dir)\n+  require(\"vimoi.core.watch\").start()\n   source_dir = util.normalize_path(source_dir)\n   if not cache.directories[source_dir] then\n     cache.directories[source_dir] = vim.fs.find(\".chezmoitemplates\", {\ndiff --git a/lua/vimoi/core/watch.lua b/lua/vimoi/core/watch.lua\nindex 2928c70..1b0de1b 100644\n--- a/lua/vimoi/core/watch.lua\n+++ b/lua/vimoi/core/watch.lua\n@@ -21,6 +21,7 @@ local config\n -- so atomic replacement does not detach a watch; refresh discovers new folders.\n -- Index only successfully started watchers by their directly monitored directory.\n local watchers = {}\n+local started = false\n ---@type VimoiCacheScope?\n local pending_scope\n \n@@ -51,6 +52,7 @@ function M.refresh()\n   if not config then\n     return\n   end\n+  started = true\n   for _, watcher in pairs(watchers) do\n     watcher:stop()\n     watcher:close()\n@@ -84,7 +86,7 @@ function M.refresh()\n   for directory in pairs(directories) do\n     local watcher = vim.uv.new_fs_event()\n     if watcher then\n-      local started = watcher:start(directory, {}, function(err, filename)\n+      local ok = watcher:start(directory, {}, function(err, filename)\n         if err then\n           if watchers[directory] == watcher then\n             watchers[directory] = nil\n@@ -117,7 +119,7 @@ function M.refresh()\n           require(\"vimoi.core.cli\").invalidate(scope_to_invalidate)\n         end)\n       end)\n-      if started then\n+      if ok then\n         watchers[directory] = watcher\n       else\n         -- No active entry: buffer writes automatically fall back for this directory.\n@@ -127,12 +129,18 @@ function M.refresh()\n   end\n end\n \n+---Start watching before the first query/cache fill; explicit refresh also starts it.\n+function M.start()\n+  if not started then\n+    M.refresh()\n+  end\n+end\n+\n ---@param opts VimoiWatchConfig\n M.setup = util.once(function(opts)\n   config = vim.tbl_extend(\"force\", { rules = default_rules, buffer_write_fallback = \"auto\" }, opts)\n   -- Always watch the selected config, without inserting into the caller's rules.\n   config.rules = vim.list_extend({ { path = config.config_path, scope = \"all\", watch = \"parent\" } }, config.rules)\n-  M.refresh()\n   local group = vim.api.nvim_create_augroup(\"vimoi-cli-cache\", { clear = true })\n   if config.buffer_write_fallback == false then\n     return\n",
+    "nvim": "NVIM v0.12.6",
+    "cpu": 0,
+    "samples_per_mode_variant": 15,
+    "order": "alternating variants; fresh Neovim per sample; no concurrent tests/LSP checks",
+    "scope": "require/setup wall and parent CPU, excluding Neovim process startup and screen painting; first source includes synchronous target-path, watcher activation and automatic rendering to a published output map",
+    "options": "defaults; first-source mode uses the same isolated fixture identity and destination for both versions",
+    "profile_lua": "vim.opt.rtp:prepend(assert(vim.env.VIMOI_PROFILE_ROOT))\nif vim.env.VIMOI_PROFILE_FILETYPES == '1' then vim.cmd('filetype plugin on') end\nlocal processes = 0\nlocal system = vim.system\nvim.system = function(...) processes = processes + 1; return system(...) end\nlocal opts = {}\nif vim.env.VIMOI_PROFILE_SOURCE == '1' then\n  local fixture=assert(vim.env.VIMOI_PROFILE_FIXTURE)\n  opts={chezmoi_executable=fixture..'/chezmoi-wrapper.sh',chezmoi_source_dir=fixture..'/source',chezmoi_config_path=fixture..'/empty.toml'}\nend\nlocal started=vim.uv.hrtime()\nlocal cpu_started=os.clock()\nlocal plugin=require('vimoi')\nlocal loaded=vim.uv.hrtime()\nplugin.setup(opts)\nlocal configured=vim.uv.hrtime()\nlocal startup_cpu_ms=(os.clock()-cpu_started)*1000\nlocal startup_processes=processes\nlocal modules={}\nfor name in pairs(package.loaded) do if name:match('^vimoi') then modules[#modules+1]=name end end\ntable.sort(modules)\nlocal first_source_ms\nif vim.env.VIMOI_PROFILE_SOURCE=='1' then\n  assert(vim.env.VIMOI_PROFILE_FILETYPES=='1')\n  local first=vim.uv.hrtime()\n  vim.cmd.edit(vim.fn.fnameescape(opts.chezmoi_source_dir..'/dot_diff_target.tmpl'))\n  local buf=vim.api.nvim_get_current_buf()\n  assert(vim.wait(10000,function()\n    local sessions=package.loaded['vimoi.render']\n    local state=sessions and sessions.get(buf)\n    return vim.b[buf].vimoi_template_configured==true and state and state.map and not state.error and not state.request\n  end,1),'first automatic render did not finish')\n  first_source_ms=(vim.uv.hrtime()-first)/1e6\nend\nprint(vim.json.encode({require_ms=(loaded-started)/1e6,setup_ms=(configured-loaded)/1e6,startup_ms=(configured-started)/1e6,startup_cpu_ms=startup_cpu_ms,startup_processes=startup_processes,first_source_ms=first_source_ms,processes=processes,modules=modules}))\nvim.cmd('qa!')\n",
+    "production_line_change": {
+      "added": 58,
+      "removed": 58,
+      "net": 0,
+      "scope": "Lua only, relative to the pre-task deferred-watch snapshot; includes whitespace/comments/types; excludes tests/docs"
+    }
+  },
+  "results": {
+    "cold_blank": {
+      "medians_ms": {
+        "before": {
+          "processes": 0,
+          "require_ms": 0.305,
+          "setup_ms": 3.637,
+          "startup_ms": 3.962,
+          "startup_cpu_ms": 3.949,
+          "startup_processes": 0
+        },
+        "after": {
+          "processes": 0,
+          "require_ms": 0.297,
+          "setup_ms": 0.537,
+          "startup_ms": 0.841,
+          "startup_cpu_ms": 0.839,
+          "startup_processes": 0
+        }
+      },
+      "samples": {
+        "before": [
+          {
+            "processes": 0,
+            "require_ms": 0.35276,
+            "setup_ms": 3.768821,
+            "startup_ms": 4.121581,
+            "startup_cpu_ms": 4.105,
+            "startup_processes": 0
+          },
+          {
+            "startup_cpu_ms": 3.92,
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.301886,
+            "setup_ms": 3.637232,
+            "startup_ms": 3.939118
+          },
+          {
+            "require_ms": 0.303775,
+            "setup_ms": 3.615726,
+            "startup_ms": 3.919501,
+            "processes": 0,
+            "startup_cpu_ms": 3.905,
+            "startup_processes": 0
+          },
+          {
+            "require_ms": 0.294306,
+            "setup_ms": 3.690231,
+            "startup_ms": 3.984537,
+            "processes": 0,
+            "startup_cpu_ms": 3.954,
+            "startup_processes": 0
+          },
+          {
+            "require_ms": 0.41405,
+            "setup_ms": 3.703058,
+            "startup_ms": 4.117108,
+            "processes": 0,
+            "startup_cpu_ms": 4.092000000000001,
+            "startup_processes": 0
+          },
+          {
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.320419,
+            "startup_ms": 3.923328,
+            "setup_ms": 3.602909,
+            "startup_cpu_ms": 3.9
+          },
+          {
+            "processes": 0,
+            "require_ms": 0.357876,
+            "setup_ms": 3.623637,
+            "startup_ms": 3.981513,
+            "startup_cpu_ms": 3.967,
+            "startup_processes": 0
+          },
+          {
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.305941,
+            "setup_ms": 3.669128,
+            "startup_ms": 3.975069,
+            "startup_cpu_ms": 3.948999999999999
+          },
+          {
+            "startup_cpu_ms": 3.885,
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.304624,
+            "setup_ms": 3.591438,
+            "startup_ms": 3.896062
+          },
+          {
+            "setup_ms": 3.697211,
+            "startup_ms": 3.996691,
+            "processes": 0,
+            "startup_cpu_ms": 3.981,
+            "startup_processes": 0,
+            "require_ms": 0.29948
+          },
+          {
+            "processes": 0,
+            "startup_cpu_ms": 3.979999999999999,
+            "startup_processes": 0,
+            "require_ms": 0.307266,
+            "setup_ms": 3.684571,
+            "startup_ms": 3.991837
+          },
+          {
+            "require_ms": 0.296448,
+            "setup_ms": 3.632292,
+            "startup_ms": 3.92874,
+            "processes": 0,
+            "startup_cpu_ms": 3.904,
+            "startup_processes": 0
+          },
+          {
+            "startup_ms": 3.885808,
+            "processes": 0,
+            "startup_cpu_ms": 3.875999999999999,
+            "startup_processes": 0,
+            "require_ms": 0.30314,
+            "setup_ms": 3.582668
+          },
+          {
+            "startup_ms": 3.961604,
+            "processes": 0,
+            "startup_cpu_ms": 3.95,
+            "startup_processes": 0,
+            "require_ms": 0.3621,
+            "setup_ms": 3.599504
+          },
+          {
+            "processes": 0,
+            "startup_cpu_ms": 3.941999999999999,
+            "startup_processes": 0,
+            "require_ms": 0.301881,
+            "setup_ms": 3.654051,
+            "startup_ms": 3.955932
+          }
+        ],
+        "after": [
+          {
+            "processes": 0,
+            "require_ms": 0.29712,
+            "setup_ms": 0.535359,
+            "startup_ms": 0.832479,
+            "startup_cpu_ms": 0.8319999999999999,
+            "startup_processes": 0
+          },
+          {
+            "startup_ms": 0.835119,
+            "processes": 0,
+            "startup_cpu_ms": 0.8250000000000002,
+            "startup_processes": 0,
+            "require_ms": 0.307227,
+            "setup_ms": 0.527892
+          },
+          {
+            "processes": 0,
+            "require_ms": 0.292474,
+            "setup_ms": 0.541852,
+            "startup_ms": 0.834326,
+            "startup_cpu_ms": 0.8159999999999998,
+            "startup_processes": 0
+          },
+          {
+            "require_ms": 0.295709,
+            "setup_ms": 0.537439,
+            "startup_ms": 0.833148,
+            "processes": 0,
+            "startup_cpu_ms": 0.82,
+            "startup_processes": 0
+          },
+          {
+            "processes": 0,
+            "startup_cpu_ms": 0.8600000000000001,
+            "startup_processes": 0,
+            "require_ms": 0.308222,
+            "setup_ms": 0.55536,
+            "startup_ms": 0.863582
+          },
+          {
+            "require_ms": 0.294799,
+            "setup_ms": 0.518128,
+            "startup_ms": 0.812927,
+            "processes": 0,
+            "startup_cpu_ms": 0.8120000000000003,
+            "startup_processes": 0
+          },
+          {
+            "startup_ms": 0.863933,
+            "processes": 0,
+            "startup_cpu_ms": 0.843,
+            "startup_processes": 0,
+            "require_ms": 0.332404,
+            "setup_ms": 0.531529
+          },
+          {
+            "startup_ms": 0.81202,
+            "processes": 0,
+            "startup_cpu_ms": 0.8079999999999997,
+            "startup_processes": 0,
+            "require_ms": 0.288652,
+            "setup_ms": 0.523368
+          },
+          {
+            "startup_cpu_ms": 0.8539999999999998,
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.292285,
+            "setup_ms": 0.56145,
+            "startup_ms": 0.853735
+          },
+          {
+            "processes": 0,
+            "startup_cpu_ms": 0.8389999999999999,
+            "startup_processes": 0,
+            "require_ms": 0.301994,
+            "setup_ms": 0.539265,
+            "startup_ms": 0.841259
+          },
+          {
+            "require_ms": 0.320427,
+            "setup_ms": 0.529523,
+            "processes": 0,
+            "startup_cpu_ms": 0.8469999999999996,
+            "startup_ms": 0.84995,
+            "startup_processes": 0
+          },
+          {
+            "setup_ms": 0.51247,
+            "startup_ms": 0.791492,
+            "processes": 0,
+            "startup_cpu_ms": 0.7869999999999999,
+            "startup_processes": 0,
+            "require_ms": 0.279022
+          },
+          {
+            "require_ms": 0.286627,
+            "setup_ms": 0.654982,
+            "startup_ms": 0.941609,
+            "processes": 0,
+            "startup_cpu_ms": 0.941,
+            "startup_processes": 0
+          },
+          {
+            "processes": 0,
+            "startup_cpu_ms": 0.8449999999999999,
+            "startup_processes": 0,
+            "require_ms": 0.303152,
+            "setup_ms": 0.54555,
+            "startup_ms": 0.848702
+          },
+          {
+            "startup_cpu_ms": 0.8400000000000001,
+            "startup_processes": 0,
+            "require_ms": 0.297711,
+            "setup_ms": 0.54638,
+            "startup_ms": 0.844091,
+            "processes": 0
+          }
+        ]
+      },
+      "startup_modules": {
+        "before": [
+          "vimoi",
+          "vimoi.api",
+          "vimoi.core.buffer_edits",
+          "vimoi.core.cli",
+          "vimoi.core.job",
+          "vimoi.core.source",
+          "vimoi.core.util",
+          "vimoi.core.watch",
+          "vimoi.editor.filetype",
+          "vimoi.editor.highlight",
+          "vimoi.editor.host_highlight",
+          "vimoi.editor.lazyload",
+          "vimoi.render",
+          "vimoi.render.source_map"
+        ],
+        "after": [
+          "vimoi",
+          "vimoi.api",
+          "vimoi.core.cli",
+          "vimoi.core.source",
+          "vimoi.core.util",
+          "vimoi.editor.filetype",
+          "vimoi.editor.lazyload"
+        ]
+      }
+    },
+    "filetypes_ready_blank": {
+      "medians_ms": {
+        "before": {
+          "processes": 0,
+          "require_ms": 0.19,
+          "setup_ms": 2.758,
+          "startup_ms": 2.953,
+          "startup_cpu_ms": 2.936,
+          "startup_processes": 0
+        },
+        "after": {
+          "require_ms": 0.197,
+          "setup_ms": 0.553,
+          "startup_ms": 0.756,
+          "processes": 0,
+          "startup_cpu_ms": 0.752,
+          "startup_processes": 0
+        }
+      },
+      "samples": {
+        "before": [
+          {
+            "processes": 0,
+            "require_ms": 0.216605,
+            "setup_ms": 2.90907,
+            "startup_ms": 3.125675,
+            "startup_cpu_ms": 3.09,
+            "startup_processes": 0
+          },
+          {
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.185391,
+            "setup_ms": 2.724238,
+            "startup_ms": 2.909629,
+            "startup_cpu_ms": 2.896
+          },
+          {
+            "startup_ms": 3.013512,
+            "processes": 0,
+            "startup_cpu_ms": 2.994,
+            "startup_processes": 0,
+            "require_ms": 0.193749,
+            "setup_ms": 2.819763
+          },
+          {
+            "require_ms": 0.19147,
+            "setup_ms": 2.858076,
+            "startup_ms": 3.049546,
+            "processes": 0,
+            "startup_cpu_ms": 3.028999999999999,
+            "startup_processes": 0
+          },
+          {
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.190315,
+            "setup_ms": 2.687597,
+            "startup_ms": 2.877912,
+            "startup_cpu_ms": 2.864
+          },
+          {
+            "require_ms": 0.183817,
+            "setup_ms": 2.770759,
+            "startup_ms": 2.954576,
+            "processes": 0,
+            "startup_cpu_ms": 2.934,
+            "startup_processes": 0
+          },
+          {
+            "require_ms": 0.187738,
+            "setup_ms": 2.72468,
+            "startup_ms": 2.912418,
+            "processes": 0,
+            "startup_cpu_ms": 2.884999999999999,
+            "startup_processes": 0
+          },
+          {
+            "startup_ms": 3.018078,
+            "processes": 0,
+            "startup_cpu_ms": 3.008,
+            "startup_processes": 0,
+            "require_ms": 0.183713,
+            "setup_ms": 2.834365
+          },
+          {
+            "require_ms": 0.237345,
+            "setup_ms": 2.660706,
+            "startup_ms": 2.898051,
+            "processes": 0,
+            "startup_cpu_ms": 2.887,
+            "startup_processes": 0
+          },
+          {
+            "startup_ms": 2.953146,
+            "processes": 0,
+            "startup_cpu_ms": 2.942,
+            "startup_processes": 0,
+            "require_ms": 0.246252,
+            "setup_ms": 2.706894
+          },
+          {
+            "processes": 0,
+            "startup_cpu_ms": 2.936,
+            "startup_processes": 0,
+            "require_ms": 0.189197,
+            "setup_ms": 2.758061,
+            "startup_ms": 2.947258
+          },
+          {
+            "startup_cpu_ms": 2.946,
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.190026,
+            "setup_ms": 2.765431,
+            "startup_ms": 2.955457
+          },
+          {
+            "startup_cpu_ms": 2.931999999999999,
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.213342,
+            "setup_ms": 2.731416,
+            "startup_ms": 2.944758
+          },
+          {
+            "processes": 0,
+            "require_ms": 0.180951,
+            "setup_ms": 2.718716,
+            "startup_ms": 2.899667,
+            "startup_cpu_ms": 2.877,
+            "startup_processes": 0
+          },
+          {
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.215979,
+            "setup_ms": 2.78259,
+            "startup_ms": 2.998569,
+            "startup_cpu_ms": 2.977
+          }
+        ],
+        "after": [
+          {
+            "require_ms": 0.188596,
+            "setup_ms": 0.572474,
+            "startup_ms": 0.76107,
+            "processes": 0,
+            "startup_cpu_ms": 0.7430000000000002,
+            "startup_processes": 0
+          },
+          {
+            "startup_ms": 0.761964,
+            "processes": 0,
+            "startup_cpu_ms": 0.7560000000000001,
+            "startup_processes": 0,
+            "require_ms": 0.191701,
+            "setup_ms": 0.570263
+          },
+          {
+            "require_ms": 0.247849,
+            "setup_ms": 0.515602,
+            "startup_ms": 0.763451,
+            "processes": 0,
+            "startup_cpu_ms": 0.7600000000000002,
+            "startup_processes": 0
+          },
+          {
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.195666,
+            "setup_ms": 0.574562,
+            "startup_ms": 0.770228,
+            "startup_cpu_ms": 0.7680000000000005
+          },
+          {
+            "startup_ms": 0.757082,
+            "processes": 0,
+            "startup_cpu_ms": 0.7530000000000002,
+            "startup_processes": 0,
+            "require_ms": 0.237982,
+            "setup_ms": 0.5191
+          },
+          {
+            "processes": 0,
+            "startup_cpu_ms": 0.7260000000000001,
+            "startup_processes": 0,
+            "require_ms": 0.208333,
+            "setup_ms": 0.521871,
+            "startup_ms": 0.730204
+          },
+          {
+            "startup_ms": 0.715926,
+            "processes": 0,
+            "startup_cpu_ms": 0.7110000000000003,
+            "startup_processes": 0,
+            "require_ms": 0.18926,
+            "setup_ms": 0.526666
+          },
+          {
+            "startup_cpu_ms": 0.7499999999999998,
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.199822,
+            "setup_ms": 0.554128,
+            "startup_ms": 0.75395
+          },
+          {
+            "setup_ms": 0.524071,
+            "startup_ms": 0.737876,
+            "processes": 0,
+            "startup_cpu_ms": 0.7339999999999994,
+            "startup_processes": 0,
+            "require_ms": 0.213805
+          },
+          {
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.233211,
+            "setup_ms": 0.522849,
+            "startup_ms": 0.75606,
+            "startup_cpu_ms": 0.7520000000000001
+          },
+          {
+            "startup_cpu_ms": 0.7489999999999997,
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.196745,
+            "setup_ms": 0.55285,
+            "startup_ms": 0.749595
+          },
+          {
+            "setup_ms": 0.563935,
+            "startup_ms": 0.754995,
+            "processes": 0,
+            "startup_cpu_ms": 0.7520000000000001,
+            "startup_processes": 0,
+            "require_ms": 0.19106
+          },
+          {
+            "processes": 0,
+            "require_ms": 0.181788,
+            "setup_ms": 0.530549,
+            "startup_ms": 0.712337,
+            "startup_cpu_ms": 0.7090000000000004,
+            "startup_processes": 0
+          },
+          {
+            "startup_processes": 0,
+            "processes": 0,
+            "require_ms": 0.177249,
+            "setup_ms": 0.608483,
+            "startup_ms": 0.785732,
+            "startup_cpu_ms": 0.7770000000000004
+          },
+          {
+            "require_ms": 0.270802,
+            "setup_ms": 0.615399,
+            "startup_ms": 0.886201,
+            "processes": 0,
+            "startup_cpu_ms": 0.8820000000000005,
+            "startup_processes": 0
+          }
+        ]
+      },
+      "startup_modules": {
+        "before": [
+          "vimoi",
+          "vimoi.api",
+          "vimoi.core.buffer_edits",
+          "vimoi.core.cli",
+          "vimoi.core.job",
+          "vimoi.core.source",
+          "vimoi.core.util",
+          "vimoi.core.watch",
+          "vimoi.editor.filetype",
+          "vimoi.editor.highlight",
+          "vimoi.editor.host_highlight",
+          "vimoi.editor.lazyload",
+          "vimoi.render",
+          "vimoi.render.source_map"
+        ],
+        "after": [
+          "vimoi",
+          "vimoi.api",
+          "vimoi.core.cli",
+          "vimoi.core.source",
+          "vimoi.core.util",
+          "vimoi.editor.filetype",
+          "vimoi.editor.lazyload"
+        ]
+      }
+    },
+    "filetypes_ready_first_source": {
+      "medians_ms": {
+        "before": {
+          "startup_ms": 3.022,
+          "processes": 3,
+          "startup_cpu_ms": 2.998,
+          "startup_processes": 0,
+          "first_source_ms": 31.31,
+          "require_ms": 0.198,
+          "setup_ms": 2.811
+        },
+        "after": {
+          "startup_ms": 0.789,
+          "processes": 3,
+          "startup_cpu_ms": 0.784,
+          "startup_processes": 0,
+          "first_source_ms": 32.818,
+          "require_ms": 0.207,
+          "setup_ms": 0.569
+        }
+      },
+      "samples": {
+        "before": [
+          {
+            "startup_ms": 2.940838,
+            "processes": 3,
+            "startup_cpu_ms": 2.93,
+            "startup_processes": 0,
+            "first_source_ms": 31.544053,
+            "require_ms": 0.192159,
+            "setup_ms": 2.748679
+          },
+          {
+            "startup_ms": 3.022361,
+            "processes": 3,
+            "startup_cpu_ms": 2.961,
+            "startup_processes": 0,
+            "first_source_ms": 31.514898,
+            "require_ms": 0.195708,
+            "setup_ms": 2.826653
+          },
+          {
+            "startup_processes": 0,
+            "processes": 3,
+            "require_ms": 0.207423,
+            "setup_ms": 2.790872,
+            "startup_ms": 2.998295,
+            "first_source_ms": 30.631606,
+            "startup_cpu_ms": 2.987
+          },
+          {
+            "setup_ms": 2.837409,
+            "startup_ms": 3.029459,
+            "processes": 3,
+            "startup_cpu_ms": 2.987,
+            "startup_processes": 0,
+            "first_source_ms": 31.431861,
+            "require_ms": 0.19205
+          },
+          {
+            "startup_ms": 3.006518,
+            "processes": 3,
+            "startup_cpu_ms": 2.998,
+            "startup_processes": 0,
+            "first_source_ms": 31.309566,
+            "require_ms": 0.196004,
+            "setup_ms": 2.810514
+          },
+          {
+            "startup_processes": 0,
+            "processes": 3,
+            "require_ms": 0.198264,
+            "setup_ms": 2.805042,
+            "startup_ms": 3.003306,
+            "first_source_ms": 30.709848,
+            "startup_cpu_ms": 2.992999999999999
+          },
+          {
+            "first_source_ms": 31.557104,
+            "require_ms": 0.226365,
+            "setup_ms": 2.80461,
+            "startup_ms": 3.030975,
+            "processes": 3,
+            "startup_cpu_ms": 3.001999999999999,
+            "startup_processes": 0
+          },
+          {
+            "startup_ms": 3.032746,
+            "processes": 3,
+            "startup_cpu_ms": 3.021999999999999,
+            "startup_processes": 0,
+            "first_source_ms": 30.80228,
+            "require_ms": 0.252123,
+            "setup_ms": 2.780623
+          },
+          {
+            "startup_processes": 0,
+            "processes": 3,
+            "require_ms": 0.201471,
+            "setup_ms": 2.851016,
+            "startup_ms": 3.052487,
+            "first_source_ms": 31.838766,
+            "startup_cpu_ms": 3.016
+          },
+          {
+            "processes": 3,
+            "startup_cpu_ms": 3.108,
+            "startup_processes": 0,
+            "first_source_ms": 31.053154,
+            "require_ms": 0.190514,
+            "setup_ms": 2.929132,
+            "startup_ms": 3.119646
+          },
+          {
+            "require_ms": 0.196625,
+            "setup_ms": 2.822707,
+            "startup_ms": 3.019332,
+            "processes": 3,
+            "startup_cpu_ms": 3.012,
+            "startup_processes": 0,
+            "first_source_ms": 31.126161
+          },
+          {
+            "startup_cpu_ms": 2.975,
+            "startup_processes": 0,
+            "processes": 3,
+            "require_ms": 0.190859,
+            "setup_ms": 2.793002,
+            "startup_ms": 2.983861,
+            "first_source_ms": 31.257504
+          },
+          {
+            "startup_processes": 0,
+            "processes": 3,
+            "require_ms": 0.207701,
+            "setup_ms": 2.766882,
+            "startup_ms": 2.974583,
+            "first_source_ms": 31.649241,
+            "startup_cpu_ms": 2.952
+          },
+          {
+            "startup_cpu_ms": 3.04,
+            "require_ms": 0.198101,
+            "setup_ms": 2.854233,
+            "startup_ms": 3.052334,
+            "first_source_ms": 31.437906,
+            "processes": 3,
+            "startup_processes": 0
+          },
+          {
+            "processes": 3,
+            "startup_cpu_ms": 3.046,
+            "startup_processes": 0,
+            "first_source_ms": 30.188924,
+            "require_ms": 0.198076,
+            "setup_ms": 2.87522,
+            "startup_ms": 3.073296
+          }
+        ],
+        "after": [
+          {
+            "startup_ms": 0.829353,
+            "processes": 3,
+            "startup_cpu_ms": 0.8159999999999998,
+            "startup_processes": 0,
+            "first_source_ms": 33.697327,
+            "require_ms": 0.258211,
+            "setup_ms": 0.571142
+          },
+          {
+            "first_source_ms": 32.420789,
+            "require_ms": 0.193465,
+            "setup_ms": 0.552066,
+            "startup_ms": 0.745531,
+            "processes": 3,
+            "startup_cpu_ms": 0.7400000000000002,
+            "startup_processes": 0
+          },
+          {
+            "processes": 3,
+            "startup_cpu_ms": 0.798,
+            "startup_processes": 0,
+            "first_source_ms": 32.818299,
+            "require_ms": 0.213195,
+            "setup_ms": 0.585251,
+            "startup_ms": 0.798446
+          },
+          {
+            "setup_ms": 0.569464,
+            "startup_ms": 0.776895,
+            "processes": 3,
+            "startup_cpu_ms": 0.7759999999999998,
+            "startup_processes": 0,
+            "first_source_ms": 33.249732,
+            "require_ms": 0.207431
+          },
+          {
+            "startup_ms": 0.765804,
+            "processes": 3,
+            "startup_cpu_ms": 0.7509999999999999,
+            "startup_processes": 0,
+            "first_source_ms": 32.468262,
+            "require_ms": 0.212405,
+            "setup_ms": 0.553399
+          },
+          {
+            "require_ms": 0.250545,
+            "setup_ms": 0.591236,
+            "startup_ms": 0.841781,
+            "processes": 3,
+            "startup_cpu_ms": 0.8010000000000005,
+            "startup_processes": 0,
+            "first_source_ms": 32.914385
+          },
+          {
+            "processes": 3,
+            "require_ms": 0.194782,
+            "setup_ms": 0.702432,
+            "startup_ms": 0.897214,
+            "first_source_ms": 33.254556,
+            "startup_cpu_ms": 0.8929999999999997,
+            "startup_processes": 0
+          },
+          {
+            "setup_ms": 0.613374,
+            "startup_ms": 0.837113,
+            "processes": 3,
+            "startup_cpu_ms": 0.8260000000000003,
+            "startup_processes": 0,
+            "first_source_ms": 32.650432,
+            "require_ms": 0.223739
+          },
+          {
+            "processes": 3,
+            "startup_cpu_ms": 0.8650000000000003,
+            "startup_processes": 0,
+            "first_source_ms": 32.348105,
+            "require_ms": 0.203162,
+            "setup_ms": 0.665883,
+            "startup_ms": 0.869045
+          },
+          {
+            "startup_cpu_ms": 0.784,
+            "startup_processes": 0,
+            "processes": 3,
+            "require_ms": 0.194996,
+            "setup_ms": 0.593857,
+            "startup_ms": 0.788853,
+            "first_source_ms": 32.476701
+          },
+          {
+            "startup_processes": 0,
+            "processes": 3,
+            "require_ms": 0.199627,
+            "setup_ms": 0.545167,
+            "startup_ms": 0.744794,
+            "first_source_ms": 32.702178,
+            "startup_cpu_ms": 0.7439999999999999
+          },
+          {
+            "processes": 3,
+            "require_ms": 0.257874,
+            "setup_ms": 0.524824,
+            "startup_ms": 0.782698,
+            "first_source_ms": 34.083861,
+            "startup_cpu_ms": 0.778,
+            "startup_processes": 0
+          },
+          {
+            "setup_ms": 0.553659,
+            "startup_ms": 0.749895,
+            "processes": 3,
+            "startup_cpu_ms": 0.7490000000000006,
+            "startup_processes": 0,
+            "first_source_ms": 32.703058,
+            "require_ms": 0.196236
+          },
+          {
+            "startup_cpu_ms": 0.8609999999999998,
+            "startup_processes": 0,
+            "processes": 3,
+            "require_ms": 0.308206,
+            "setup_ms": 0.556554,
+            "startup_ms": 0.86476,
+            "first_source_ms": 33.829343
+          },
+          {
+            "processes": 3,
+            "startup_cpu_ms": 0.7549999999999996,
+            "startup_processes": 0,
+            "first_source_ms": 32.861204,
+            "require_ms": 0.193364,
+            "setup_ms": 0.561791,
+            "startup_ms": 0.755155
+          }
+        ]
+      },
+      "startup_modules": {
+        "before": [
+          "vimoi",
+          "vimoi.api",
+          "vimoi.core.buffer_edits",
+          "vimoi.core.cli",
+          "vimoi.core.job",
+          "vimoi.core.source",
+          "vimoi.core.util",
+          "vimoi.core.watch",
+          "vimoi.editor.filetype",
+          "vimoi.editor.highlight",
+          "vimoi.editor.host_highlight",
+          "vimoi.editor.lazyload",
+          "vimoi.render",
+          "vimoi.render.source_map"
+        ],
+        "after": [
+          "vimoi",
+          "vimoi.api",
+          "vimoi.core.cli",
+          "vimoi.core.source",
+          "vimoi.core.util",
+          "vimoi.editor.filetype",
+          "vimoi.editor.lazyload"
+        ]
+      }
+    }
+  }
+}

@@ -1,6 +1,5 @@
 local M = {}
 local util = require("vimoi.core.util")
-local job = require("vimoi.core.job")
 
 -- The source root and init mapping are fixed at setup. Other query results
 -- stay cached until invalidated. Template output is cached only when requested;
@@ -122,6 +121,8 @@ end)
 ---@return string? output
 ---@return string? error
 function M.run(args, opts)
+  require("vimoi.core.watch").start()
+  local job = require("vimoi.core.job")
   opts = opts or {}
   local argv = vim.list_extend(vim.list_slice(chezmoi_command), args)
   -- Commands that can consult data/password helpers stay cancellable and asynchronous.
@@ -419,6 +420,7 @@ end
 ---@param source_dir string
 ---@return string[]
 function M.template_directories(source_dir)
+  require("vimoi.core.watch").start()
   source_dir = util.normalize_path(source_dir)
   if not cache.directories[source_dir] then
     cache.directories[source_dir] = vim.fs.find(".chezmoitemplates", {

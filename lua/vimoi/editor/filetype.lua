@@ -8,24 +8,18 @@ local source_root
 ---Recognize template filenames inside the configured source root.
 ---@param path string
 ---@return string?
+---@return function? on_detect Runs before other FileType handlers can start Tree-sitter.
 function M.detect(path)
-  return source_root and source.is_template(path) and vim.fs.relpath(source_root, path) ~= nil and "gotmpl" or nil
+  if source_root and source.is_template(path) and vim.fs.relpath(source_root, path) ~= nil then
+    return "gotmpl", function()
+      require("vimoi.editor.highlight").setup()
+    end
+  end
 end
-
-local filetype_patterns = {}
-for _, rule in ipairs(source.template_rules) do
-  filetype_patterns[rule.pattern] = M.detect
-end
-
-local registration = {
-  extension = { tmpl = M.detect },
-  pattern = filetype_patterns,
-}
 
 ---@param root string Configured chezmoi source directory.
 M.setup = require("vimoi.core.util").once(function(root)
   source_root = root
-  vim.filetype.add(registration)
   vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
     group = vim.api.nvim_create_augroup("vimoi-source-filetypes", { clear = true }),
     callback = function(args)

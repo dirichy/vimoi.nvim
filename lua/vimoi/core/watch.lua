@@ -21,6 +21,7 @@ local config
 -- so atomic replacement does not detach a watch; refresh discovers new folders.
 -- Index only successfully started watchers by their directly monitored directory.
 local watchers = {}
+local started = false
 ---@type VimoiCacheScope?
 local pending_scope
 
@@ -49,8 +50,17 @@ end
 ---Rebuild the best-effort watch list after explicit cache invalidation.
 function M.refresh()
   if not config then
-    return
+    local cli = require("vimoi.core.cli")
+    if not cli.source_root then
+      return
+    end
+    M.setup(vim.tbl_extend("force", require("vimoi").config.watch, {
+      source_root = cli.source_root,
+      config_path = cli.config_path,
+    }))
+    assert(config)
   end
+  started = true
   for _, watcher in pairs(watchers) do
     watcher:stop()
     watcher:close()
@@ -84,7 +94,7 @@ function M.refresh()
   for directory in pairs(directories) do
     local watcher = vim.uv.new_fs_event()
     if watcher then
-      local started = watcher:start(directory, {}, function(err, filename)
+      local ok = watcher:start(directory, {}, function(err, filename)
         if err then
           if watchers[directory] == watcher then
             watchers[directory] = nil
@@ -117,7 +127,7 @@ function M.refresh()
           require("vimoi.core.cli").invalidate(scope_to_invalidate)
         end)
       end)
-      if started then
+      if ok then
         watchers[directory] = watcher
       else
         -- No active entry: buffer writes automatically fall back for this directory.
@@ -127,12 +137,18 @@ function M.refresh()
   end
 end
 
+---Start watching before the first query/cache fill; explicit refresh also starts it.
+function M.start()
+  if not started then
+    M.refresh()
+  end
+end
+
 ---@param opts VimoiWatchConfig
 M.setup = util.once(function(opts)
   config = vim.tbl_extend("force", { rules = default_rules, buffer_write_fallback = "auto" }, opts)
   -- Always watch the selected config, without inserting into the caller's rules.
   config.rules = vim.list_extend({ { path = config.config_path, scope = "all", watch = "parent" } }, config.rules)
-  M.refresh()
   local group = vim.api.nvim_create_augroup("vimoi-cli-cache", { clear = true })
   if config.buffer_write_fallback == false then
     return

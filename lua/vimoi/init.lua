@@ -167,15 +167,9 @@ M.setup = require("vimoi.core.util").once(function(opts)
   end
   local cli = require("vimoi.core.cli")
   cli.setup(config.chezmoi_executable, config_path, config.chezmoi_source_dir)
-  require("vimoi.core.watch").setup(vim.tbl_extend("force", config.watch, {
-    source_root = cli.source_root,
-    config_path = cli.config_path,
-  }))
   M.config = config
-  require("vimoi.editor.highlight").setup()
   require("vimoi.editor.filetype").setup(cli.source_root)
   require("vimoi.editor.lazyload").setup()
-  require("vimoi.render").setup()
   require("vimoi.api").register()
 end, { repeat_error = "vimoi is already configured; restart Neovim to change options" })
 

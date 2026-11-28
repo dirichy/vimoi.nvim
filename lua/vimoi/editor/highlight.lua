@@ -18,7 +18,7 @@ local function apply()
   vim.api.nvim_set_hl(0, "VimoiTemplateAction", { bg = background, ctermbg = ctermbg, fg = statement.fg })
 end
 
-local initialize = require("vimoi.core.util").once(function()
+M.setup = require("vimoi.core.util").once(function()
   vim.treesitter.query.add_directive("vimoi-target-language!", function(_, _, source, _, metadata)
     if type(source) ~= "number" or not vim.api.nvim_buf_is_valid(source) then
       return
@@ -29,6 +29,9 @@ local initialize = require("vimoi.core.util").once(function()
     end
   end, { force = true })
 
+  if vim.fn.hlexists("VimoiTemplateAction") == 0 then
+    apply()
+  end
   local group = vim.api.nvim_create_augroup("vimoi-highlight", { clear = true })
   vim.api.nvim_create_autocmd("ColorScheme", { group = group, callback = apply })
   vim.api.nvim_create_autocmd("OptionSet", { group = group, pattern = "background", callback = apply })
@@ -56,15 +59,10 @@ local function configure_syntax(buf, parser)
   end)
 end
 
-function M.setup()
-  initialize()
-  apply()
-end
-
 ---@param buf integer
 ---@param filetype? string
 function M.configure_template_buffer(buf, filetype)
-  initialize()
+  M.setup()
   local previous_language = vim.b[buf].vimoi_template_language
   local previous_filetype = vim.b[buf].vimoi_template_filetype
   -- Health reads this snapshot without resolving paths or starting chezmoi.

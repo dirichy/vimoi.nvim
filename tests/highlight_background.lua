@@ -1,5 +1,6 @@
 vim.o.background = "dark"
 dofile("tests/helpers/setup.lua")({ highlight = { template_bg = { dark = "#123456", light = "#abcdef" } } })
+require("vimoi.editor.highlight").setup()
 assert(vim.api.nvim_get_hl(0, { name = "VimoiTemplateAction", link = false }).bg == 0x123456)
 vim.o.background = "light"
 vim.api.nvim_exec_autocmds("OptionSet", { pattern = "background" })

@@ -1,0 +1,308 @@
+{
+  "metadata": {
+    "baseline": "b70e54f6cfd0164fb216dd5beda28d4b3c5d1821",
+    "nvim": "NVIM v0.12.6",
+    "cpu": 0,
+    "samples_per_variant": 15,
+    "order": "alternating; fresh Neovim per sample; no concurrent tests or LSP checks",
+    "source": "local default source; same source/config paths and unmodified tree for both variants; default plugin options",
+    "scope": "blank-buffer require/setup wall and parent CPU; excludes Neovim process startup and chezmoi child CPU; first_watch_ms calls internal start after setup to isolate deferred scanning, not an end-to-end CLI operation",
+    "profile_lua": "vim.opt.rtp:prepend(assert(vim.env.VIMOI_PROFILE_ROOT))\nlocal processes = 0\nlocal system = vim.system\nvim.system = function(...) processes = processes + 1; return system(...) end\nlocal cpu_started = os.clock()\nlocal started = vim.uv.hrtime()\nlocal plugin = require('vimoi')\nlocal loaded = vim.uv.hrtime()\nlocal cpu_loaded = os.clock()\nplugin.setup()\nlocal configured = vim.uv.hrtime()\nlocal setup_cpu_ms = (os.clock() - cpu_loaded) * 1000\nlocal require_setup_cpu_ms = (os.clock() - cpu_started) * 1000\nlocal first_watch_started = vim.uv.hrtime()\nlocal watch = require('vimoi.core.watch')\nif watch.start then watch.start() end\nlocal first_watch_ms = (vim.uv.hrtime() - first_watch_started) / 1e6\nprint(vim.json.encode({require_ms=(loaded-started)/1e6,setup_ms=(configured-loaded)/1e6,require_setup_ms=(configured-started)/1e6,setup_cpu_ms=setup_cpu_ms,require_setup_cpu_ms=require_setup_cpu_ms,first_watch_ms=first_watch_ms,processes=processes}))\nvim.cmd('qa!')\n"
+  },
+  "medians_ms": {
+    "before": {
+      "processes": 0,
+      "setup_cpu_ms": 8.781,
+      "first_watch_ms": 0.0,
+      "require_ms": 0.319,
+      "setup_ms": 8.809,
+      "require_setup_ms": 9.118,
+      "require_setup_cpu_ms": 9.094
+    },
+    "after": {
+      "require_setup_ms": 4.004,
+      "processes": 0,
+      "first_watch_ms": 4.704,
+      "require_ms": 0.312,
+      "setup_ms": 3.684,
+      "setup_cpu_ms": 3.666,
+      "require_setup_cpu_ms": 3.989
+    }
+  },
+  "samples": {
+    "before": [
+      {
+        "processes": 0,
+        "setup_cpu_ms": 12.924,
+        "first_watch_ms": 0.000249,
+        "require_ms": 0.505229,
+        "setup_ms": 12.981221,
+        "require_setup_ms": 13.48645,
+        "require_setup_cpu_ms": 13.43
+      },
+      {
+        "require_setup_cpu_ms": 9.215000000000002,
+        "processes": 0,
+        "require_setup_ms": 9.25354,
+        "first_watch_ms": 0.000251,
+        "require_ms": 0.306085,
+        "setup_ms": 8.947455,
+        "setup_cpu_ms": 8.908
+      },
+      {
+        "require_setup_cpu_ms": 9.149,
+        "processes": 0,
+        "require_setup_ms": 9.175523,
+        "first_watch_ms": 0.000242,
+        "require_ms": 0.366116,
+        "setup_ms": 8.809407,
+        "setup_cpu_ms": 8.781
+      },
+      {
+        "require_ms": 0.320906,
+        "setup_ms": 9.050218,
+        "require_setup_ms": 9.371124,
+        "require_setup_cpu_ms": 9.346,
+        "processes": 0,
+        "setup_cpu_ms": 9.023,
+        "first_watch_ms": 0.000176
+      },
+      {
+        "require_setup_ms": 8.89012,
+        "require_setup_cpu_ms": 8.850999999999999,
+        "processes": 0,
+        "setup_cpu_ms": 8.518,
+        "first_watch_ms": 0.000256,
+        "require_ms": 0.335313,
+        "setup_ms": 8.554807
+      },
+      {
+        "first_watch_ms": 0.000243,
+        "require_ms": 0.36461,
+        "setup_ms": 8.704582,
+        "require_setup_ms": 9.069192,
+        "require_setup_cpu_ms": 9.021999999999998,
+        "processes": 0,
+        "setup_cpu_ms": 8.656
+      },
+      {
+        "first_watch_ms": 0.000174,
+        "require_ms": 0.319386,
+        "setup_ms": 8.765594,
+        "require_setup_ms": 9.08498,
+        "require_setup_cpu_ms": 9.04,
+        "processes": 0,
+        "setup_cpu_ms": 8.719
+      },
+      {
+        "setup_ms": 8.596976,
+        "require_setup_ms": 8.909815,
+        "require_setup_cpu_ms": 8.879999999999999,
+        "processes": 0,
+        "setup_cpu_ms": 8.566,
+        "first_watch_ms": 0.000166,
+        "require_ms": 0.312839
+      },
+      {
+        "processes": 0,
+        "setup_cpu_ms": 8.639,
+        "first_watch_ms": 0.000198,
+        "require_ms": 0.301672,
+        "setup_ms": 8.666842,
+        "require_setup_ms": 8.968514,
+        "require_setup_cpu_ms": 8.939999999999998
+      },
+      {
+        "require_setup_cpu_ms": 9.333,
+        "processes": 0,
+        "require_setup_ms": 9.360815,
+        "first_watch_ms": 0.000246,
+        "require_ms": 0.307015,
+        "setup_ms": 9.0538,
+        "setup_cpu_ms": 9.025
+      },
+      {
+        "require_setup_ms": 8.947469,
+        "require_setup_cpu_ms": 8.920000000000002,
+        "processes": 0,
+        "setup_cpu_ms": 8.608999999999998,
+        "first_watch_ms": 0.000238,
+        "require_ms": 0.309302,
+        "setup_ms": 8.638167
+      },
+      {
+        "first_watch_ms": 0.000192,
+        "require_ms": 0.31298,
+        "setup_ms": 8.710312,
+        "require_setup_ms": 9.023292,
+        "require_setup_cpu_ms": 8.988999999999999,
+        "processes": 0,
+        "setup_cpu_ms": 8.674999999999999
+      },
+      {
+        "require_ms": 0.29717,
+        "setup_ms": 8.821204,
+        "require_setup_ms": 9.118374,
+        "require_setup_cpu_ms": 9.093999999999998,
+        "processes": 0,
+        "setup_cpu_ms": 8.795,
+        "first_watch_ms": 0.000198
+      },
+      {
+        "first_watch_ms": 0.000163,
+        "require_ms": 0.366942,
+        "setup_ms": 9.012506,
+        "require_setup_ms": 9.379448,
+        "require_setup_cpu_ms": 9.333999999999998,
+        "processes": 0,
+        "setup_cpu_ms": 8.965
+      },
+      {
+        "processes": 0,
+        "first_watch_ms": 0.000211,
+        "require_ms": 0.319479,
+        "setup_ms": 9.216173,
+        "require_setup_ms": 9.535652,
+        "require_setup_cpu_ms": 9.506999999999998,
+        "setup_cpu_ms": 9.186
+      }
+    ],
+    "after": [
+      {
+        "require_setup_ms": 3.998088,
+        "processes": 0,
+        "first_watch_ms": 4.660149,
+        "require_ms": 0.31052,
+        "setup_ms": 3.687568,
+        "setup_cpu_ms": 3.674999999999999,
+        "require_setup_cpu_ms": 3.986999999999999
+      },
+      {
+        "first_watch_ms": 4.899176,
+        "require_ms": 0.380527,
+        "setup_ms": 3.804766,
+        "setup_cpu_ms": 3.793,
+        "require_setup_cpu_ms": 4.175,
+        "processes": 0,
+        "require_setup_ms": 4.185293
+      },
+      {
+        "first_watch_ms": 4.985475,
+        "require_ms": 0.388602,
+        "setup_ms": 3.645,
+        "require_setup_ms": 4.033602,
+        "require_setup_cpu_ms": 4.020999999999999,
+        "processes": 0,
+        "setup_cpu_ms": 3.633999999999999
+      },
+      {
+        "first_watch_ms": 4.704391,
+        "require_ms": 0.325789,
+        "setup_ms": 3.676834,
+        "setup_cpu_ms": 3.661,
+        "require_setup_cpu_ms": 3.988,
+        "processes": 0,
+        "require_setup_ms": 4.002623
+      },
+      {
+        "require_setup_ms": 3.967669,
+        "require_setup_cpu_ms": 3.959000000000001,
+        "processes": 0,
+        "setup_cpu_ms": 3.645,
+        "first_watch_ms": 4.600615,
+        "require_ms": 0.312218,
+        "setup_ms": 3.655451
+      },
+      {
+        "setup_ms": 3.693241,
+        "require_setup_ms": 4.004209,
+        "require_setup_cpu_ms": 3.988999999999999,
+        "processes": 0,
+        "setup_cpu_ms": 3.677,
+        "first_watch_ms": 4.924966,
+        "require_ms": 0.310968
+      },
+      {
+        "require_ms": 0.37206,
+        "setup_cpu_ms": 3.622,
+        "require_setup_cpu_ms": 3.996,
+        "processes": 0,
+        "setup_ms": 3.637324,
+        "require_setup_ms": 4.009384,
+        "first_watch_ms": 4.621728
+      },
+      {
+        "processes": 0,
+        "setup_cpu_ms": 3.65,
+        "first_watch_ms": 4.573637,
+        "require_ms": 0.302528,
+        "setup_ms": 3.677179,
+        "require_setup_ms": 3.979707,
+        "require_setup_cpu_ms": 3.953999999999999
+      },
+      {
+        "require_setup_ms": 4.043033,
+        "require_setup_cpu_ms": 4.016000000000001,
+        "processes": 0,
+        "setup_cpu_ms": 3.692,
+        "first_watch_ms": 4.590491,
+        "require_ms": 0.322947,
+        "setup_ms": 3.720086
+      },
+      {
+        "processes": 0,
+        "first_watch_ms": 4.830704,
+        "require_ms": 0.373272,
+        "setup_ms": 3.638709,
+        "require_setup_ms": 4.011981,
+        "require_setup_cpu_ms": 3.998999999999999,
+        "setup_cpu_ms": 3.628
+      },
+      {
+        "processes": 0,
+        "first_watch_ms": 4.537508,
+        "require_ms": 0.30217,
+        "setup_ms": 3.670416,
+        "require_setup_ms": 3.972586,
+        "require_setup_cpu_ms": 3.964,
+        "setup_cpu_ms": 3.66
+      },
+      {
+        "require_setup_ms": 3.997642,
+        "require_setup_cpu_ms": 3.981,
+        "processes": 0,
+        "setup_cpu_ms": 3.665999999999999,
+        "first_watch_ms": 4.561127,
+        "require_ms": 0.312767,
+        "setup_ms": 3.684875
+      },
+      {
+        "first_watch_ms": 4.885833,
+        "require_ms": 0.294775,
+        "setup_ms": 3.68423,
+        "require_setup_ms": 3.979005,
+        "require_setup_cpu_ms": 3.967999999999999,
+        "processes": 0,
+        "setup_cpu_ms": 3.671999999999999
+      },
+      {
+        "setup_ms": 3.706195,
+        "require_setup_ms": 4.006669,
+        "require_setup_cpu_ms": 3.994999999999999,
+        "processes": 0,
+        "setup_cpu_ms": 3.693,
+        "first_watch_ms": 4.708917,
+        "require_ms": 0.300474
+      },
+      {
+        "require_setup_cpu_ms": 4.122,
+        "processes": 0,
+        "require_setup_ms": 4.139479,
+        "first_watch_ms": 4.859404,
+        "require_ms": 0.30347,
+        "setup_ms": 3.836009,
+        "setup_cpu_ms": 3.821
+      }
+    ]
+  }
+}

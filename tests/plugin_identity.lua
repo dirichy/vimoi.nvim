@@ -31,6 +31,7 @@ end
 require("vimoi.core.util").notify("test", "diff")
 vim.notify = original_notify
 assert(message == "vimoi diff: test")
+require("vimoi.editor.highlight").setup()
 assert(vim.tbl_contains(vim.treesitter.query.list_directives(), "vimoi-target-language!"))
 -- Plugin managers normally generate tags on installation; a clean checkout has none.
 local help_root = vim.fn.tempname()

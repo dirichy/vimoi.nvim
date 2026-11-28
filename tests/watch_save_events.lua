@@ -31,6 +31,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
   end,
 })
 require("vimoi.core.watch").setup({ source_root = source_root, config_path = config_path })
+require("vimoi.core.watch").start()
 vim.api.nvim_create_autocmd("BufWritePost", {
   callback = function()
     buffer_saves = buffer_saves + 1

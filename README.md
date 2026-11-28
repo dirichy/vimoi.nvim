@@ -52,7 +52,12 @@ opts = {
 }
 ```
 
-`setup()` does not run chezmoi. Source/target mappings are queried on the first
+On a blank startup, `setup()` keeps only configuration, file detection and command entries.
+Highlighting and rendering load when a template or an explicit operation needs them.
+File detection uses Neovim's native `ftdetect`; filename checks do not initialize highlighting.
+Setup does not run chezmoi or scan the source tree for watches.
+Watching starts on the first chezmoi command or shared-template lookup; manual cache invalidation
+still rescans watches. Source/target mappings are queried on the first
 cache miss, including when opening a source file, and reused until invalidated.
 The source directory defaults to `$XDG_DATA_HOME/chezmoi`, or `~/.local/share/chezmoi`.
 The config file defaults to `$XDG_CONFIG_HOME/chezmoi/chezmoi.toml`, or

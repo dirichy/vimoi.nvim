@@ -44,10 +44,12 @@ assert(vim.fn.exists(":VimoiReAdd") == 2)
 assert(vim.fn.exists(":VimoiPreview") == 2)
 assert(package.loaded["vimoi.editor.goto"] == nil)
 assert(package.loaded["vimoi.blink"] == nil)
-assert(package.loaded["vimoi.editor.highlight"] ~= nil)
+assert(package.loaded["vimoi.editor.highlight"] == nil)
+assert(package.loaded["vimoi.render"] == nil)
+assert(package.loaded["vimoi.core.job"] == nil)
 assert(package.loaded["vimoi.compare"] == nil)
 
-local groups = { "vimoi-cli-cache", "vimoi-highlight", "vimoi-buffers" }
+local groups = { "vimoi-buffers" }
 for _, group in ipairs(groups) do
   assert(#vim.api.nvim_get_autocmds({ group = group }) > 0, group .. " registered no autocommands")
 end

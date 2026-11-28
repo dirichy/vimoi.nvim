@@ -47,13 +47,17 @@ vimoi.nvim 提供符合 Neovim 使用习惯的 chezmoi 文件比较流程。用�
 
     { "dirichy/vimoi.nvim", lazy = false, opts = {} }
 <
-在 Neovim 配置中调用 `setup()`，注册命令、文件类型和自动事件： >lua
+在 Neovim 配置中调用 `setup()`，配置路径并注册命令与 buffer 入口： >lua
 
     require("vimoi").setup()
 <
 使用 lazy.nvim 时建议设置 `lazy = false, opts = {}`，在启动时注册 source 检测和命令。
-setup 只初始化本地状态，不运行 chezmoi。source/target 映射仅在缓存未命中时查询，
-包括打开 source 文件时，复用现有缓存。
+原生 ftdetect 注册文件类型；首个 gotmpl buffer 才加载高亮和自动渲染，显式操作按需
+加载各自模块。on_detect 会在 FileType 回调启动 Tree-sitter 前注册注入指令。
+setup 只初始化本地状态，不运行 chezmoi，也不为监听而遍历 source。首次执行 CLI 命令
+或查找共享模板目录时启动监听；手动清缓存同样会启动或重建监听。source/target 映射
+仅在缓存未命中时查询，包括打开 source 文件时，复用现有缓存。已有模板 buffer 的
+自动查询可能在 setup 期间启动监听。
 
 当前选项及默认值如下： >lua
 
@@ -648,13 +652,12 @@ LUA API                                                            *vimoi-api*
 
 `require("vimoi.api")` 包含供用户配置、映射和命令调用的操作。集成和调试用途的
 函数留在各自模块；发布前它们仍可能调整。
-`filetype` 统一负责文件名规则、文件类型注册及宿主语言识别，CLI 的 init 模板查询和
-diff 分流复用这些规则。顶层 setup 传入 source root；普通模板通过 CLI 路径缓存
-解析 target 名称，单纯的文件名分类不调用 CLI。
-ignore/remove 内容作为 destination patterns、symlink 内容作为链接目标的分类也在这里
-定义，供路径跳转和事件注册复用。
+`core/source` 集中 CLI、diff、跳转共享的文件名和 init 模板规则；原生 ftdetect
+预筛选候选路径，`editor/filetype` 校验 source-root 范围、提供 on_detect 并识别宿主类型。
+普通模板通过 CLI 路径缓存解析 target 名称，单纯文件名匹配不调用 CLI 或初始化高亮。
 `highlight` 统一负责模板颜色、buffer 高亮、宿主语言注入及 Vim syntax 回退。顶层
-setup 初始化 CLI 本地状态与 watch，不运行 chezmoi；CLI 负责按需查询缓存，包括共享模板目录的发现结果。
+setup 初始化 CLI 路径配置，不运行 chezmoi、不扫描目录；首次 CLI 命令或共享模板
+目录查询才加载、配置并启动监听。CLI 负责按需查询缓存，包括共享模板目录的发现结果。
 公开接口只包括 setup、下文列出的 vimoi.api 操作及 vimoi.blink / vimoi.conform 集成。
 其他模块、session 表及调试数据属于内部实现，不承诺稳定。diff、diff_files、diff_buffers 和 preview
 始终返回 nil，不返回 session；模板渲染异步完成。交互写回操作在等待渲染或选择时也会
@@ -884,7 +887,7 @@ source 模板和渲染结果须为合法 UTF-8 文本，不支持二进制输出
 `.chezmoi.jsonc.tmpl` 属于特例。它们会映射到 `.chezmoi.configFile`，并使用
 `execute-template --init` 渲染，因此可以使用 `prompt*Once` 等 init-only functions。
 
-缓存失效采用 best-effort 策略：监听配置目录、source root，以及 setup 或手动刷新时
+缓存失效采用 best-effort 策略：监听配置目录、source root，以及首次 CLI 命令/共享模板目录查询或手动刷新时
 发现的 data/模板目录和相关父目录，包含 `.chezmoitemplates` 的子目录；不持续跟踪整个
 source 树。新建或移动目录、文件系统
 不支持监听、静默丢事件或环境变量变化时，外部修改可能需要手动调用

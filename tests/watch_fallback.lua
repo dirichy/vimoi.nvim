@@ -52,6 +52,7 @@ local function setup_mode(mode, failure)
   package.loaded["vimoi.core.watch"] = nil
   local watch = require("vimoi.core.watch")
   watch.setup({ source_root = source_root, config_path = config_path, buffer_write_fallback = mode })
+  watch.start()
   return state, watch
 end
 

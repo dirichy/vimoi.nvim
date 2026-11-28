@@ -240,3 +240,85 @@ Neovim，禁用自动诊断与 rendered 高亮以隔离路径查询；无并行�
 计时不包含 Neovim 进程启动或屏幕绘制。主要收益是取消两个子进程及其等待，
 不是显著加速本地 CPU 计算；target-path 的按需行为与成本基本不变。fixture 的
 chezmoi 查询比真实用户配置更快，不能将这里的绝对时间等同于用户报告的 70ms。
+
+
+## watcher 的首次扫描
+
+`watch.setup()` 只保存固定配置与注册 BufWritePost 兜底，不遍历 source 或分配 fs_event。
+CLI 的 `run()` 和 `template_directories()` 在读取外部结果、填充缓存之前调用
+`watch.start()`。后者覆盖补全/跳转不运行 CLI 的共享模板目录查询；其他运行结果缓存
+都经由 run 填充，无须在每个缓存调用方重复管理监听。
+
+是否已启动由 watch 自己持有，首次 start 复用原有 refresh；直接手动 refresh 也标记
+已启动，避免下一次查询重复扫描。所有 watcher 分配失败时仍视为已尝试启动，保留原有
+BufWritePost 兜底与手动 refresh 重试，不在每次查询时重试整棵树。无配置时的 start
+不消耗首次启动机会，供内部模块独立测试和先于 setup 的纯查询使用。
+
+扫描没有消失，而是从空白启动转移到首次实际使用；首轮查询按当前文件系统建立缓存，
+因此 setup 后、首次使用前新增或修改的依赖不会被旧的缓存遮盖。
+
+
+2026-11-28 实测使用同一真实 source 目录（非小 fixture），每版 15 个独立 headless
+Neovim，固定 CPU、交替顺序，使用默认选项，测量期间无并行测试/LSP 检查。
+[原始记录与脚本](benchmarks/watch-startup-2026-11-28.json)中的中位数如下，单位 ms：
+
+| 范围 | 修改前 | 修改后 |
+| --- | ---: | ---: |
+| 空白 require + setup wall | 9.12 | 4.00 |
+| setup wall | 8.81 | 3.68 |
+| setup 本地 CPU | 8.78 | 3.67 |
+| setup 后首次 watch.start wall | 已在 setup 扫描 | 4.70 |
+
+两版均未启动 chezmoi。计时不包含 Neovim 进程启动或屏幕绘制；末行单独调用内部
+watch.start 隔离扫描耗时，不是完整命令的端到端耗时。总扫描工作没有消失，只是
+推迟到了真正使用插件时。本次 121 项测试通过，保留真实 Neovim library 的 LSP
+全诊断检查仅有基线已有的两条 warning，无新增诊断。
+
+## 功能模块按需加载
+
+在上面的 watcher 延迟扫描版本上，继续只移动现有入口、删除重复注册；没有增加通用
+loader、代理模块或全局初始化状态。启动保留 7 个模块（含 `vimoi` 本身）：配置、CLI
+固定路径/缓存所有者、文件名规则、工具、文件类型入口、buffer 入口和命令/API 入口。
+CLI 仍统一持有固定路径与缓存，不为了省下这部分很小的模块解析再拆配置层。
+
+- 文件类型注册只走原生 `ftdetect/vimoi.lua`。其后缀/chezmoi 路径预筛选覆盖现有模板
+  规则，最终判断仍由 core/source 提供；删除 editor/filetype 中重复的注册表和
+  vim.filetype.add，避免 setup 提前加载 Neovim filetype 大表。
+- detect 只返回类型和 on_detect，不因文件名匹配初始化高亮。原生 on_detect 在
+  FileType 前执行 highlight.setup，保证更早注册的用户 FileType 回调也能解析注入
+  query。高亮初始化复用 once，首次使用前已定义的用户颜色不被默认值覆盖。
+- lazyload 的同一个 attach_template 同时处理 FileType 和 setup 前已存在的 gotmpl
+  buffer，不重放事件。仅在自动诊断或 rendered 高亮开启时加载 render；显式 diff/
+  preview 等入口继续自己 require 所需模块。
+- render 首次加载时注册事件并接管已有 gotmpl buffer。每次建立自动订阅时从最终
+  配置取开关，避免其他集成提前 require 时捕获默认配置。不再无条件加载
+  host_highlight/source_map，只有需要发布渲染高亮时才加载。
+- job 移到 CLI.run 内 require；watch 在首次命令/共享模板目录查询时加载，由 refresh
+  使用 CLI 的固定路径和最终 watch 选项完成自身配置、兜底注册与首次扫描。
+
+相对本轮开始的延迟 watcher 版本，生产 Lua 代码增加 58 行、删除 58 行，净增 0 行
+（包括空行、注释、类型，不计测试和文档）。主要新增行用于复用 attach_template、
+保留晚配置已有 buffer 的行为，以及确保原生 on_detect 的执行顺序。
+
+独立性能对照使用同一 CPU，每版每种情况 15 个独立 Neovim 进程，交替运行；使用默认
+功能选项，测量期间无并行测试/LSP 检查。首次 source 用同一隔离 fixture、配置与
+目的目录，等待高亮配置及自动渲染 map 发布。基线为本轮开始的 watcher 延迟版本，
+Lua 补丁、测量脚本和样本见 [JSON](benchmarks/lazy-startup-2026-11-28.json)。
+中位数如下，单位 ms：
+
+| 范围 | 修改前 | 修改后 |
+| --- | ---: | ---: |
+| 空白 require + setup，原生 filetype 未加载 | 3.96 | 0.84 |
+| 同范围本地 CPU | 3.95 | 0.84 |
+| 空白 require + setup，原生 filetype 已启用 | 2.95 | 0.76 |
+| 首次打开 source 至自动渲染 map 发布 | 31.31 | 32.82 |
+
+两版空白启动均没有 chezmoi 进程；首次 source 均运行 3 个进程。计时不含整个 Neovim
+进程启动或屏幕绘制，不能等同于编辑器整体启动时间。收益是把未使用的功能从启动
+路径移走，首次使用略慢，没有声称渲染算法本身变快。
+
+最终验证：123/123 项 Lua 测试通过；保留真实 Neovim library 与全部诊断的 Lua LSP
+检查仍只有此前已有的 return-type-mismatch 和 different-requires 两条 warning，无新增
+诊断。新增测试覆盖未使用模块保持 unloaded、原生 on_detect 先于更早注册的用户
+FileType parser、用户提前设置的高亮被保留，以及晚 setup 接管已有 gotmpl buffer
+且不重复触发 FileType。

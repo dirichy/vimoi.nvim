@@ -21,25 +21,32 @@ end
 M.setup = require("vimoi.core.util").once(function()
   local group = vim.api.nvim_create_augroup("vimoi-buffers", { clear = true })
 
+  local function attach_template(buf)
+    require("vimoi.editor.highlight").setup()
+    local config = require("vimoi").config
+    if config.diagnostics.enabled or config.highlight.mode == "rendered" then
+      require("vimoi.render")
+    end
+    attach_goto_keymaps(buf)
+    -- Syntax handlers may run later in this FileType event.
+    vim.schedule(function()
+      if
+        vim.api.nvim_buf_is_valid(buf)
+        and vim.bo[buf].filetype == "gotmpl"
+        and not vim.b[buf].vimoi_template_configured
+      then
+        require("vimoi.editor.highlight").configure_template_buffer(
+          buf,
+          require("vimoi.editor.filetype").host_filetype(vim.api.nvim_buf_get_name(buf), buf)
+        )
+      end
+    end)
+  end
   vim.api.nvim_create_autocmd("FileType", {
     group = group,
     pattern = "gotmpl",
     callback = function(args)
-      local buf = args.buf
-      attach_goto_keymaps(buf)
-      -- Syntax handlers may run later in this FileType event.
-      vim.schedule(function()
-        if
-          vim.api.nvim_buf_is_valid(buf)
-          and vim.bo[buf].filetype == "gotmpl"
-          and not vim.b[buf].vimoi_template_configured
-        then
-          require("vimoi.editor.highlight").configure_template_buffer(
-            buf,
-            require("vimoi.editor.filetype").host_filetype(vim.api.nvim_buf_get_name(buf), buf)
-          )
-        end
-      end)
+      attach_template(args.buf)
     end,
   })
 
@@ -51,6 +58,11 @@ M.setup = require("vimoi.core.util").once(function()
       attach_goto_keymaps(args.buf)
     end,
   })
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].filetype == "gotmpl" then
+      attach_template(buf)
+    end
+  end
 end)
 
 return M

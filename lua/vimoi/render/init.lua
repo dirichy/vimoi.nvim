@@ -50,7 +50,6 @@ local cli = require("vimoi.core.cli")
 
 ---@type table<integer, VimoiSourceSession>
 local buffers = {}
-local diagnostics_enabled, rendered_enabled
 
 ---@param source integer
 ---@return VimoiSourceSession
@@ -611,6 +610,9 @@ local function detach_automatic(source, state)
 end
 
 local function update_automatic(source)
+  local config = require("vimoi").config
+  local diagnostics_enabled = config.diagnostics.enabled
+  local rendered_enabled = config.highlight.mode == "rendered"
   if (diagnostics_enabled or rendered_enabled) and vim.bo[source].filetype == "gotmpl" then
     local state = M.get(source)
     if state.automatic then
@@ -629,21 +631,6 @@ local function update_automatic(source)
     end)
   elseif buffers[source] then
     detach_automatic(source, buffers[source])
-  end
-end
-
----Attach automatic consumers using the fixed setup configuration.
-function M.setup()
-  local config = require("vimoi").config
-  diagnostics_enabled = config.diagnostics.enabled
-  rendered_enabled = config.highlight.mode == "rendered"
-  if rendered_enabled then
-    require("vimoi.editor.host_highlight")
-  end
-  for _, source in ipairs(api.nvim_list_bufs()) do
-    if api.nvim_buf_is_loaded(source) then
-      update_automatic(source)
-    end
   end
 end
 
@@ -721,5 +708,12 @@ api.nvim_create_autocmd("BufUnload", {
     end
   end,
 })
+
+-- The first FileType/explicit view may load this module after buffers already exist.
+for _, source in ipairs(api.nvim_list_bufs()) do
+  if api.nvim_buf_is_loaded(source) then
+    update_automatic(source)
+  end
+end
 
 return M

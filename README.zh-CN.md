@@ -50,8 +50,11 @@ opts = {
 }
 ```
 
-`setup()` 本身不运行 chezmoi。source/target 映射在首次缓存未命中时查询（包括打开
-source 文件时），此后复用，直到缓存失效。source 目录默认取 `$XDG_DATA_HOME/chezmoi`，
+空白启动只保留配置、文件检测与命令入口；打开模板或执行相关操作时再加载高亮、渲染等功能。
+文件检测沿用 Neovim 原生 `ftdetect`，单纯匹配文件名不初始化高亮。`setup()` 本身不运行
+chezmoi，也不为建立监听而扫描 source；首次执行 chezmoi 命令
+或查找共享模板时才启动监听，手动清缓存仍会重新扫描监听目录。source/target 映射在首次
+缓存未命中时查询（包括打开 source 文件时），此后复用，直到缓存失效。source 目录默认取 `$XDG_DATA_HOME/chezmoi`，
 配置文件默认取 `$XDG_CONFIG_HOME/chezmoi/chezmoi.toml`；对应的 XDG 变量未设置或为空时，
 分别使用 `~/.local/share/chezmoi` 和 `~/.config/chezmoi/chezmoi.toml`。
 自定义路径或使用 YAML/JSON 配置时，请显式填写 `chezmoi_source_dir` 和
